@@ -39,7 +39,7 @@ near-instant and any published result is exactly reproducible.
 
 | Stage | Name | Output |
 |---|---|---|
-| L0 | ingest | `Activity` — 1 Hz `Sample[]`, `BlindWindow[]`, device/session metadata |
+| L0 | ingest | `Activity` — 1 Hz `Sample[]`, `BlindWindow[]`, device/session metadata. Samples cached as Parquet; metadata and windows in SQLite |
 | L1 | kinematics | Kalman + RTS-smoothed position/velocity, per-sample confidence |
 | L2 | frame | shore bearing → cross-shore / alongshore coordinates |
 | L3 | candidates | high-recall interval proposals |
@@ -76,6 +76,7 @@ A `Sample` without a position is still a valid sample: it carries HR, time and b
 | Source of truth | **FIT** primary; GPX/TCX degraded | ADR-0002 |
 | Database | **SQLite** + Parquet stage cache | ADR-0004 — local-first, zero-ops, one file to back up |
 | Deploy | **localhost only**, Docker Compose for reproducibility | no cloud, no auth surface |
+| Upload shape | `POST /activities` takes the **raw file bytes as the body**, not multipart | multipart would add `python-multipart` for no gain: the format is detected from content, so the filename is cosmetic. `curl --data-binary @file` |
 | External | Open-Meteo Marine (keyless), MapTiler free tier | $0 stack rule |
 | Error tracking | **local** — bounded buffer + `/diagnostics/*` | ADR-0007, no SaaS |
 | Logging | structlog → stdout + `data/logs/api.jsonl` | ADR-0007 |
