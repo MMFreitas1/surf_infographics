@@ -14,10 +14,11 @@ from pydantic import BaseModel, Field
 from surf import __version__
 from surf.config import Settings, get_settings
 from surf.diagnostics import ErrorBuffer
-from surf.ingest import IngestError, parse_activity, source_digest
+from surf.ingest import IngestError, source_digest
+from surf.ingest.stage import IngestStage
 from surf.logging import configure_logging, get_logger
 from surf.models import Activity, ActivitySummary
-from surf.pipeline import StageCache
+from surf.pipeline import StageCache, run_stage
 from surf.store import ActivityRepository
 
 log = get_logger(__name__)
@@ -39,7 +40,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     configure_logging(settings.log_level, settings.log_file)
     settings.cache_dir.mkdir(parents=True, exist_ok=True)
-    app.state.activities = ActivityRepository(settings.db_path, StageCache(settings.cache_dir))
+    app.state.cache = StageCache(settings.cache_dir)
+    app.state.activities = ActivityRepository(settings.db_path, app.state.cache)
     log.info(
         "api.startup",
         version=__version__,
@@ -109,12 +111,25 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 log.info("activity.already_ingested", activity_id=existing)
                 return stored
 
+        # L0 runs through the pipeline runner, so an ingest is cached and replayed on
+        # exactly the terms every later stage is: key, hit, or do the work and store it.
         try:
-            activity = parse_activity(data, source_file=filename)
+            result = run_stage(
+                IngestStage(source_file=filename),
+                request.app.state.cache,
+                input_hash=digest,
+                data=data,
+            )
         except IngestError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
-        repo.save(activity, source_sha256=digest, ingested_at=time.time())
+        activity = result.output
+        repo.save(
+            activity,
+            source_sha256=digest,
+            samples_key=result.key,
+            ingested_at=time.time(),
+        )
         log.info(
             "activity.ingested",
             activity_id=activity.activity_id,
@@ -123,6 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             samples=len(activity.samples),
             position_coverage=round(activity.position_coverage, 4),
             blind_seconds=activity.blind_seconds,
+            from_cache=result.cached,
         )
         return activity
 

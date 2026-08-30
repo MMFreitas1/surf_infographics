@@ -10,9 +10,9 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1 complete** — ingest, storage, REST |
-| **Next** | Phase 2 — kinematics: Kalman + RTS smoother, blind windows, propagated confidence |
-| **Health** | `make check` → 163 tests green (123 api · 16 web · 24 evals); 10 api tests skip without `sample_data/` |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1 complete** — ingest, storage, REST · **Phase 2 groundwork** — pipeline spine, L0 is a real `Stage` |
+| **Next** | Phase 2 — the kinematics themselves: Kalman + RTS smoother, blind windows, propagated confidence |
+| **Health** | `make check` → 174 tests green (134 api · 16 web · 24 evals); 11 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
 **Orient in three commands:**
@@ -200,19 +200,31 @@ absences to be discovered. Do not re-derive them.
 
 Phase 2 is the first phase that must implement `Stage`, and that abstraction has never run.
 
-- [ ] **Pipeline spine.** `Stage` has **no implementations**. Phase 0 defined the protocol
-      L1–L6 are meant to hang off; `test_cache.py` exercises `StageCache` with `b"payload"`
-      literals, and ingest writes under the name `"L0"` without going *through* the
-      abstraction. Make L0 a real `Stage`, then add one spine test: a real file through L0,
-      asserting cache **miss → hit** and that a changed param changes the key. Extend the
-      same assertions to L1 as it lands, so "does data actually flow end to end" stays a
-      single test rather than a per-phase argument.
-- [ ] **Move stage identity out of storage.** `SAMPLES_STAGE = "L0"` and
-      `INGEST_CODE_VERSION` live in `api/src/surf/store/repo.py` today. A stage's identity
-      belongs to the pipeline, not to the thing that persists its output — otherwise L1
-      copies the pattern instead of inheriting it.
+- [x] **Pipeline spine.** ✅ PR #14 — `surf.pipeline.run_stage` is the one door every stage
+      goes through (key → hit, or run and store), and `surf.ingest.stage.IngestStage` is L0
+      behind it. `tests/test_pipeline_spine.py` runs a built FIT *and* the reference session
+      through it and asserts miss → hit, an identical payload round-trip, and a changed param
+      landing in a different entry. The hit is proved by handing the second call bytes that
+      are not an activity: if the runner re-parsed, it would raise. Add L1 to that file
+      rather than giving it a spine argument of its own.
+- [x] **Move stage identity out of storage.** ✅ PR #14 — `SAMPLES_STAGE` and
+      `INGEST_CODE_VERSION` are gone from `store/repo.py`, along with the Parquet codec.
+      Name, code version, params and serialisation now live on the stage; `repo.save` is
+      handed the key its payload landed under and only indexes it.
 
-### Then the kinematics
+**Two things that changed and are worth knowing before writing L1:**
+
+1. **A stage owns its serialisation, and its payload is self-describing.** `Stage` gained
+   `encode`/`decode`, and the L0 payload carries the session — id, sport, fidelity, device,
+   blind windows — in the Parquet file metadata alongside the sample columns. A cache hit
+   must return exactly what a run returns, so decoding cannot depend on a SQLite row a
+   cache-only re-run may not have. L1's payload has to hold to the same rule.
+2. **L0 has a real param: `gap_tolerance`.** It was a module constant in `ingest/blind.py`,
+   so changing it would have silently reused windows drawn under the old rule. It is now
+   threaded through the parsers and lives in L0's cache key. L1's noise parameters belong
+   in its key for the same reason.
+
+### Then the kinematics — start here
 
 - [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003)
 - [ ] Confidence per sample, driven by fix availability and innovation — not a constant

@@ -15,7 +15,7 @@ from __future__ import annotations
 import re
 from xml.etree.ElementTree import Element, ParseError, fromstring
 
-from surf.ingest.blind import derive_blind_windows
+from surf.ingest.blind import GAP_TOLERANCE, derive_blind_windows
 from surf.ingest.errors import IngestError
 from surf.ingest.xml_common import (
     first_local,
@@ -87,7 +87,9 @@ def _start_time(root: Element, samples: list[Sample]) -> float:
     return samples[0].t
 
 
-def parse_gpx(data: bytes, source_file: str = "") -> Activity:
+def parse_gpx(
+    data: bytes, source_file: str = "", *, gap_tolerance: float = GAP_TOLERANCE
+) -> Activity:
     """Parse a GPX track into the canonical Activity, tagged as degraded fidelity."""
     try:
         root = fromstring(data)  # local, first-party files only
@@ -113,7 +115,7 @@ def parse_gpx(data: bytes, source_file: str = "") -> Activity:
         start_time=start,
         fidelity=Fidelity.GPX,
         samples=samples,
-        blind_windows=derive_blind_windows(samples),
+        blind_windows=derive_blind_windows(samples, gap_tolerance=gap_tolerance),
         device="",  # the file names its exporter, not the watch. We do not conflate them.
         source_file=source_file,
     )

@@ -70,7 +70,10 @@ def blind_from_missing_positions(
 
 
 def blind_from_time_gaps(
-    samples: Sequence[Sample], *, interval_s: float | None = None
+    samples: Sequence[Sample],
+    *,
+    interval_s: float | None = None,
+    gap_tolerance: float = GAP_TOLERANCE,
 ) -> list[BlindWindow]:
     """Windows where no record was written at all.
 
@@ -80,7 +83,7 @@ def blind_from_time_gaps(
     interval = nominal_interval(samples) if interval_s is None else interval_s
     windows: list[BlindWindow] = []
     for earlier, later in pairwise(samples):
-        if later.t - earlier.t > interval * GAP_TOLERANCE:
+        if later.t - earlier.t > interval * gap_tolerance:
             windows.append(
                 BlindWindow(
                     t_start=earlier.t + interval,
@@ -91,14 +94,20 @@ def blind_from_time_gaps(
     return windows
 
 
-def derive_blind_windows(samples: Sequence[Sample]) -> list[BlindWindow]:
+def derive_blind_windows(
+    samples: Sequence[Sample], *, gap_tolerance: float = GAP_TOLERANCE
+) -> list[BlindWindow]:
     """Every window with no usable position, from both causes, in time order.
 
     Both derivations run for every fidelity: a FIT can still contain a gap where the device
     stopped logging, and a TCX can contain a trackpoint with no position.
+
+    ``gap_tolerance`` travels with the caller rather than being read from the module, so
+    that L0 can put it in its cache key: a window drawn under one rule must not be served
+    from a payload written under another.
     """
     interval = nominal_interval(samples)
     windows = blind_from_missing_positions(samples, interval_s=interval)
-    windows += blind_from_time_gaps(samples, interval_s=interval)
+    windows += blind_from_time_gaps(samples, interval_s=interval, gap_tolerance=gap_tolerance)
     windows.sort(key=lambda window: window.t_start)
     return windows

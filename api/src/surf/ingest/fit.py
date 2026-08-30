@@ -21,7 +21,7 @@ import struct
 from dataclasses import dataclass
 from typing import Any, Final
 
-from surf.ingest.blind import derive_blind_windows
+from surf.ingest.blind import GAP_TOLERANCE, derive_blind_windows
 from surf.ingest.errors import IngestError
 from surf.models import Activity, Fidelity, Sample
 from surf.pipeline import content_hash
@@ -422,7 +422,9 @@ def _start_time(file_id: dict[int, Any], session: dict[int, Any], samples: list[
     return samples[0].t if samples else 0.0
 
 
-def parse_fit(data: bytes, source_file: str = "") -> Activity:
+def parse_fit(
+    data: bytes, source_file: str = "", *, gap_tolerance: float = GAP_TOLERANCE
+) -> Activity:
     """Decode a FIT activity into the canonical :class:`Activity`."""
     messages = decode_messages(data)
     records = messages.get(MSG_RECORD, [])
@@ -444,7 +446,7 @@ def parse_fit(data: bytes, source_file: str = "") -> Activity:
         start_time=_start_time(file_id, session, samples),
         fidelity=Fidelity.FIT,
         samples=samples,
-        blind_windows=derive_blind_windows(samples),
+        blind_windows=derive_blind_windows(samples, gap_tolerance=gap_tolerance),
         device=_device_name(file_id),
         source_file=source_file,
     )

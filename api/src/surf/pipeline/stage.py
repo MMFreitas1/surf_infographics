@@ -16,11 +16,17 @@ class StageMeta:
 
 
 @runtime_checkable
-class Stage(Protocol):
-    """A pure transformation `f(input, params) -> output`.
+class Stage[Out](Protocol):
+    """A pure transformation `f(input, params) -> output`, and how to store the result.
 
     Implementations must be deterministic: the same input and params must always
     produce the same output, with no reliance on wall-clock time, network or randomness.
+
+    ``encode`` and ``decode`` must round-trip. A cached payload stands in for running the
+    stage, so decoding one has to yield what a run would have yielded -- otherwise the
+    cache stops being an optimisation and becomes a second, quietly different answer.
+    That is also why a payload has to be self-describing: decoding must not depend on a
+    database row that a cache-only re-run may not have.
     """
 
     @property
@@ -28,6 +34,14 @@ class Stage(Protocol):
         """Stage identity."""
         ...
 
-    def run(self, data: Any) -> Any:
+    def run(self, data: Any) -> Out:
         """Transform the input."""
+        ...
+
+    def encode(self, output: Out) -> bytes:
+        """Serialise an output for the cache."""
+        ...
+
+    def decode(self, payload: bytes) -> Out:
+        """Rebuild the output ``encode`` wrote."""
         ...
