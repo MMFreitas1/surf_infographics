@@ -23,6 +23,16 @@
     "max_speed_ms": 7.954511,
     "mean_speed_ms": 0.66656
   },
+  "frame": {
+    "_note": "L2's shore frame on the reference session. The generator puts the shore due east, so true_bearing_deg is the answer the estimator has to find. max_error_deg is the tolerance this stage claims; the pinned bearing catches drift far below it.",
+    "true_bearing_deg": 90.0,
+    "max_error_deg": 5.0,
+    "shore_bearing_deg": 89.492024,
+    "coherence": 0.951679,
+    "effective_seconds": 34.45008,
+    "contributing_seconds": 1807,
+    "reliable": true
+  },
   "truth_intervals": [
     {
       "t_start": 145.0,

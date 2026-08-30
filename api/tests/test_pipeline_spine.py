@@ -10,9 +10,9 @@ whole content-addressed design rests on:
 * changing a param that changes the output changes the key, so a stale payload can never
   be served under a new rule.
 
-L1 is here too, chained off L0's key rather than run in isolation, so that invalidation
-propagating *down* the chain is also a thing one test can prove. Later stages join the same
-file rather than getting a spine argument of their own.
+L1 and L2 are here too, each chained off the key below it rather than run in isolation,
+so that invalidation propagating *down* the chain is also a thing one test can prove.
+Later stages join the same file rather than getting a spine argument of their own.
 """
 
 import json
@@ -42,6 +42,7 @@ from surf.ingest.stage import (
 from surf.models import BlindCause, Sample
 from surf.pipeline import Stage, StageCache, StageMeta, run_stage, stage_key
 from surf.pipeline.l1 import KinematicsStage
+from surf.pipeline.l2 import FrameStage
 
 NOT_AN_ACTIVITY = b"this is not a FIT file and parsing it would raise"
 """Handed to a stage that must not run. A cache hit is proved by this never being parsed."""
@@ -307,3 +308,80 @@ def test_changing_an_l0_param_invalidates_l1_too(tmp_path):
 
     assert on_strict.key != on_loose.key
     assert on_loose.cached is False, "L1 must not serve a track built from other samples"
+
+
+# --------------------------------------------------------------- L1 -> L2, as a chain
+
+
+def smooth_into(cache, *, ingested, **params: float):
+    """Run L1 off an L0 result and hand back what L2 needs: the output and its key."""
+    return run_stage(
+        KinematicsStage(**params), cache, input_hash=ingested.key, data=ingested.output
+    )
+
+
+def test_l2_runs_off_l1s_output_and_the_second_pass_never_re_estimates(tmp_path):
+    cache = StageCache(tmp_path)
+    smoothed = smooth_into(cache, ingested=ingest_into(cache))
+    stage = FrameStage()
+
+    first = run_stage(stage, cache, input_hash=smoothed.key, data=smoothed.output)
+    second = run_stage(stage, cache, input_hash=smoothed.key, data=Exploded())
+
+    assert first.cached is False
+    assert second.cached is True
+    assert [f.model_dump() for f in second.output.samples] == [
+        f.model_dump() for f in first.output.samples
+    ]
+
+
+def test_a_cache_hit_returns_the_frame_and_not_just_the_rows(tmp_path):
+    """L2's output is a frame *and* a track, and the frame lives in file metadata.
+
+    That is the part a columnar round-trip is most likely to quietly drop, and dropping it
+    would leave a cached session with a default bearing that reads exactly like a measured
+    one.
+    """
+    cache = StageCache(tmp_path)
+    smoothed = smooth_into(cache, ingested=ingest_into(cache))
+    stage = FrameStage()
+
+    first = run_stage(stage, cache, input_hash=smoothed.key, data=smoothed.output)
+    second = run_stage(stage, cache, input_hash=smoothed.key, data=Exploded())
+
+    assert second.output.frame == first.output.frame
+
+
+def test_an_l2_param_lands_in_a_different_entry(tmp_path):
+    cache = StageCache(tmp_path)
+    smoothed = smooth_into(cache, ingested=ingest_into(cache))
+
+    gentle = run_stage(
+        FrameStage(speed_exponent=2.0), cache, input_hash=smoothed.key, data=smoothed.output
+    )
+    steep = run_stage(
+        FrameStage(speed_exponent=6.0), cache, input_hash=smoothed.key, data=smoothed.output
+    )
+
+    assert gentle.key != steep.key
+    assert steep.cached is False
+
+
+def test_changing_an_l0_param_invalidates_l2_two_links_down(tmp_path):
+    """The chain has to carry invalidation the whole way, not just one link.
+
+    L2 is keyed on L1's key, which is keyed on L0's. Move the gap tolerance and the frame
+    has to move with it, even though nothing in L1 or L2 changed.
+    """
+    cache = StageCache(tmp_path)
+    stage = FrameStage()
+
+    strict = smooth_into(cache, ingested=ingest_into(cache, gap_tolerance=1.5))
+    loose = smooth_into(cache, ingested=ingest_into(cache, gap_tolerance=10.0))
+    assert strict.key != loose.key
+
+    on_strict = run_stage(stage, cache, input_hash=strict.key, data=strict.output)
+    on_loose = run_stage(stage, cache, input_hash=loose.key, data=loose.output)
+
+    assert on_strict.key != on_loose.key
+    assert on_loose.cached is False, "L2 must not serve a frame built from another track"

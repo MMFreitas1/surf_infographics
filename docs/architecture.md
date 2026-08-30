@@ -46,7 +46,7 @@ may not have.
 |---|---|---|
 | L0 | ingest | `Activity` — 1 Hz `Sample[]`, `BlindWindow[]`, device/session metadata. Cached as one Parquet payload: samples as columns, session and windows as file metadata. SQLite indexes the same facts so they can be queried |
 | L1 | kinematics | `SmoothedSample[]` — Kalman + RTS-smoothed position/velocity, posterior sigma and confidence per second, `observed` marking fix from estimate. A parallel track, never an overwrite (ADR-0010) |
-| L2 | frame | shore bearing → cross-shore / alongshore coordinates |
+| L2 | frame | `SessionFrame` + `FramedSample[]` — shore bearing from a speed-weighted sum of headings, then position and velocity rotated into cross-shore / alongshore. The frame carries its own reliability: `coherence` and a Kish effective sample size, both of which must clear a threshold before the bearing is trusted (ADR-0011) |
 | L3 | candidates | high-recall interval proposals |
 | L4 | features | ~30 features per candidate |
 | L5 | classify | rules → GBM → LLM adjudicates the 0.15–0.85 band only |
