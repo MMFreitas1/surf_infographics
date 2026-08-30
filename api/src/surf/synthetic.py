@@ -1,5 +1,10 @@
 """Synthetic surf sessions with exactly known ground truth.
 
+Two kinds of truth come out of here, and they answer different questions. ``truth`` is the
+list of intervals that are genuinely rides -- what a *detector* is scored against.
+``true_track`` is the noiseless position and velocity per second, before dropout and GPS
+noise -- what a *smoother* is scored against.
+
 Why this exists: the detector needs something to be measured against before human labels
 exist, and we deliberately take no dependency on any third-party app's output (ADR-0008).
 A generated session gives exact truth, contains no personal location data, and is
@@ -48,11 +53,42 @@ class SyntheticParams:
 
 
 @dataclass(frozen=True)
+class TrueState:
+    """One second of the noiseless state the generator integrated.
+
+    This is the track *before* dropout and GPS noise were applied -- what a perfect
+    smoother would recover. Exposing it is what makes L1 measurable: without it there is
+    nothing to compare a recovered track against, and "the smoother works" stays an
+    eyeball claim.
+    """
+
+    t: float
+    x_m: float
+    """Metres east of the origin. Shore lies to the east, so rides travel in +x."""
+    y_m: float
+    """Metres north of the origin."""
+    vx_ms: float
+    vy_ms: float
+
+    @property
+    def speed_ms(self) -> float:
+        """True ground speed, the value a positioned sample records."""
+        return math.hypot(self.vx_ms, self.vy_ms)
+
+    @property
+    def lat_lon(self) -> tuple[float, float]:
+        """The same point in degrees, for comparing against a sample directly."""
+        return _to_latlon(self.x_m, self.y_m)
+
+
+@dataclass(frozen=True)
 class SyntheticSession:
-    """A generated session plus the intervals that are genuinely rides."""
+    """A generated session, the intervals that are genuinely rides, and the true track."""
 
     activity: Activity
     truth: list[Interval] = field(default_factory=list)
+    true_track: list[TrueState] = field(default_factory=list)
+    """The noiseless state per second, index-aligned with ``activity.samples``."""
 
     @property
     def wave_count(self) -> int:
@@ -103,6 +139,7 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
     # -- integrate to positions, apply dropout and noise ---------------------------
     samples: list[Sample] = []
     blind: list[BlindWindow] = []
+    true_track: list[TrueState] = []
     x = y = 0.0
     has_fix = True
     gap_start: float | None = None
@@ -114,6 +151,9 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
     for t, (vx, vy) in enumerate(velocities):
         x += vx
         y += vy
+        # Recorded before any noise or dropout, and drawing no random numbers: the golden
+        # depends on the RNG sequence, so anything added here must not consume from it.
+        true_track.append(TrueState(t=float(t), x_m=x, y_m=y, vx_ms=vx, vy_ms=vy))
 
         has_fix = rng.random() >= p.p_lose_fix if has_fix else rng.random() < p.p_regain_fix
 
@@ -163,4 +203,5 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
     return SyntheticSession(
         activity=activity,
         truth=[Interval(float(a), float(b)) for a, b in truth_spans],
+        true_track=true_track,
     )
