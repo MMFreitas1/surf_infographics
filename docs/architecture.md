@@ -37,9 +37,14 @@ Every stage is a pure function `f(input, params) -> output`, cached on
 `sha256(input_hash, params, code_version)`. Re-running after a parameter tweak is
 near-instant and any published result is exactly reproducible.
 
+A stage also owns how its output is serialised, and every stage runs through one door --
+`surf.pipeline.run_stage`. A cached payload therefore stands in for running the stage: it
+is self-describing, so decoding one never depends on a database row a cache-only re-run
+may not have.
+
 | Stage | Name | Output |
 |---|---|---|
-| L0 | ingest | `Activity` — 1 Hz `Sample[]`, `BlindWindow[]`, device/session metadata. Samples cached as Parquet; metadata and windows in SQLite |
+| L0 | ingest | `Activity` — 1 Hz `Sample[]`, `BlindWindow[]`, device/session metadata. Cached as one Parquet payload: samples as columns, session and windows as file metadata. SQLite indexes the same facts so they can be queried |
 | L1 | kinematics | Kalman + RTS-smoothed position/velocity, per-sample confidence |
 | L2 | frame | shore bearing → cross-shore / alongshore coordinates |
 | L3 | candidates | high-recall interval proposals |

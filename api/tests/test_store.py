@@ -1,29 +1,42 @@
-"""Persistence: SQLite metadata plus Parquet samples.
+"""Persistence: SQLite metadata, indexing a payload the pipeline wrote.
 
-The load-bearing assertion here is that an absent measurement survives storage as ``None``.
-Parquet has a null, and we use it: writing 0.0 for a sample with no fix would turn "we could
-not see" into "the surfer was at the equator, stationary", and every coverage number
-downstream would quietly become a lie.
+The store no longer serialises samples on the caller's behalf -- that belongs to the L0
+stage (see `test_pipeline_spine.py`). What is tested here is the other half: that a row
+and its cached payload come back as the session that went in, that blind windows survive
+as first-class rows, and that a missing payload is an error rather than a session
+reported as empty.
 """
 
 import pytest
 
+from surf.ingest.stage import IngestStage
 from surf.models import Activity, BlindCause, BlindWindow, Fidelity, Sample
-from surf.pipeline import StageCache
-from surf.store import (
-    SCHEMA_VERSION,
-    ActivityRepository,
-    StoreError,
-    samples_from_parquet,
-    samples_to_parquet,
-)
+from surf.pipeline import StageCache, stage_key
+from surf.store import SCHEMA_VERSION, ActivityRepository, StoreError
 
 
 @pytest.fixture
-def repo(tmp_path):
-    store = ActivityRepository(tmp_path / "surf.db", StageCache(tmp_path / "cache"))
+def cache(tmp_path):
+    return StageCache(tmp_path / "cache")
+
+
+@pytest.fixture
+def repo(tmp_path, cache):
+    store = ActivityRepository(tmp_path / "surf.db", cache)
     yield store
     store.close()
+
+
+def store(repo, cache, activity, *, digest="d" * 64, ingested_at=1.0):
+    """Persist an activity the way the ingest path does.
+
+    The pipeline writes the L0 payload; the repository records the key it landed under.
+    Both halves have to happen, which is exactly the point of splitting them.
+    """
+    stage = IngestStage()
+    key = stage_key(stage, cache, digest)
+    cache.put(stage.meta.name, key, stage.encode(activity))
+    return repo.save(activity, source_sha256=digest, samples_key=key, ingested_at=ingested_at)
 
 
 def make_activity(activity_id="a1", samples=None, windows=None):
@@ -52,40 +65,20 @@ def test_schema_version_is_stamped(repo):
     assert repo.schema_version == SCHEMA_VERSION
 
 
-def test_absent_measurements_round_trip_as_none_not_zero():
-    """The invariant this whole module exists to protect."""
-    samples = [Sample(t=0.0, lat=10.0, lon=20.0, speed_ms=0.0), Sample(t=1.0)]
-    restored = samples_from_parquet(samples_to_parquet(samples))
-
-    assert restored[0].speed_ms == 0.0  # a real, measured zero survives as zero
-    assert restored[1].lat is None
-    assert restored[1].lon is None
-    assert restored[1].speed_ms is None  # and an absence survives as an absence
-    assert restored[1].hr_bpm is None
-    assert restored[1].has_position is False
-
-
-def test_parquet_round_trip_is_exact():
-    samples = make_activity().samples
-    assert [s.model_dump() for s in samples_from_parquet(samples_to_parquet(samples))] == [
-        s.model_dump() for s in samples
-    ]
-
-
-def test_save_and_get_returns_an_identical_activity(repo):
+def test_save_and_get_returns_an_identical_activity(repo, cache):
     activity = make_activity()
-    repo.save(activity, source_sha256="d" * 64, ingested_at=1.0)
+    store(repo, cache, activity)
     assert repo.get(activity.activity_id).model_dump() == activity.model_dump()
 
 
-def test_blind_windows_survive_with_their_causes(repo):
+def test_blind_windows_survive_with_their_causes(repo, cache):
     activity = make_activity(
         windows=[
             BlindWindow(t_start=1.0, t_end=2.0, cause=BlindCause.NO_FIX),
             BlindWindow(t_start=5.0, t_end=9.0, cause=BlindCause.MISSING_RECORD),
         ]
     )
-    repo.save(activity, source_sha256="d" * 64, ingested_at=1.0)
+    store(repo, cache, activity)
     stored = repo.get(activity.activity_id)
     assert [w.cause for w in stored.blind_windows] == [
         BlindCause.NO_FIX,
@@ -98,17 +91,17 @@ def test_unknown_activity_is_none_not_an_error(repo):
     assert repo.get("nope") is None
 
 
-def test_the_same_bytes_resolve_to_the_activity_already_stored(repo):
+def test_the_same_bytes_resolve_to_the_activity_already_stored(repo, cache):
     activity = make_activity()
-    repo.save(activity, source_sha256="d" * 64, ingested_at=1.0)
+    store(repo, cache, activity)
     assert repo.id_for_digest("d" * 64) == activity.activity_id
     assert repo.id_for_digest("e" * 64) is None
 
 
-def test_resaving_replaces_rather_than_duplicating(repo):
+def test_resaving_replaces_rather_than_duplicating(repo, cache):
     activity = make_activity()
-    repo.save(activity, source_sha256="d" * 64, ingested_at=1.0)
-    repo.save(activity, source_sha256="d" * 64, ingested_at=2.0)
+    store(repo, cache, activity, ingested_at=1.0)
+    store(repo, cache, activity, ingested_at=2.0)
     assert len(repo.summaries()) == 1
     assert len(repo.get(activity.activity_id).blind_windows) == 1
 
@@ -116,8 +109,9 @@ def test_resaving_replaces_rather_than_duplicating(repo):
 def test_an_activity_survives_a_restart(tmp_path):
     """Reopening the same files must find the session, or persistence means nothing."""
     activity = make_activity()
-    first = ActivityRepository(tmp_path / "surf.db", StageCache(tmp_path / "cache"))
-    first.save(activity, source_sha256="d" * 64, ingested_at=1.0)
+    cache = StageCache(tmp_path / "cache")
+    first = ActivityRepository(tmp_path / "surf.db", cache)
+    store(first, cache, activity)
     first.close()
 
     second = ActivityRepository(tmp_path / "surf.db", StageCache(tmp_path / "cache"))
@@ -127,9 +121,9 @@ def test_an_activity_survives_a_restart(tmp_path):
         second.close()
 
 
-def test_deleting_an_activity_takes_its_windows_with_it(repo):
+def test_deleting_an_activity_takes_its_windows_with_it(repo, cache):
     activity = make_activity()
-    repo.save(activity, source_sha256="d" * 64, ingested_at=1.0)
+    store(repo, cache, activity)
     assert repo.delete(activity.activity_id) is True
     assert repo.get(activity.activity_id) is None
     assert repo.delete(activity.activity_id) is False
@@ -137,17 +131,19 @@ def test_deleting_an_activity_takes_its_windows_with_it(repo):
     assert orphans == 0
 
 
-def test_metadata_without_its_samples_raises_rather_than_reporting_an_empty_session(repo, tmp_path):
+def test_metadata_without_its_samples_raises_rather_than_reporting_an_empty_session(
+    repo, cache, tmp_path
+):
     activity = make_activity()
-    repo.save(activity, source_sha256="d" * 64, ingested_at=1.0)
+    store(repo, cache, activity)
     for cached in (tmp_path / "cache").rglob("*.bin"):
         cached.unlink()
     with pytest.raises(StoreError, match="missing from the stage cache"):
         repo.get(activity.activity_id)
 
 
-def test_summaries_carry_coverage_without_reading_any_samples(repo):
-    repo.save(make_activity("a1"), source_sha256="d" * 64, ingested_at=1.0)
+def test_summaries_carry_coverage_without_reading_any_samples(repo, cache):
+    store(repo, cache, make_activity("a1"))
     summary = repo.summaries()[0]
     assert summary.sample_count == 3
     assert summary.position_coverage == pytest.approx(2 / 3)
@@ -156,17 +152,17 @@ def test_summaries_carry_coverage_without_reading_any_samples(repo):
     assert not hasattr(summary, "samples")
 
 
-def test_summaries_are_newest_session_first(repo):
+def test_summaries_are_newest_session_first(repo, cache):
     older = make_activity("old")
     newer = make_activity("new", samples=[Sample(t=500.0, lat=10.0, lon=20.0)], windows=[])
     newer = newer.model_copy(update={"start_time": 500.0})
-    repo.save(older, source_sha256="a" * 64, ingested_at=1.0)
-    repo.save(newer, source_sha256="b" * 64, ingested_at=2.0)
+    store(repo, cache, older, digest="a" * 64, ingested_at=1.0)
+    store(repo, cache, newer, digest="b" * 64, ingested_at=2.0)
     assert [s.activity_id for s in repo.summaries()] == ["new", "old"]
 
 
-def test_an_activity_with_no_samples_reports_zero_coverage_not_a_crash(repo):
+def test_an_activity_with_no_samples_reports_zero_coverage_not_a_crash(repo, cache):
     empty = make_activity("empty", samples=[], windows=[])
-    repo.save(empty, source_sha256="c" * 64, ingested_at=1.0)
+    store(repo, cache, empty, digest="c" * 64)
     assert repo.get("empty").samples == []
     assert repo.summaries()[0].position_coverage == 0.0

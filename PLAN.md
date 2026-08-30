@@ -10,9 +10,9 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1 complete** — ingest, storage, REST |
-| **Next** | Phase 2 — kinematics: Kalman + RTS smoother, blind windows, propagated confidence |
-| **Health** | `make check` → 163 tests green (123 api · 16 web · 24 evals); 10 api tests skip without `sample_data/` |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1 complete** — ingest, storage, REST · **Phase 2 groundwork** — pipeline spine, L0 is a real `Stage` |
+| **Next** | Phase 2 — the kinematics. Start at **"Then the kinematics — start here"** below. Item 1 is a plan-mode decision on L1's output shape and needs my sign-off *before* any code; item 2 is a fixture gap that blocks the numeric test |
+| **Health** | `make check` → 174 tests green (134 api · 16 web · 24 evals); 11 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
 **Orient in three commands:**
@@ -200,31 +200,89 @@ absences to be discovered. Do not re-derive them.
 
 Phase 2 is the first phase that must implement `Stage`, and that abstraction has never run.
 
-- [ ] **Pipeline spine.** `Stage` has **no implementations**. Phase 0 defined the protocol
-      L1–L6 are meant to hang off; `test_cache.py` exercises `StageCache` with `b"payload"`
-      literals, and ingest writes under the name `"L0"` without going *through* the
-      abstraction. Make L0 a real `Stage`, then add one spine test: a real file through L0,
-      asserting cache **miss → hit** and that a changed param changes the key. Extend the
-      same assertions to L1 as it lands, so "does data actually flow end to end" stays a
-      single test rather than a per-phase argument.
-- [ ] **Move stage identity out of storage.** `SAMPLES_STAGE = "L0"` and
-      `INGEST_CODE_VERSION` live in `api/src/surf/store/repo.py` today. A stage's identity
-      belongs to the pipeline, not to the thing that persists its output — otherwise L1
-      copies the pattern instead of inheriting it.
+- [x] **Pipeline spine.** ✅ PR #14 — `surf.pipeline.run_stage` is the one door every stage
+      goes through (key → hit, or run and store), and `surf.ingest.stage.IngestStage` is L0
+      behind it. `tests/test_pipeline_spine.py` runs a built FIT *and* the reference session
+      through it and asserts miss → hit, an identical payload round-trip, and a changed param
+      landing in a different entry. The hit is proved by handing the second call bytes that
+      are not an activity: if the runner re-parsed, it would raise. Add L1 to that file
+      rather than giving it a spine argument of its own.
+- [x] **Move stage identity out of storage.** ✅ PR #14 — `SAMPLES_STAGE` and
+      `INGEST_CODE_VERSION` are gone from `store/repo.py`, along with the Parquet codec.
+      Name, code version, params and serialisation now live on the stage; `repo.save` is
+      handed the key its payload landed under and only indexes it.
 
-### Then the kinematics
+**Two things that changed and are worth knowing before writing L1:**
 
-- [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003)
-- [ ] Confidence per sample, driven by fix availability and innovation — not a constant
+1. **A stage owns its serialisation, and its payload is self-describing.** `Stage` gained
+   `encode`/`decode`, and the L0 payload carries the session — id, sport, fidelity, device,
+   blind windows — in the Parquet file metadata alongside the sample columns. A cache hit
+   must return exactly what a run returns, so decoding cannot depend on a SQLite row a
+   cache-only re-run may not have. L1's payload has to hold to the same rule.
+2. **L0 has a real param: `gap_tolerance`.** It was a module constant in `ingest/blind.py`,
+   so changing it would have silently reused windows drawn under the old rule. It is now
+   threaded through the parsers and lives in L0's cache key. L1's noise parameters belong
+   in its key for the same reason.
+
+### Then the kinematics — start here
+
+The spine is built, so L1 has somewhere to plug in. Two things block the smoother itself,
+and they are in this order on purpose.
+
+#### 1. Decide L1's output shape — plan mode, needs my approval
+
+A data-model decision, so it does not get made in passing (`models.py` is a one-way door;
+`CLAUDE.md` requires plan mode + sign-off). The question: where does a smoothed position
+live?
+
+| Option | What it means | Verdict |
+|---|---|---|
+| Overwrite `Sample.lat/lon/speed_ms` in place | simplest, reuses the L0 payload shape | **Reject.** A sample inside a blind window would carry a position indistinguishable from a measured one — exactly the failure rule 1 exists to prevent |
+| **A parallel track**: new `SmoothedSample` (`t`, `lat`, `lon`, `speed_ms`, `confidence`, `observed: bool`), L1 returns `list[SmoothedSample]` | raw stays untouched; "was there a fix here" is explicit per sample; downstream joins on `t` | **Recommended** |
+| Add `smoothed_*` fields to `Sample` | one row carries two provenances | Reject — mixes measured and estimated in the shape itself |
+
+Note the tension to resolve while deciding: `Sample.confidence` is documented as *"1.0 until
+L1 refines it"*, which reads as refine-in-place. Under the recommendation, the raw track's
+confidence stays 1.0 and the refined number lives on `SmoothedSample` — so that docstring
+needs correcting either way.
+
+#### 2. The synthetic fixture cannot yet score a smoother
+
+`make_synthetic_session` builds a true velocity profile, integrates it, then adds 3 m
+Gaussian noise and dropout — and **throws the clean track away**. `SyntheticSession` exposes
+only `activity` and `truth` (ride intervals). There is nothing to measure a recovered track
+against, so "recovers to a stated tolerance" is not currently writable.
+
+- [ ] Carry the noiseless per-second `(x, y, vx, vy)` out on `SyntheticSession` alongside
+      `truth`. **Draw no new random numbers while doing it** — the values already exist in
+      the generator; adding an RNG call would shift the sequence and move
+      `evals/test_synthetic_golden.py` off its golden. Run the eval gate to confirm it did not.
+
+#### 3. Then the smoother
+
+- [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003), in
+      `api/src/surf/pipeline/l1.py` — L1 belongs in `pipeline/` (it imports only `models`,
+      so no cycle); L0 sits in `ingest/` only because it wraps the parsers
+- [ ] Measurement model honesty: position updates only where a fix exists; `speed_ms` is
+      present only where positioned, so it is not an independent measurement to lean on when
+      blind; **never** use `distance_m` as dead reckoning — it does not advance while blind
+- [ ] Confidence per sample, driven by posterior covariance, fix availability and proximity
+      to a blind window — not a constant
 - [ ] Blind windows stay blind: the smoother may interpolate *through* one, but the result is
-      tagged so nothing downstream can present it as measured
-- [ ] Wire as an L1 stage behind the `Stage` protocol, cached by `StageCache`
-- [ ] Tests: a synthetic track with known kinematics recovers to a stated tolerance; a
-      positionless stretch produces low confidence, never silent certainty
+      tagged (`observed=False`) so nothing downstream can present it as measured
+- [ ] Wire as an L1 `Stage`: `input_hash` is the L0 payload key (the `samples_key` on the
+      activities row), so L1 invalidates whenever L0 does; params in the key are the noise
+      terms and the ~12 m/s sustained-speed prior from ADR-0003; payload self-describing,
+      same rule as L0
+- [ ] Tests: the spine assertions go in `tests/test_pipeline_spine.py` next to L0's — miss →
+      hit, changed param → different entry. The numerics go in a new `tests/test_kinematics.py`:
+      the synthetic track recovers to a stated tolerance (3 m noise in, so state the number
+      you expect and pin it), and a positionless stretch produces low confidence, never
+      silent certainty
 
 **Done when:** L0 and L1 both run as cached `Stage`s over the reference session, the spine
-test proves the cache actually hits, confidence drops inside every blind window, and
-`make check` is green.
+test proves the cache actually hits for both, confidence drops inside every blind window,
+and `make check` is green.
 
 > **A seam that is not yet closable.** No test spans ingest and `surf.evaluation`. That is
 > not a Phase 2 gap: `evaluation` compares interval lists and has nothing to say about an

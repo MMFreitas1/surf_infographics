@@ -11,6 +11,7 @@ from pathlib import Path
 from xml.etree.ElementTree import ParseError, fromstring
 
 from surf.ingest.blind import (
+    GAP_TOLERANCE,
     blind_from_missing_positions,
     blind_from_time_gaps,
     derive_blind_windows,
@@ -24,6 +25,7 @@ from surf.ingest.xml_common import local_name
 from surf.models import Activity
 
 __all__ = [
+    "GAP_TOLERANCE",
     "Activity",
     "FitError",
     "IngestError",
@@ -56,23 +58,25 @@ def _xml_root_name(data: bytes) -> str | None:
         return None
 
 
-def parse_activity(data: bytes, source_file: str = "") -> Activity:
+def parse_activity(
+    data: bytes, source_file: str = "", *, gap_tolerance: float = GAP_TOLERANCE
+) -> Activity:
     """Parse any supported activity file, dispatching on content rather than filename.
 
     The extension is not trusted: a ``.fit`` that is really a GPX still parses correctly,
     and a file with no extension at all still works.
     """
     if is_fit(data):
-        return parse_fit(data, source_file)
+        return parse_fit(data, source_file, gap_tolerance=gap_tolerance)
     root = _xml_root_name(data)
     if root == "gpx":
-        return parse_gpx(data, source_file)
+        return parse_gpx(data, source_file, gap_tolerance=gap_tolerance)
     if root == "TrainingCenterDatabase":
-        return parse_tcx(data, source_file)
+        return parse_tcx(data, source_file, gap_tolerance=gap_tolerance)
     msg = "unrecognised activity file: expected FIT, GPX or TCX"
     raise UnsupportedFormatError(msg)
 
 
-def parse_file(path: Path) -> Activity:
+def parse_file(path: Path, *, gap_tolerance: float = GAP_TOLERANCE) -> Activity:
     """Parse an activity file from disk, recording its name on the Activity."""
-    return parse_activity(path.read_bytes(), source_file=path.name)
+    return parse_activity(path.read_bytes(), source_file=path.name, gap_tolerance=gap_tolerance)

@@ -97,3 +97,25 @@ def record_payload(
 ) -> bytes:
     """Encode one record. Every argument defaults to its 'nothing recorded' sentinel."""
     return struct.pack(f"{endian}IiiBI", timestamp, lat, lon, heart_rate, speed_mms)
+
+
+def small_fit() -> bytes:
+    """A two-record FIT: one with a fix, one without."""
+    file_id = [(1, 2, 4), (2, 2, 4), (3, 4, BASE_UINT32), (4, 4, BASE_UINT32)]
+    body = definition_message(2, 0, file_id)
+    body += data_message(2, b"\x01\x00\xdb\x0c\x2a\x00\x00\x00\x40\x42\x0f\x00")
+    body += definition_message(3, 18, [(5, 1, 0)])
+    body += data_message(3, bytes([38]))
+    body += definition_message(0, 20, record_fields())
+    body += data_message(
+        0,
+        record_payload(
+            1_000_000,
+            lat=int(10.0 / (180.0 / 2**31)),
+            lon=int(20.0 / (180.0 / 2**31)),
+            heart_rate=100,
+            speed_mms=1500,
+        ),
+    )
+    body += data_message(0, record_payload(1_000_001, heart_rate=101))
+    return fit_file(body)
