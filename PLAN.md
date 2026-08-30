@@ -10,9 +10,9 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics, eval harness |
-| **Next** | Phase 1 — ingest (see checklist below) |
-| **Health** | `make check` → 68 tests green (35 api · 9 web · 24 evals) |
+| **Done** | Phase 0 — foundation, CI, diagnostics, eval harness · Phase 1 parsers (PR #2) |
+| **Next** | Phase 1 store — SQLite + `POST/GET /activities` + Zod parity (PR #3) |
+| **Health** | `make check` → 121 tests green (88 api · 9 web · 24 evals); 10 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
 **Orient in three commands:**
@@ -87,7 +87,7 @@ ls docs/adr/               # why each decision was made
 - [x] Missing `.dockerignore` broke the web image behind a false `exit 0` — caught by verifying
 
 ### Open before moving on
-- [ ] **Commit Phase 0** (73 files, on `main` — branch first)
+- [x] **Commit Phase 0** — merged as PR #1 (`3b26065`)
 
 ---
 
@@ -95,20 +95,31 @@ ls docs/adr/               # why each decision was made
 
 **Goal:** a canonical `Activity` from any of the three formats, with fidelity tracked.
 
-- [ ] Port `research/fit_probe.py` → `api/src/surf/ingest/fit.py` as production code
-      (full field profile, endianness, compressed timestamps)
-- [ ] **Skip developer fields** (ADR-0008) — decode-and-discard or ignore entirely
-- [ ] `ingest/gpx.py` and `ingest/tcx.py`, both tagged degraded fidelity
-- [ ] Blind-window derivation: contiguous no-position runs → `BlindWindow` objects
-- [ ] Golden tests pinning the reference session:
-      3790 records · 1849 positions · 48.8% coverage · sport 38 · 3789 s · 3712.85 m
-- [ ] Decode message 160 (n=1855, tracks GPS fix count) — may carry per-fix quality or 3D
-      velocity. First-party device signal, so it is fair game.
-- [ ] `POST /activities` + `GET /activities/{id}` returning the canonical shape
+**PR #2 — parsers** ✅
+
+- [x] Port `research/fit_probe.py` → `api/src/surf/ingest/fit.py` as production code
+      (full field profile, both endiannesses, compressed timestamps with rollover, CRC-16)
+- [x] **Skip developer fields** — by declared size, never decoded (ADR-0009)
+- [x] `ingest/gpx.py` and `ingest/tcx.py`, both tagged degraded fidelity
+- [x] Blind-window derivation: `NO_FIX` runs *and* `MISSING_RECORD` gaps, one bounds convention
+- [x] Golden tests pinning the reference session:
+      3790 records · 1849 positions · 48.8% coverage · sport `surfing` · 3712.85 m ·
+      **3790 s span** — not the 3789.019 s the watch reports: one record is genuinely
+      missing 16 s in (`docs/data-findings.md` §4)
+- [x] Decode message 160 → it is `gps_metadata`, with **no timestamp** and six more rows than
+      there are fixes, so it cannot be aligned to the timeline. Written up in
+      `docs/data-findings.md` §6 and **not ingested**. Revisit only if a timestamped variant appears.
+
+**PR #3 — store** ← next
+
+- [ ] SQLite `activities` + `blind_windows` tables — `store/schema.sql`, `store/repo.py`
+- [ ] Samples → Parquet through the existing `StageCache` (L0), keyed from the activities row
+- [ ] `POST /activities` + `GET /activities/{id}` + `GET /activities` in the canonical shape
+- [ ] Idempotent ingest: re-posting identical bytes returns the existing activity
 - [ ] Zod contract parity test — Python model and TS schema must not drift
 
 **Done when:** the reference FIT round-trips into an `Activity` whose numbers match the
-golden exactly, and `make check` is green.
+golden exactly, it survives a restart, and `make check` is green.
 
 ---
 
@@ -145,7 +156,7 @@ Browser errors POST to `/diagnostics/client-error`, so UI and API failures share
 | Ollama + quantized model | not needed until Phase 8 | Phase 8 |
 | Playwright in CI | needs a browser download in the runner; runs locally today | Phase 6, if warranted |
 | Docker Desktop | install needs a sudo password it cannot prompt for; Colima provides the daemon and compose is verified | only if the GUI is wanted |
-| SQLite persistence | nothing to persist until ingest exists | Phase 1 |
+| SQLite persistence | ~~nothing to persist until ingest exists~~ | **unblocked — lands in PR #3** |
 
 ## Decided against
 

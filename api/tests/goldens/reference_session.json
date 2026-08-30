@@ -1,0 +1,53 @@
+{
+  "_note": "Aggregates only -- never a coordinate: this repo is public. Regenerate by running the parsers over sample_data/. Tests using this file skip when the session is absent, which is always the case in CI.",
+  "_session": "24151923839",
+  "fit": {
+    "activity_id": "49970878b53e3db3",
+    "sport": "surfing",
+    "device": "garmin:3291",
+    "fidelity": "fit",
+    "start_time": 1787937820.0,
+    "sample_count": 3790,
+    "positioned_count": 1849,
+    "position_coverage": 0.4878627968337731,
+    "span_s": 3790.0,
+    "blind_window_count": 128,
+    "no_fix_window_count": 127,
+    "missing_record_window_count": 1,
+    "blind_seconds": 1942.0,
+    "windows_over_5s": 76,
+    "longest_blind_window_s": 107.0,
+    "heart_rate_count": 3790,
+    "speed_count": 1849,
+    "max_speed_ms": 20.786,
+    "final_distance_m": 3712.85
+  },
+  "gpx": {
+    "activity_id": "e74b7f35ab467b94",
+    "sport": "surfing",
+    "device": "",
+    "fidelity": "gpx",
+    "start_time": 1787937820.0,
+    "sample_count": 1849,
+    "positioned_count": 1849,
+    "position_coverage": 1.0,
+    "span_s": 3790.0,
+    "blind_window_count": 128,
+    "no_fix_window_count": 0,
+    "missing_record_window_count": 128,
+    "blind_seconds": 1942.0,
+    "windows_over_5s": 76,
+    "longest_blind_window_s": 107.0,
+    "heart_rate_count": 1849,
+    "speed_count": 0,
+    "max_speed_ms": null,
+    "final_distance_m": null
+  },
+  "device_reported": {
+    "_note": "The watch's own session summary, for comparison with what we measure.",
+    "elapsed_s": 3789.019,
+    "timer_s": 3789.019,
+    "distance_m": 3712.85,
+    "max_speed_ms": 20.786
+  }
+}
