@@ -138,6 +138,69 @@ class SmoothedSample(BaseModel):
         return math.hypot(self.vx_ms, self.vy_ms)
 
 
+class SessionFrame(BaseModel):
+    """Where the shore is, for one session -- an estimate that states how good it is.
+
+    A feature like "travelled shoreward for six seconds" needs an axis to be measured
+    against, and that axis is not the compass: it is the local shore normal (ADR-0003).
+    This is that axis, estimated once per session and reused by everything downstream.
+
+    ``coherence`` is what keeps it honest. Where a session has real rides, the fast seconds
+    agree on a direction and it runs high; on a flat day nothing points shoreward and it
+    collapses. A low value is an answer -- "we cannot tell where the shore is" -- not a
+    failure to be papered over with a confident wrong bearing.
+    """
+
+    shore_bearing_deg: float = Field(ge=0.0, lt=360.0)
+    """Compass bearing of *shoreward*, the direction a ride travels. 90 is due east."""
+    coherence: float = Field(ge=0.0, le=1.0)
+    """Weighted mean resultant length of the velocity directions. 1.0 is total agreement."""
+    reliable: bool
+    """``coherence`` cleared the stage's threshold. False means: do not trust the bearing."""
+    contributing_seconds: int = Field(ge=0)
+    """How many seconds carried enough motion to weigh on the estimate."""
+    effective_seconds: float = Field(ge=0.0)
+    """Kish effective sample size of the weights: ``(sum w)^2 / sum w^2``. How many seconds
+    the bearing *actually* rests on, which is not the same as how many were counted. One
+    6 m/s spike in an otherwise aimless session drives this to ~1 while coherence reads
+    0.9, so this is what stops a single second from passing as a session's worth of
+    evidence."""
+    origin_lat: float = Field(ge=-90.0, le=90.0)
+    """Latitude of the local frame's origin."""
+    origin_lon: float = Field(ge=-180.0, le=180.0)
+    """Longitude of the local frame's origin, so shore-relative metres map back to the map."""
+
+
+class FramedSample(BaseModel):
+    """One second of the track, rotated into the session's shore frame.
+
+    Parallel to :class:`SmoothedSample` in the same way that one is parallel to
+    :class:`Sample`: rotating an estimate leaves it an estimate. ``observed`` and
+    ``confidence`` ride through untouched, because the measured/estimated line (ADR-0010)
+    has to survive as far as a :class:`WaveCandidate`.
+    """
+
+    t: float
+    cross_shore_m: float
+    """Metres from the origin toward the shore. Positive is shoreward."""
+    along_shore_m: float
+    """Metres along the shore, 90 degrees to the left of shoreward."""
+    v_cross_ms: float
+    """Velocity toward the shore, m/s. Positive on a ride."""
+    v_along_ms: float
+    """Velocity along the shore, m/s."""
+    confidence: float = Field(ge=0.0, le=1.0)
+    """Carried through from the L1 track: a rotation adds no certainty."""
+    observed: bool
+    """True when this second carried a GPS fix."""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def speed_ms(self) -> float:
+        """Ground speed. A rotation preserves it, so this matches the L1 track exactly."""
+        return math.hypot(self.v_cross_ms, self.v_along_ms)
+
+
 class WaveCandidate(BaseModel):
     """A proposed ride interval, before and after scoring."""
 

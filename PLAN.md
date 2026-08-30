@@ -334,21 +334,22 @@ for a stored session.
 Spine assertions go in `tests/test_pipeline_spine.py` next to L0's and L1's. That file is
 deliberately one place.
 
-### Decide before building
+### Decided before building — both approved 2026-08-30, recorded in ADR-0011
 
-- [ ] **How is shore bearing estimated?** Candidates: principal axis of the position cloud;
-      the mean direction of high-speed runs (rides go shoreward); the asymmetry between
-      paddle-out and ride headings. The synthetic fixture has a **known** answer — shore is
-      east, rides travel +x, paddle-outs −x — so whichever method you pick can be scored
-      rather than eyeballed. Pick one, state the error you accept, pin it.
-- [ ] **Is L2 one stage or two?** `docs/architecture.md` §3 lists L2 frame and L3 candidates
-      separately. Keeping them separate means the frame can be cached and reused while
-      candidate thresholds are swept, which is the whole point of the stage cache. Recommend
-      two stages, but say so explicitly rather than drifting into one.
+- [x] **Shore bearing: speed-weighted velocity.** `û = normalise(Σ confidence·|v|^k · v̂)`.
+      Speed is only ever a *relative* weight between seconds of one session, so scaling every
+      velocity leaves the bearing exactly unchanged — which is what makes it immune to the
+      `measurement_noise_m` caveat below. Rejected: PCA of the position cloud (infers
+      direction from where the surfer *sat*, and cannot tell shoreward from seaward);
+      heading bimodality (needs many waves, and few-wave sessions are the hard case).
+- [x] **Two stages, L2 and L3.** As `docs/architecture.md` §3 already had it: the frame
+      caches once and is reused while candidate thresholds are swept.
 
 ### Then build
 
-- [ ] L2: estimate the bearing, rotate velocity and position into cross-shore / alongshore
+- [x] L2: estimate the bearing, rotate velocity and position into cross-shore / alongshore
+      — `pipeline/l2.py`, `tests/test_frame.py` (15), 4 chain tests in the spine, 2 in the
+      eval gate. **Built, not yet merged** — this line gets a PR number when it lands.
 - [ ] L3: high-recall candidate intervals — recall matters far more than precision here, the
       scorer in L5 is what tightens it
 - [ ] `WaveCandidate.position_coverage` already exists on the model: fill it from `observed`
@@ -358,6 +359,22 @@ deliberately one place.
 **Done when:** L0→L1→L2→L3 all run as cached stages over the reference session, the frame is
 recovered on the synthetic to a pinned tolerance, candidate recall is a number in the eval
 gate, and `make check` is green.
+
+### What L2 measured
+
+| | |
+|---|---|
+| Bearing error on the synthetic | **0.51°** against a known due-east shore, tolerance 5° |
+| Exponent `k` | **4.0**, swept. At k=2 a one- or two-wave session points *seaward* (+154°, −172°); at k=4 those fall to +24° and −13°, and every session with ≥3 waves lands within 3.6° |
+| Reliability | two guards, because one is not enough. `coherence ≥ 0.85` catches votes that disagree; **Kish effective sample size ≥ 5.0** catches votes that agree only because one second holds all the weight — a single 6 m/s spike in an aimless session scores 0.90 coherence off an effective sample of 1.25 |
+| Verified | the two guards accept exactly the sessions inside the 5° tolerance and reject every one outside it, across a 1–12 wave sweep |
+
+Three deliberate mutations were run against the tests: dropping the effective-sample guard,
+reverting `k` to 2.0, and flipping the alongshore axis. The first two were caught
+immediately; the third was **not**, because the handedness test recomputed the axes from the
+bearing instead of checking the stage's output. That test was rewritten to assert against a
+known heading, and now catches it. Worth remembering: a test that derives its expectation
+from the code under test agrees with that code whatever it does.
 
 > **Carry this warning forward.** The smoothed top-end speed on real data is sensitive to
 > `measurement_noise_m`, which is currently the synthetic's 3.0 m and probably too low for

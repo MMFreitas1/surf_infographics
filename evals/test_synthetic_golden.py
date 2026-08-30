@@ -12,6 +12,8 @@ from itertools import pairwise
 import pytest
 
 from surf.evaluation import Interval, score
+from surf.pipeline.l1 import KinematicsStage
+from surf.pipeline.l2 import FrameStage
 from surf.synthetic import (
     M_PER_DEG_LAT,
     ORIGIN_LAT,
@@ -166,3 +168,40 @@ def test_the_true_track_moves_fastest_during_the_rides(synthetic):
     riding = [p.speed_ms for p in synthetic.true_track if in_a_ride(p.t)]
     resting = [p.speed_ms for p in synthetic.true_track if not in_a_ride(p.t)]
     assert sum(riding) / len(riding) > 4.0 * (sum(resting) / len(resting))
+
+
+# ----------------------------------------------------------------- L2: the shore frame
+
+
+def bearing_error_deg(got, truth):
+    """Signed difference between two bearings, wrapped into [-180, 180)."""
+    return ((got - truth + 180.0) % 360.0) - 180.0
+
+
+def test_the_frame_finds_the_shore_the_generator_used(synthetic, synthetic_golden):
+    """The gate's version of "is L2 still right": an error in degrees, against a known shore.
+
+    A unit test can be made to pass by moving its own tolerance. This one is pinned against
+    a committed number that says what the generator actually did.
+    """
+    expected = synthetic_golden["frame"]
+    frame = FrameStage().run(KinematicsStage().run(synthetic.activity)).frame
+
+    assert frame.reliable is expected["reliable"]
+    error = bearing_error_deg(frame.shore_bearing_deg, expected["true_bearing_deg"])
+    assert abs(error) < expected["max_error_deg"], f"shore bearing is {error:.2f} deg out"
+
+
+def test_the_frame_matches_the_golden_exactly(synthetic, synthetic_golden):
+    """Pinned tighter than the tolerance, so a drifting estimator is caught while it drifts.
+
+    The tolerance above is what the stage promises; this is what it currently delivers. The
+    gap between them is the room a regression has to hide in, and it should stay small.
+    """
+    expected = synthetic_golden["frame"]
+    frame = FrameStage().run(KinematicsStage().run(synthetic.activity)).frame
+
+    assert round(frame.shore_bearing_deg, 6) == expected["shore_bearing_deg"]
+    assert round(frame.coherence, 6) == expected["coherence"]
+    assert round(frame.effective_seconds, 6) == expected["effective_seconds"]
+    assert frame.contributing_seconds == expected["contributing_seconds"]
