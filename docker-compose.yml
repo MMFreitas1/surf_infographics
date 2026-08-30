@@ -1,0 +1,26 @@
+# Reproducible local stack (Tier 2). The app is localhost-only by design (ADR-0004):
+# both services bind to 127.0.0.1 and there is no auth surface.
+services:
+  api:
+    build: ./api
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      SURF_DATA_DIR: /data
+      SURF_LOG_LEVEL: ${SURF_LOG_LEVEL:-INFO}
+      SURF_LLM_HOST: ${SURF_LLM_HOST:-http://host.docker.internal:11434}
+    volumes:
+      - ./data:/data
+      - ./sample_data:/sample_data:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  web:
+    build: ./web
+    ports:
+      - "127.0.0.1:3000:3000"
+    environment:
+      NEXT_PUBLIC_API_BASE: http://127.0.0.1:8000
+      NEXT_PUBLIC_MAPTILER_KEY: ${NEXT_PUBLIC_MAPTILER_KEY:-}
+    depends_on:
+      - api

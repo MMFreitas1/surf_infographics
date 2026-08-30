@@ -1,0 +1,39 @@
+# secrets
+.env
+.env.local
+*.pem
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+dist/
+*.egg-info/
+
+# node
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# local data (activities are personal; never commit)
+# This repo is PUBLIC. Activity files carry precise GPS traces with timestamps --
+# where and when you surf. They stay on local disk only.
+data/
+!data/.gitkeep
+sample_data/
+*.parquet
+*.sqlite
+*.sqlite3
+
+# models
+models/
+*.gguf
+
+# os
+.DS_Store
