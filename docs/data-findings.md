@@ -37,7 +37,15 @@ min 56–63   coverage 100%      out of the water (walking, then standing still)
 Coverage hits exactly 100% the moment the wrist leaves the water and never dips again.
 **Dropout density is therefore a usable feature — it is effectively a wetness sensor.**
 
-Gaps: 86 of ≥5 s, of which 35 are 21–45 s. A wave lasts 5–20 s, so a single gap can swallow one whole.
+Gaps, as the production parser measures them: **127** no-fix windows, **76** of ≥5 s,
+**27** of 21–45 s, the longest **107 s**. A wave lasts 5–20 s, so a single gap can swallow one whole.
+
+> **Convention.** A window's duration is the time we actually have no position: a sample owns
+> the interval from its own timestamp to the next, so *n* blind samples at 1 Hz are *n* blind
+> seconds. An earlier draft of this page said "86 of ≥5 s", measured fix-to-fix — the distance
+> between the two *good* samples bracketing a gap, which is one second longer than the blind
+> stretch itself. The convention here is the one that makes the arithmetic close: 1849 positioned
+> + 1941 blind = 3790 records.
 
 ## 3. Speed cannot be obtained by differencing positions
 
@@ -56,6 +64,11 @@ The 55% excess is GPS noise being integrated as real movement.
 
 Cumulative distance (record field 5) advances **3712.9 m over the 1848 s with a fix** and
 **0.0 m over the 1941 s without one**. The watch does not fill gaps. Neither should we.
+
+One record is genuinely missing, 16 s in: timestamps step from +16 s to +18 s. So the 3790
+records span **3790 s** while the session message reports **3789.019 s** elapsed — the watch's
+own two numbers disagree by that one dropped second. We report the span we measure and surface
+the hole as a one-second `MISSING_RECORD` window rather than reconciling them silently.
 
 ## 5. A third-party Connect IQ app is already writing wave data
 
@@ -104,9 +117,23 @@ known waves (`surf.synthetic`).
 `11` calories 368 · `16/17` avg/max HR 102/139 · `57/58` avg/max temp 21/23 ·
 `124/125` enhanced avg/max speed 0.98 / **20.79 m/s** ← the watch's own max speed is also implausible (74.8 kph)
 
-**Unidentified proprietary messages** present but not yet decoded: 233 (n=3795), 160 (n=1855),
-325 (n=345), 326 (n=134), 22 (n=255). Message 160's cardinality tracks the GPS fix count and is
-worth decoding in Phase 1 — it may carry per-fix quality or 3D velocity.
+**Message 160 is `gps_metadata`, and we do not ingest it.** Decoded in Phase 1: it carries a
+raw per-fix altitude (field 3) and speed (field 4), and nothing else.
+
+| Property | Measured |
+|---|---|
+| rows | 1855 — six *more* than the 1849 positioned records |
+| timestamp | **absent** — no field 253, no field 0 |
+| speed vs `record.enhanced_speed` | **0 of 912** non-zero values match, so it is the raw pre-filter stream |
+| altitude range | −27.2 m … 225.0 m, at a beach |
+| speed range | 0.00 … 60.13 m/s (216 kph) |
+
+With no timestamp and six more rows than there are fixes, aligning it to the timeline takes an
+assumption the file cannot confirm, and at least six samples would land on the wrong second with
+no way to tell which. A raw altitude channel is not worth an unverifiable alignment, so ingest
+does not read it. Revisit only if a file turns up whose `gps_metadata` carries timestamps.
+
+**Still undecoded, and not needed:** 233 (n=3795), 325 (n=345), 326 (n=134), 22 (n=255).
 
 ## 7. Consequences for the build
 

@@ -59,4 +59,8 @@ sample_data/ reference session (FIT + GPX) — gitignored, local only
 
 ## Status
 
-**Phase 0 complete** — foundation, CI, test and eval harness. Ingest lands in Phase 1.
+**Phase 0 complete** — foundation, CI, test and eval harness.
+**Phase 1 in progress** — FIT, GPX and TCX parse into the canonical `Activity`, with blind
+windows derived from both causes. The FIT and the GPX of the same session are parsed by
+separate code down separate paths and agree, to the second, on how much of it was blind.
+Persistence and the REST endpoints are next.

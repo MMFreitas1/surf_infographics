@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Hand-written fixture. Coordinates are fabricated: this repo is public and never
+     carries a real trace. The third trackpoint deliberately has no Position, which GPX
+     cannot express but TCX can. -->
+<TrainingCenterDatabase xmlns="http://www.garmin.com/xmlschemas/TrainingCenterDatabase/v2"
+  xmlns:ns3="http://www.garmin.com/xmlschemas/ActivityExtension/v2">
+  <Activities>
+    <Activity Sport="Other">
+      <Id>2026-01-01T00:00:00.000Z</Id>
+      <Lap StartTime="2026-01-01T00:00:00.000Z">
+        <Track>
+          <Trackpoint>
+            <Time>2026-01-01T00:00:00.000Z</Time>
+            <Position><LatitudeDegrees>10.0000000</LatitudeDegrees><LongitudeDegrees>20.0000000</LongitudeDegrees></Position>
+            <DistanceMeters>0.0</DistanceMeters>
+            <HeartRateBpm><Value>100</Value></HeartRateBpm>
+            <Extensions><ns3:TPX><ns3:Speed>0.0</ns3:Speed></ns3:TPX></Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-01T00:00:01.000Z</Time>
+            <Position><LatitudeDegrees>10.0000100</LatitudeDegrees><LongitudeDegrees>20.0000100</LongitudeDegrees></Position>
+            <DistanceMeters>1.5</DistanceMeters>
+            <HeartRateBpm><Value>101</Value></HeartRateBpm>
+            <Extensions><ns3:TPX><ns3:Speed>1.5</ns3:Speed></ns3:TPX></Extensions>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-01T00:00:02.000Z</Time>
+            <DistanceMeters>3.0</DistanceMeters>
+            <HeartRateBpm><Value>102</Value></HeartRateBpm>
+          </Trackpoint>
+          <Trackpoint>
+            <Time>2026-01-01T00:00:03.000Z</Time>
+            <Position><LatitudeDegrees>10.0000300</LatitudeDegrees><LongitudeDegrees>20.0000300</LongitudeDegrees></Position>
+            <DistanceMeters>4.5</DistanceMeters>
+            <HeartRateBpm><Value>103</Value></HeartRateBpm>
+            <Extensions><ns3:TPX><ns3:Speed>1.5</ns3:Speed></ns3:TPX></Extensions>
+          </Trackpoint>
+        </Track>
+      </Lap>
+      <Creator xsi:type="Device_t" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+        <Name>Fixture Watch</Name>
+      </Creator>
+    </Activity>
+  </Activities>
+</TrainingCenterDatabase>
