@@ -126,6 +126,17 @@ class ActivityRepository:
             for row in rows
         ]
 
+    def samples_key(self, activity_id: str) -> str | None:
+        """Where this activity's L0 payload landed, or None when it is not stored.
+
+        This is what lets a later stage chain onto the ingest: L1 keys its own output on
+        the L0 key, so a track can never outlive the samples it was computed from.
+        """
+        row = self._db.execute(
+            "SELECT samples_key FROM activities WHERE activity_id = ?", (activity_id,)
+        ).fetchone()
+        return None if row is None else str(row["samples_key"])
+
     def get(self, activity_id: str) -> Activity | None:
         """The full activity, samples included, or None when it is not stored."""
         row = self._db.execute(

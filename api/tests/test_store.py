@@ -87,6 +87,16 @@ def test_blind_windows_survive_with_their_causes(repo, cache):
     assert stored.blind_seconds == 5.0
 
 
+def test_the_l0_key_is_readable_so_a_later_stage_can_chain_onto_it(repo, cache):
+    """L1 keys its track on this, so a track cannot outlive the samples behind it."""
+    activity = make_activity()
+    store(repo, cache, activity)
+    key = repo.samples_key(activity.activity_id)
+    assert key == stage_key(IngestStage(), cache, "d" * 64)
+    assert cache.get(IngestStage().meta.name, key) is not None
+    assert repo.samples_key("nope") is None
+
+
 def test_unknown_activity_is_none_not_an_error(repo):
     assert repo.get("nope") is None
 

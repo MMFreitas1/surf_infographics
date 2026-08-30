@@ -10,9 +10,9 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1 complete** — ingest, storage, REST · **Phase 2 groundwork** — pipeline spine, L0 is a real `Stage` |
-| **Next** | Phase 2 — the kinematics. Start at **"Then the kinematics — start here"** below. Item 1 is a plan-mode decision on L1's output shape and needs my sign-off *before* any code; item 2 is a fixture gap that blocks the numeric test |
-| **Health** | `make check` → 174 tests green (134 api · 16 web · 24 evals); 11 api tests skip without `sample_data/` |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1** — ingest, storage, REST · **Phase 2 complete** — pipeline spine, L0 and L1 as cached stages, RTS-smoothed track |
+| **Next** | Phase 3 — frame: shore bearing, cross-shore/alongshore transform, candidate generation. Start at **"Phase 3 · Frame"** below |
+| **Health** | `make check` → 203 tests green (158 api · 16 web · 29 evals); 12 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
 **Orient in three commands:**
@@ -33,7 +33,7 @@ ls docs/adr/               # why each decision was made
 
 - [x] **0 · Boot** — conventions, architecture, ADRs, scaffold, CI, test + eval harness, local diagnostics
 - [x] **1 · Ingest** — FIT/GPX/TCX → canonical `Activity`, fidelity-tagged, golden tests, stored
-- [ ] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
+- [x] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
 - [ ] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
 - [ ] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
 - [ ] **5 · Rule detector** — transparent scorer → **first real precision/recall**
@@ -169,7 +169,7 @@ Browser errors POST to `/diagnostics/client-error`, so UI and API failures share
 
 ---
 
-## Phase 2 · Kinematics — next
+## Phase 2 · Kinematics — ✅ complete
 
 **Goal:** a smoothed position/velocity track with per-sample confidence, honest across blind windows.
 
@@ -224,7 +224,7 @@ Phase 2 is the first phase that must implement `Stage`, and that abstraction has
    threaded through the parsers and lives in L0's cache key. L1's noise parameters belong
    in its key for the same reason.
 
-### Then the kinematics — start here
+### Then the kinematics — ✅ complete, PR #16
 
 The spine is built, so L1 has somewhere to plug in. Two things block the smoother itself,
 and they are in this order on purpose.
@@ -262,31 +262,105 @@ against, so "recovers to a stated tolerance" is not currently writable.
 
 #### 3. Then the smoother
 
-- [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003), in
-      `api/src/surf/pipeline/l1.py` — L1 belongs in `pipeline/` (it imports only `models`,
-      so no cycle); L0 sits in `ingest/` only because it wraps the parsers
-- [ ] Measurement model honesty: position updates only where a fix exists; `speed_ms` is
-      present only where positioned, so it is not an independent measurement to lean on when
-      blind; **never** use `distance_m` as dead reckoning — it does not advance while blind
-- [ ] Confidence per sample, driven by posterior covariance, fix availability and proximity
-      to a blind window — not a constant
-- [ ] Blind windows stay blind: the smoother may interpolate *through* one, but the result is
-      tagged (`observed=False`) so nothing downstream can present it as measured
-- [ ] Wire as an L1 `Stage`: `input_hash` is the L0 payload key (the `samples_key` on the
-      activities row), so L1 invalidates whenever L0 does; params in the key are the noise
-      terms and the ~12 m/s sustained-speed prior from ADR-0003; payload self-describing,
-      same rule as L0
-- [ ] Tests: the spine assertions go in `tests/test_pipeline_spine.py` next to L0's — miss →
-      hit, changed param → different entry. The numerics go in a new `tests/test_kinematics.py`:
-      the synthetic track recovers to a stated tolerance (3 m noise in, so state the number
-      you expect and pin it), and a positionless stretch produces low confidence, never
-      silent certainty
+- [x] Kalman filter + RTS backward smoother in `api/src/surf/pipeline/l1.py`, with
+      `surf/geo.py` giving it a local metric frame to work in
+- [x] Measurement model honesty: position updates only where a fix exists; `distance_m` is
+      never used as dead reckoning
+- [x] Confidence per second from the posterior covariance — `1/(1+(sigma/sigma_ref)^2)`,
+      one knee, no cliffs. Fix availability enters through sigma rather than as a second term
+- [x] `observed=False` marks every estimated second (ADR-0010)
+- [x] Wired as an L1 `Stage` keyed on the L0 payload key, so a track cannot outlive the
+      samples behind it. `repo.samples_key()` exposes that key for a stored activity
+- [x] Tests: `tests/test_kinematics.py` (14), `tests/test_geo.py` (6), three chain tests in
+      `tests/test_pipeline_spine.py`
 
-**Done when:** L0 and L1 both run as cached `Stage`s over the reference session, the spine
-test proves the cache actually hits for both, confidence drops inside every blind window,
-and `make check` is green.
+**Measured, not asserted** — against `SyntheticSession.true_track`:
+
+| | |
+|---|---|
+| RMS error where a fix existed | **1.84 m**, against the 3.0 m noise it was given — the smoother earns its place |
+| RMS error inside blind seconds | 8.5 m, and it *must* be worse: an estimate is not a measurement |
+| Confidence, observed vs blind | 0.98 vs 0.60 mean; 0.08 at the worst second |
+| `process_noise = 0.25` | swept, not guessed: it minimises both position and speed error. Tuned on generated motion, so revisit against human labels in Phase 4 |
+
+The sharpest test is `test_uncertainty_peaks_in_the_middle_of_a_gap`. Over the longest
+70 s blind run, sigma runs 2.5 m at each edge and 24.4 m dead centre. A forward-only filter
+peaks at a gap's *end*; only a backward pass peaks in its middle. If that test ever fails
+with the maximum at the last index, the RTS pass has stopped running whatever else is green.
+
+> **A caveat Phase 3 and 5 need.** On the *real* session the smoothed top speed reaches
+> 11.55 m/s, just under ADR-0003's 12 m/s prior — but it is sensitive to an assumed
+> parameter, not just to the data: at `measurement_noise_m` 3.0 / 5.0 / 8.0 the maximum is
+> 11.55 / 10.41 / 8.50 m/s. The 3.0 m default is the synthetic's noise, and the real watch is
+> probably noisier. **Do not build a feature that leans on absolute top-end speed** until
+> Phase 4 labels can settle it. This is exactly why the parameter sits in the cache key.
 
 > **A seam that is not yet closable.** No test spans ingest and `surf.evaluation`. That is
 > not a Phase 2 gap: `evaluation` compares interval lists and has nothing to say about an
 > `Activity` until a detector consumes one. It first becomes testable in **Phase 5**, and
 > should be closed there rather than faked earlier.
+
+---
+
+## Phase 3 · Frame — next
+
+**Goal:** a shore-relative frame per session, so a feature means the same thing at Sines as
+anywhere else (ADR-0003), and a first pass at candidate intervals.
+
+### What Phase 2 hands you
+
+```python
+from surf.pipeline.l1 import KinematicsStage
+from surf.pipeline import run_stage, stage_key
+
+track = KinematicsStage().run(activity)          # list[SmoothedSample], one row per sample
+```
+
+| You get | Shape | Why it matters to L2 |
+|---|---|---|
+| `SmoothedSample.vx_ms` / `vy_ms` | m/s **east / north** | the rotation input. Do not difference positions again — the velocity is already estimated, and differencing throws away the smoothing |
+| `SmoothedSample.observed` | bool | the measured/estimated line (ADR-0010). It has to survive into `WaveCandidate` |
+| `SmoothedSample.confidence` | 0–1 | propagate it. A candidate built from estimated seconds is not as good as one built from fixes |
+| `SmoothedSample.position_sigma_m` | metres | what we do not know, in metres. The UI will want this in Phase 6 |
+| `surf.geo.LocalFrame` | `to_metres` / `to_degrees` | already exists; L2 should rotate within it rather than inventing a second projection |
+
+### The chain pattern, which L2 must follow
+
+L1 keys its output on **L0's key**, not on the activity id, so a track can never outlive the
+samples behind it — `test_changing_an_l0_param_invalidates_l1_too` pins that. L2 keys on
+L1's key for the same reason. `repo.samples_key(activity_id)` gets you the head of the chain
+for a stored session.
+
+Spine assertions go in `tests/test_pipeline_spine.py` next to L0's and L1's. That file is
+deliberately one place.
+
+### Decide before building
+
+- [ ] **How is shore bearing estimated?** Candidates: principal axis of the position cloud;
+      the mean direction of high-speed runs (rides go shoreward); the asymmetry between
+      paddle-out and ride headings. The synthetic fixture has a **known** answer — shore is
+      east, rides travel +x, paddle-outs −x — so whichever method you pick can be scored
+      rather than eyeballed. Pick one, state the error you accept, pin it.
+- [ ] **Is L2 one stage or two?** `docs/architecture.md` §3 lists L2 frame and L3 candidates
+      separately. Keeping them separate means the frame can be cached and reused while
+      candidate thresholds are swept, which is the whole point of the stage cache. Recommend
+      two stages, but say so explicitly rather than drifting into one.
+
+### Then build
+
+- [ ] L2: estimate the bearing, rotate velocity and position into cross-shore / alongshore
+- [ ] L3: high-recall candidate intervals — recall matters far more than precision here, the
+      scorer in L5 is what tightens it
+- [ ] `WaveCandidate.position_coverage` already exists on the model: fill it from `observed`
+- [ ] Tests: bearing recovered on the synthetic to a stated tolerance; candidates achieve a
+      stated recall against `SyntheticSession.truth` via `surf.evaluation.score`
+
+**Done when:** L0→L1→L2→L3 all run as cached stages over the reference session, the frame is
+recovered on the synthetic to a pinned tolerance, candidate recall is a number in the eval
+gate, and `make check` is green.
+
+> **Carry this warning forward.** The smoothed top-end speed on real data is sensitive to
+> `measurement_noise_m`, which is currently the synthetic's 3.0 m and probably too low for
+> the real watch. A candidate rule keyed on absolute peak speed would be tuned to that
+> assumption rather than to surfing. Prefer shape — acceleration, duration, direction
+> relative to shore — until Phase 4 labels can settle the noise level.

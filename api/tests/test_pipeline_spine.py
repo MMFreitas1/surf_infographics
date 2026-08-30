@@ -10,7 +10,9 @@ whole content-addressed design rests on:
 * changing a param that changes the output changes the key, so a stale payload can never
   be served under a new rule.
 
-As L1 lands it is added here rather than getting a spine argument of its own.
+L1 is here too, chained off L0's key rather than run in isolation, so that invalidation
+propagating *down* the chain is also a thing one test can prove. Later stages join the same
+file rather than getting a spine argument of their own.
 """
 
 import json
@@ -39,6 +41,7 @@ from surf.ingest.stage import (
 )
 from surf.models import BlindCause, Sample
 from surf.pipeline import Stage, StageCache, StageMeta, run_stage, stage_key
+from surf.pipeline.l1 import KinematicsStage
 
 NOT_AN_ACTIVITY = b"this is not a FIT file and parsing it would raise"
 """Handed to a stage that must not run. A cache hit is proved by this never being parsed."""
@@ -239,3 +242,68 @@ def test_the_reference_session_runs_through_l0_and_comes_back_identical(sample_f
     assert second.cached is True
     assert second.output.model_dump() == first.output.model_dump()
     assert second.output.position_coverage == first.output.position_coverage
+
+
+# --------------------------------------------------------------- L0 -> L1, as a chain
+
+
+class Exploded:
+    """Passed as a stage's input when it must not run. Touching it is the failure."""
+
+    def __getattr__(self, name: str) -> object:
+        raise AssertionError(f"the stage ran instead of reading its cache (touched {name})")
+
+
+def ingest_into(cache, *, gap_tolerance=1.5, data=None):
+    """Run L0 and hand back its result, which is L1's input and input hash."""
+    stage = IngestStage(gap_tolerance=gap_tolerance)
+    return run_stage(stage, cache, input_hash=DIGEST, data=data or small_fit())
+
+
+def test_l1_runs_off_l0s_output_and_the_second_pass_never_smooths_again(tmp_path):
+    cache = StageCache(tmp_path)
+    ingested = ingest_into(cache)
+    stage = KinematicsStage()
+
+    first = run_stage(stage, cache, input_hash=ingested.key, data=ingested.output)
+    second = run_stage(stage, cache, input_hash=ingested.key, data=Exploded())
+
+    assert first.cached is False
+    assert second.cached is True
+    assert [p.model_dump() for p in second.output] == [p.model_dump() for p in first.output]
+    assert len(first.output) == len(ingested.output.samples)
+
+
+def test_an_l1_param_lands_in_a_different_entry(tmp_path):
+    cache = StageCache(tmp_path)
+    ingested = ingest_into(cache)
+
+    tight = run_stage(
+        KinematicsStage(process_noise=0.05), cache, input_hash=ingested.key, data=ingested.output
+    )
+    loose = run_stage(
+        KinematicsStage(process_noise=4.0), cache, input_hash=ingested.key, data=ingested.output
+    )
+
+    assert tight.key != loose.key
+    assert loose.cached is False
+
+
+def test_changing_an_l0_param_invalidates_l1_too(tmp_path):
+    """The payoff of keying L1 on L0's key: a stale track cannot outlive its input.
+
+    Nothing about L1 changed here. Its cache entry moves because the thing it was computed
+    from moved, which is the property that makes a chain of caches safe to trust.
+    """
+    cache = StageCache(tmp_path)
+    stage = KinematicsStage()
+
+    strict = ingest_into(cache, gap_tolerance=1.5)
+    loose = ingest_into(cache, gap_tolerance=10.0)
+    assert strict.key != loose.key
+
+    on_strict = run_stage(stage, cache, input_hash=strict.key, data=strict.output)
+    on_loose = run_stage(stage, cache, input_hash=loose.key, data=loose.output)
+
+    assert on_strict.key != on_loose.key
+    assert on_loose.cached is False, "L1 must not serve a track built from other samples"

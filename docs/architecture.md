@@ -45,7 +45,7 @@ may not have.
 | Stage | Name | Output |
 |---|---|---|
 | L0 | ingest | `Activity` — 1 Hz `Sample[]`, `BlindWindow[]`, device/session metadata. Cached as one Parquet payload: samples as columns, session and windows as file metadata. SQLite indexes the same facts so they can be queried |
-| L1 | kinematics | Kalman + RTS-smoothed position/velocity, per-sample confidence |
+| L1 | kinematics | `SmoothedSample[]` — Kalman + RTS-smoothed position/velocity, posterior sigma and confidence per second, `observed` marking fix from estimate. A parallel track, never an overwrite (ADR-0010) |
 | L2 | frame | shore bearing → cross-shore / alongshore coordinates |
 | L3 | candidates | high-recall interval proposals |
 | L4 | features | ~30 features per candidate |
@@ -70,6 +70,7 @@ A `Sample` without a position is still a valid sample: it carries HR, time and b
 1. **Offline RTS smoothing** — the backward pass is our accuracy edge over any device-side filter. (ADR-0003)
 2. **Confidence propagates end to end** — blind windows are objects, not absences. (ADR-0003)
 3. **Labels are append-only and pipeline-immutable** — the only way evaluation stays honest. (ADR-0006)
+   Likewise the smoothed track is parallel to the measured one, never written over it. (ADR-0010)
 4. **Detector behind an interface** — `Detector.detect(activity) -> list[WaveCandidate]`; rule-based, GBM and LLM-adjudicated variants are judged by one harness. We ship whichever measures best. (ADR-0005)
 5. **Shore-relative feature frame** — features are spot-independent, so a model trained at Sines transfers. (ADR-0003)
 6. **First-party signal only** — no third-party app's derived values enter the pipeline. (ADR-0008)

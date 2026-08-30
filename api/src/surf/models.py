@@ -10,6 +10,7 @@ See docs/data-findings.md.
 
 from __future__ import annotations
 
+import math
 from enum import StrEnum
 
 from pydantic import BaseModel, Field, computed_field, model_validator
@@ -66,7 +67,12 @@ class Sample(BaseModel):
     temp_c: float | None = None
     distance_m: float | None = Field(default=None, ge=0.0)
     confidence: float = Field(default=1.0, ge=0.0, le=1.0)
-    """Posterior confidence in this sample's kinematics. 1.0 until L1 refines it."""
+    """Confidence in this sample *as recorded* -- 1.0 for a first-party fix.
+
+    Not the smoother's posterior. L1 does not write back here: its estimate is a separate
+    row on :class:`SmoothedSample`, so a measured second and an estimated one can never be
+    mistaken for each other (ADR-0010).
+    """
 
     @computed_field  # type: ignore[prop-decorator]
     @property
@@ -98,6 +104,38 @@ class BlindWindow(BaseModel):
     def could_hide_a_wave(self, min_ride_s: float = 5.0) -> bool:
         """True when this window is long enough to conceal an entire ride."""
         return self.duration_s >= min_ride_s
+
+
+class SmoothedSample(BaseModel):
+    """One second of the L1 track: an estimate, never a measurement (ADR-0010).
+
+    Parallel to :class:`Sample`, not a replacement for it. The measured track keeps exactly
+    what the device recorded, gaps included; this one always carries a position, because an
+    estimate exists even where no fix did. ``observed`` is the line between the two, and
+    nothing downstream may render ``observed=False`` as measured.
+    """
+
+    t: float
+    lat: float = Field(ge=-90.0, le=90.0)
+    lon: float = Field(ge=-180.0, le=180.0)
+    vx_ms: float
+    """Velocity east, m/s."""
+    vy_ms: float
+    """Velocity north, m/s."""
+    position_sigma_m: float = Field(ge=0.0)
+    """Posterior standard deviation of the position. What we do not know, in metres."""
+    confidence: float = Field(ge=0.0, le=1.0)
+    """Derived from ``position_sigma_m``: 1.0 when the position is pinned, falling as the
+    estimate loosens. Inside a blind window it bottoms out in the *middle*, because the
+    backward pass pins the track from both ends."""
+    observed: bool
+    """True when this second carried a GPS fix."""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def speed_ms(self) -> float:
+        """Ground speed: the magnitude of the smoothed velocity."""
+        return math.hypot(self.vx_ms, self.vy_ms)
 
 
 class WaveCandidate(BaseModel):
