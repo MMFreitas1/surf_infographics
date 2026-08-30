@@ -11,7 +11,7 @@ Tick items as they land — an item is only ticked when it is verified, not when
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
 | **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1 complete** — ingest, storage, REST · **Phase 2 groundwork** — pipeline spine, L0 is a real `Stage` |
-| **Next** | Phase 2 — the kinematics themselves: Kalman + RTS smoother, blind windows, propagated confidence |
+| **Next** | Phase 2 — the kinematics. Start at **"Then the kinematics — start here"** below. Item 1 is a plan-mode decision on L1's output shape and needs my sign-off *before* any code; item 2 is a fixture gap that blocks the numeric test |
 | **Health** | `make check` → 174 tests green (134 api · 16 web · 24 evals); 11 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
@@ -226,17 +226,63 @@ Phase 2 is the first phase that must implement `Stage`, and that abstraction has
 
 ### Then the kinematics — start here
 
-- [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003)
-- [ ] Confidence per sample, driven by fix availability and innovation — not a constant
+The spine is built, so L1 has somewhere to plug in. Two things block the smoother itself,
+and they are in this order on purpose.
+
+#### 1. Decide L1's output shape — plan mode, needs my approval
+
+A data-model decision, so it does not get made in passing (`models.py` is a one-way door;
+`CLAUDE.md` requires plan mode + sign-off). The question: where does a smoothed position
+live?
+
+| Option | What it means | Verdict |
+|---|---|---|
+| Overwrite `Sample.lat/lon/speed_ms` in place | simplest, reuses the L0 payload shape | **Reject.** A sample inside a blind window would carry a position indistinguishable from a measured one — exactly the failure rule 1 exists to prevent |
+| **A parallel track**: new `SmoothedSample` (`t`, `lat`, `lon`, `speed_ms`, `confidence`, `observed: bool`), L1 returns `list[SmoothedSample]` | raw stays untouched; "was there a fix here" is explicit per sample; downstream joins on `t` | **Recommended** |
+| Add `smoothed_*` fields to `Sample` | one row carries two provenances | Reject — mixes measured and estimated in the shape itself |
+
+Note the tension to resolve while deciding: `Sample.confidence` is documented as *"1.0 until
+L1 refines it"*, which reads as refine-in-place. Under the recommendation, the raw track's
+confidence stays 1.0 and the refined number lives on `SmoothedSample` — so that docstring
+needs correcting either way.
+
+#### 2. The synthetic fixture cannot yet score a smoother
+
+`make_synthetic_session` builds a true velocity profile, integrates it, then adds 3 m
+Gaussian noise and dropout — and **throws the clean track away**. `SyntheticSession` exposes
+only `activity` and `truth` (ride intervals). There is nothing to measure a recovered track
+against, so "recovers to a stated tolerance" is not currently writable.
+
+- [ ] Carry the noiseless per-second `(x, y, vx, vy)` out on `SyntheticSession` alongside
+      `truth`. **Draw no new random numbers while doing it** — the values already exist in
+      the generator; adding an RNG call would shift the sequence and move
+      `evals/test_synthetic_golden.py` off its golden. Run the eval gate to confirm it did not.
+
+#### 3. Then the smoother
+
+- [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003), in
+      `api/src/surf/pipeline/l1.py` — L1 belongs in `pipeline/` (it imports only `models`,
+      so no cycle); L0 sits in `ingest/` only because it wraps the parsers
+- [ ] Measurement model honesty: position updates only where a fix exists; `speed_ms` is
+      present only where positioned, so it is not an independent measurement to lean on when
+      blind; **never** use `distance_m` as dead reckoning — it does not advance while blind
+- [ ] Confidence per sample, driven by posterior covariance, fix availability and proximity
+      to a blind window — not a constant
 - [ ] Blind windows stay blind: the smoother may interpolate *through* one, but the result is
-      tagged so nothing downstream can present it as measured
-- [ ] Wire as an L1 stage behind the `Stage` protocol, cached by `StageCache`
-- [ ] Tests: a synthetic track with known kinematics recovers to a stated tolerance; a
-      positionless stretch produces low confidence, never silent certainty
+      tagged (`observed=False`) so nothing downstream can present it as measured
+- [ ] Wire as an L1 `Stage`: `input_hash` is the L0 payload key (the `samples_key` on the
+      activities row), so L1 invalidates whenever L0 does; params in the key are the noise
+      terms and the ~12 m/s sustained-speed prior from ADR-0003; payload self-describing,
+      same rule as L0
+- [ ] Tests: the spine assertions go in `tests/test_pipeline_spine.py` next to L0's — miss →
+      hit, changed param → different entry. The numerics go in a new `tests/test_kinematics.py`:
+      the synthetic track recovers to a stated tolerance (3 m noise in, so state the number
+      you expect and pin it), and a positionless stretch produces low confidence, never
+      silent certainty
 
 **Done when:** L0 and L1 both run as cached `Stage`s over the reference session, the spine
-test proves the cache actually hits, confidence drops inside every blind window, and
-`make check` is green.
+test proves the cache actually hits for both, confidence drops inside every blind window,
+and `make check` is green.
 
 > **A seam that is not yet closable.** No test spans ingest and `surf.evaluation`. That is
 > not a Phase 2 gap: `evaluation` compares interval lists and has nothing to say about an
