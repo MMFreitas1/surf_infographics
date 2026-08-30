@@ -1,0 +1,68 @@
+[project]
+name = "surf-api"
+version = "0.1.0"
+description = "Local-first surf analytics: FIT ingest, wave detection, session metrics."
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pydantic>=2.9",
+    "pydantic-settings>=2.6",
+    "structlog>=24.4",
+    "httpx>=0.28",
+    "numpy>=2.1",
+    "scipy>=1.14",
+    "pandas>=2.2",
+    "pyarrow>=18",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-cov>=6.0",
+    "pytest-asyncio>=0.24",
+    "mypy>=1.13",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/surf"]
+
+# ---------------- Ruff (LOCKED house style) ----------------
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "C4", "SIM", "RUF", "ANN", "PTH", "RET", "ARG"]
+ignore = ["ANN401"]
+
+[tool.ruff.lint.per-file-ignores]
+"**/test_*.py" = ["ANN201", "ANN202", "ANN001", "ARG001"]
+"**/conftest.py" = ["ANN201", "ANN202", "ANN001", "ARG001"]
+
+# ---------------- mypy (LOCKED house style, strict) ----------------
+[tool.mypy]
+python_version = "3.12"
+strict = true
+warn_unreachable = true
+disallow_untyped_defs = true
+mypy_path = "src"
+packages = ["surf"]
+
+[[tool.mypy.overrides]]
+module = ["scipy.*", "pandas.*", "pyarrow.*"]
+ignore_missing_imports = true
+
+# ---------------- pytest ----------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q --strict-markers"
+markers = [
+    "llm: requires a running local LLM (skipped unless SURF_LLM_EVAL=1)",
+]

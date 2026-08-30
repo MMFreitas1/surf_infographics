@@ -1,0 +1,13 @@
+# never copy host-built artefacts into the image: node_modules holds
+# platform-specific binaries (darwin-arm64) that break a linux build
+node_modules
+.next
+out
+verification
+playwright-report
+test-results
+*.tsbuildinfo
+.env
+.env.local
+Dockerfile
+.dockerignore
