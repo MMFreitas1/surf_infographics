@@ -1,0 +1,150 @@
+{
+  "_note": "The Phase 4 contract, pinned once and read by both sides. api/tests/test_contract_parity.py checks it against the Pydantic models; web/tests/contract.test.ts checks it against the Zod schemas. Add a field on one side only and one of them fails. Synthetic values, no personal data -- ADR-0008.",
+  "_version": 1,
+  "track": {
+    "frame": {
+      "shore_bearing_deg": 90.0,
+      "coherence": 0.91,
+      "reliable": true,
+      "contributing_seconds": 120,
+      "effective_seconds": 42.5,
+      "origin_lat": 38.0,
+      "origin_lon": -9.0
+    },
+    "smoothed": [
+      {
+        "t": 0.0,
+        "lat": 38.0,
+        "lon": -9.0,
+        "vx_ms": 3.5,
+        "vy_ms": 0.5,
+        "position_sigma_m": 2.0,
+        "confidence": 0.95,
+        "observed": true,
+        "speed_ms": 3.5355339059327378
+      },
+      {
+        "t": 1.0,
+        "lat": 38.00003,
+        "lon": -8.99996,
+        "vx_ms": 3.2,
+        "vy_ms": 0.4,
+        "position_sigma_m": 11.75,
+        "confidence": 0.31,
+        "observed": false,
+        "speed_ms": 3.22490309931942
+      }
+    ],
+    "framed": [
+      {
+        "t": 0.0,
+        "cross_shore_m": 0.0,
+        "along_shore_m": 0.0,
+        "v_cross_ms": 3.5,
+        "v_along_ms": -0.5,
+        "confidence": 0.95,
+        "observed": true,
+        "speed_ms": 3.5355339059327378
+      },
+      {
+        "t": 1.0,
+        "cross_shore_m": 3.5,
+        "along_shore_m": -0.5,
+        "v_cross_ms": 3.2,
+        "v_along_ms": -0.4,
+        "confidence": 0.31,
+        "observed": false,
+        "speed_ms": 3.22490309931942
+      }
+    ]
+  },
+  "candidates": {
+    "frame": {
+      "shore_bearing_deg": 90.0,
+      "coherence": 0.91,
+      "reliable": true,
+      "contributing_seconds": 120,
+      "effective_seconds": 42.5,
+      "origin_lat": 38.0,
+      "origin_lon": -9.0
+    },
+    "candidates": [
+      {
+        "t_start": 10.0,
+        "t_end": 17.0,
+        "features": {},
+        "score": null,
+        "direction": "unknown",
+        "position_coverage": 1.0,
+        "duration_s": 7.0
+      },
+      {
+        "t_start": 40.0,
+        "t_end": 49.0,
+        "features": {},
+        "score": null,
+        "direction": "unknown",
+        "position_coverage": 0.0,
+        "duration_s": 9.0
+      }
+    ]
+  },
+  "labels": [
+    {
+      "t_start": 10.0,
+      "t_end": 17.0,
+      "is_wave": true,
+      "source": "human",
+      "verified": true,
+      "direction": "left",
+      "note": "clean drop",
+      "label_id": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "activity_id": "contract-v1",
+      "created_at": 1787937820.0,
+      "supersedes": null,
+      "counts_as_truth": true
+    },
+    {
+      "t_start": 10.0,
+      "t_end": 19.0,
+      "is_wave": true,
+      "source": "human",
+      "verified": true,
+      "direction": "left",
+      "note": "ran longer than I first marked",
+      "label_id": "1a2b3c4d5e6f708192a3b4c5d6e7f809",
+      "activity_id": "contract-v1",
+      "created_at": 1787937830.0,
+      "supersedes": "0f1e2d3c4b5a69788796a5b4c3d2e1f0",
+      "counts_as_truth": true
+    },
+    {
+      "t_start": 40.0,
+      "t_end": 49.0,
+      "is_wave": false,
+      "source": "human_assisted",
+      "verified": true,
+      "direction": "unknown",
+      "note": "candidate #2, all estimated -- paddle-out",
+      "label_id": "2b3c4d5e6f708192a3b4c5d6e7f8091a",
+      "activity_id": "contract-v1",
+      "created_at": 1787937900.0,
+      "supersedes": null,
+      "counts_as_truth": false
+    }
+  ],
+  "passes": [
+    {
+      "activity_id": "contract-v1",
+      "kind": "blind",
+      "completed_at": 1787937850.0,
+      "label_count": 2
+    },
+    {
+      "activity_id": "contract-v1",
+      "kind": "assisted",
+      "completed_at": 1787937950.0,
+      "label_count": 1
+    }
+  ]
+}

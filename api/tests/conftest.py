@@ -9,8 +9,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from surf.config import Settings
+from surf.ingest.stage import IngestStage
 from surf.llm.lifecycle import ModelBackend
 from surf.main import create_app
+from surf.pipeline import stage_key
+from surf.synthetic import make_synthetic_session
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_DIR = REPO_ROOT / "sample_data"
@@ -27,6 +30,28 @@ def client(settings: Settings) -> Iterator[TestClient]:
     """TestClient with hermetic settings and lifespan run."""
     with TestClient(create_app(settings)) as c:
         yield c
+
+
+@pytest.fixture
+def stored_synthetic(client: TestClient) -> str:
+    """The seeded synthetic session, stored through the app's own repository.
+
+    The REST fixtures elsewhere are two samples long, which is enough to test ingest and
+    far too short to test a track: a smoother, a bearing and a candidate rule all need a
+    session with shape. This puts the generated session into the running app the same way
+    an ingest would -- payload through the cache, key recorded on the row -- so the track
+    endpoints run the real chain over something that looks like surfing.
+    """
+    session = make_synthetic_session()
+    app = client.app
+    stage = IngestStage()
+    digest = "5" * 64
+    key = stage_key(stage, app.state.cache, digest)
+    app.state.cache.put(stage.meta.name, key, stage.encode(session.activity))
+    app.state.activities.save(
+        session.activity, source_sha256=digest, samples_key=key, ingested_at=0.0
+    )
+    return session.activity.activity_id
 
 
 @pytest.fixture

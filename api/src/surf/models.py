@@ -42,8 +42,22 @@ class LabelSource(StrEnum):
 
     HUMAN = "human"
     """Marked by a person in the labeling UI. The only thing that counts as ground truth."""
+    HUMAN_ASSISTED = "human_assisted"
+    """Marked by a person who could see L3's proposals. Real judgement, but anchored to the
+    detector's: a ride the detector never proposed is one the labeller was never prompted to
+    look at. Kept out of the headline metric so a detector is never scored against a truth
+    set it helped draw (ADR-0012)."""
     CIQ_BOOTSTRAP = "ciq_bootstrap"
     """Imported from the Connect IQ app's fields. Weak, unverified, excluded from metrics."""
+
+
+class PassKind(StrEnum):
+    """Which sweep of a session a labeller has completed."""
+
+    BLIND = "blind"
+    """Labelled from raw signal alone, with no candidates on screen."""
+    ASSISTED = "assisted"
+    """A second sweep with L3's proposals visible. Only ever runs after a blind pass."""
 
 
 class RideDirection(StrEnum):
@@ -226,16 +240,106 @@ class WaveLabel(BaseModel):
     t_start: float
     t_end: float
     is_wave: bool
+    """False is truth too: "I looked at this stretch and it is not a ride" is what makes a
+    false positive measurable rather than merely unlabelled."""
     source: LabelSource = LabelSource.HUMAN
     verified: bool = False
     direction: RideDirection = RideDirection.UNKNOWN
     note: str = ""
 
+    @model_validator(mode="after")
+    def _check_span(self) -> WaveLabel:
+        if self.t_end <= self.t_start:
+            msg = f"label has no duration: {self.t_start} -> {self.t_end}"
+            raise ValueError(msg)
+        return self
+
     @computed_field  # type: ignore[prop-decorator]
     @property
     def counts_as_truth(self) -> bool:
-        """Only verified human labels may enter an evaluation metric."""
+        """Only verified, *unassisted* human labels may enter an evaluation metric.
+
+        The source check does two jobs. It keeps unverified Connect IQ imports out
+        (ADR-0006), and it keeps out labels made with L3's proposals on screen
+        (ADR-0012) -- those are honest human judgements, but they are anchored to the
+        detector, and scoring the detector against them measures agreement rather than
+        accuracy.
+        """
         return self.source is LabelSource.HUMAN and self.verified
+
+
+class StoredLabel(WaveLabel):
+    """A label as the store holds it: the judgement, plus where it came from and when.
+
+    A subclass rather than a parallel shape, so the fields a labeller actually sets can
+    never drift from :class:`WaveLabel`. What is added here is provenance the UI does not
+    supply and the store owns.
+
+    Nothing is ever updated or deleted (ADR-0006). A correction is a new row naming the row
+    it replaces, so the record of how judgement changed survives alongside the judgement.
+    """
+
+    label_id: str
+    activity_id: str
+    created_at: float
+    """Unix seconds. Also the tie-break for which of two labels is the later word."""
+    supersedes: str | None = None
+    """The ``label_id`` this row corrects, or None when it is an original."""
+
+
+class LabelPass(BaseModel):
+    """A completed sweep of one session by one labeller.
+
+    This exists because "no labels" is ambiguous and the difference matters: a session
+    nobody has opened and a session someone swept carefully and found no rides in look
+    identical in the ``labels`` table. The blind pass is the gate on the assisted one
+    (ADR-0012), so it has to be a fact we record rather than one we infer from a count.
+    """
+
+    activity_id: str
+    kind: PassKind
+    completed_at: float
+    label_count: int = Field(ge=0)
+    """How many labels the pass produced. Zero is a valid, meaningful answer."""
+
+
+class SessionTrack(BaseModel):
+    """What the labeling UI needs to draw a session: the frame, and both tracks.
+
+    An envelope over the existing models, not a merged row. Joining
+    :class:`SmoothedSample` and :class:`FramedSample` into one flat shape would be more
+    convenient and would quietly create a third canonical form of a second of a session;
+    keeping them parallel means the rotation stays visibly a rotation of the estimate.
+    The two lists are index-aligned -- L2 emits one framed row per smoothed row, in
+    order -- and the validator below refuses to serve them if that ever stops being true.
+    """
+
+    frame: SessionFrame
+    smoothed: list[SmoothedSample]
+    framed: list[FramedSample]
+
+    @model_validator(mode="after")
+    def _check_aligned(self) -> SessionTrack:
+        if len(self.smoothed) != len(self.framed):
+            msg = (
+                f"track is not aligned: {len(self.smoothed)} smoothed rows against "
+                f"{len(self.framed)} framed rows"
+            )
+            raise ValueError(msg)
+        return self
+
+
+class SessionCandidates(BaseModel):
+    """L3's proposals, with the frame they were measured against.
+
+    The envelope to :class:`SessionTrack`'s, and for the same reason the stage itself keeps
+    the two together: a candidate is only as trustworthy as the axis it was measured
+    against, so an unreliable frame has to travel with the proposals rather than be
+    something the caller is trusted to fetch separately (ADR-0011).
+    """
+
+    frame: SessionFrame
+    candidates: list[WaveCandidate]
 
 
 class ActivitySummary(BaseModel):

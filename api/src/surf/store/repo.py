@@ -25,11 +25,46 @@ from surf.models import Activity, ActivitySummary, BlindCause, BlindWindow, Fide
 from surf.pipeline import StageCache
 
 SCHEMA_PATH = Path(__file__).parent / "schema.sql"
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
+"""1: activities and blind windows. 2: labels and label passes (Phase 4)."""
 
 
 class StoreError(RuntimeError):
     """The store is in a state we will not paper over."""
+
+
+def connect(db_path: Path) -> sqlite3.Connection:
+    """Open the one database file, apply the schema, and stamp its version.
+
+    Every repository comes through here, so the pragmas and the schema are applied
+    identically no matter which one opens the file first. The schema is idempotent
+    (``CREATE ... IF NOT EXISTS``), so running it on every open is how a new table
+    reaches an existing database.
+
+    The stamp is a history, not a field: each upgrade appends a row and
+    :attr:`ActivityRepository.schema_version` reads the maximum. A file stamped *newer*
+    than this code is refused outright -- an older binary quietly reading a database it
+    does not understand is how data gets corrupted silently.
+    """
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    # FastAPI runs sync endpoints on a threadpool, so a connection is shared across
+    # threads; every writer serialises its own writes behind a lock.
+    db = sqlite3.connect(db_path, check_same_thread=False)
+    db.row_factory = sqlite3.Row
+    db.execute("PRAGMA foreign_keys = ON")
+    db.execute("PRAGMA journal_mode = WAL")
+    with db:
+        db.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
+        stamped = db.execute("SELECT MAX(version) FROM schema_version").fetchone()[0]
+        if stamped is not None and stamped > SCHEMA_VERSION:
+            msg = (
+                f"database at {db_path} is schema v{stamped}, but this code understands "
+                f"v{SCHEMA_VERSION}. Refusing to open it."
+            )
+            raise StoreError(msg)
+        if stamped is None or stamped < SCHEMA_VERSION:
+            db.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,))
+    return db
 
 
 class ActivityRepository:
@@ -38,19 +73,7 @@ class ActivityRepository:
     def __init__(self, db_path: Path, cache: StageCache) -> None:
         self._cache = cache
         self._lock = threading.Lock()
-        db_path.parent.mkdir(parents=True, exist_ok=True)
-        # FastAPI runs sync endpoints on a threadpool, so the connection is shared across
-        # threads and every write is serialised by the lock below.
-        self._db = sqlite3.connect(db_path, check_same_thread=False)
-        self._db.row_factory = sqlite3.Row
-        self._db.execute("PRAGMA foreign_keys = ON")
-        self._db.execute("PRAGMA journal_mode = WAL")
-        with self._db:
-            self._db.executescript(SCHEMA_PATH.read_text(encoding="utf-8"))
-            if self._db.execute("SELECT COUNT(*) FROM schema_version").fetchone()[0] == 0:
-                self._db.execute(
-                    "INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,)
-                )
+        self._db = connect(db_path)
 
     def close(self) -> None:
         """Release the connection."""
@@ -169,11 +192,24 @@ class ActivityRepository:
         return [_summary_of(row) for row in rows]
 
     def delete(self, activity_id: str) -> bool:
-        """Remove an activity and its windows. The cached samples stay: it is a cache."""
-        with self._lock, self._db:
-            cursor = self._db.execute(
-                "DELETE FROM activities WHERE activity_id = ?", (activity_id,)
+        """Remove an activity and its windows. The cached samples stay: it is a cache.
+
+        An activity carrying labels cannot be deleted. The foreign key refuses it and this
+        turns the refusal into a sentence, because the alternative -- cascading -- would
+        make "delete a session" quietly mean "delete the ground truth for a session"
+        (ADR-0006).
+        """
+        try:
+            with self._lock, self._db:
+                cursor = self._db.execute(
+                    "DELETE FROM activities WHERE activity_id = ?", (activity_id,)
+                )
+        except sqlite3.IntegrityError as exc:
+            msg = (
+                f"activity {activity_id} carries labels, which are append-only and are "
+                f"never deleted (ADR-0006). Delete refused."
             )
+            raise StoreError(msg) from exc
         return cursor.rowcount > 0
 
 
