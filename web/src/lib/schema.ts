@@ -15,8 +15,11 @@ export type Fidelity = z.infer<typeof Fidelity>;
 export const BlindCause = z.enum(["no_fix", "missing_record", "unknown"]);
 export type BlindCause = z.infer<typeof BlindCause>;
 
-export const LabelSource = z.enum(["human", "ciq_bootstrap"]);
+export const LabelSource = z.enum(["human", "human_assisted", "ciq_bootstrap"]);
 export type LabelSource = z.infer<typeof LabelSource>;
+
+export const PassKind = z.enum(["blind", "assisted"]);
+export type PassKind = z.infer<typeof PassKind>;
 
 export const RideDirection = z.enum(["left", "right", "straight", "unknown"]);
 export type RideDirection = z.infer<typeof RideDirection>;
@@ -52,6 +55,103 @@ export const WaveCandidate = z.object({
   duration_s: z.number(),
 });
 export type WaveCandidate = z.infer<typeof WaveCandidate>;
+
+/**
+ * One second of the L1 track: an estimate, never a measurement.
+ *
+ * `lat`/`lon` are non-null here — unlike on `Sample` — because an estimate exists even
+ * where no fix did. `observed` is the only thing separating the two, so anything that
+ * draws this has to draw the two states differently (ADR-0010).
+ */
+export const SmoothedSample = z.object({
+  t: z.number(),
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+  vx_ms: z.number(),
+  vy_ms: z.number(),
+  position_sigma_m: z.number().min(0),
+  confidence: z.number().min(0).max(1),
+  observed: z.boolean(),
+  speed_ms: z.number(),
+});
+export type SmoothedSample = z.infer<typeof SmoothedSample>;
+
+/** The same second rotated into the session's shore frame. A rotation adds no certainty. */
+export const FramedSample = z.object({
+  t: z.number(),
+  cross_shore_m: z.number(),
+  along_shore_m: z.number(),
+  v_cross_ms: z.number(),
+  v_along_ms: z.number(),
+  confidence: z.number().min(0).max(1),
+  observed: z.boolean(),
+  speed_ms: z.number(),
+});
+export type FramedSample = z.infer<typeof FramedSample>;
+
+/**
+ * Where the shore is, for one session — and how much that estimate is worth.
+ *
+ * `reliable === false` means "we cannot tell where the shore is". That is an answer, and
+ * the UI must render it as one rather than drawing a confident wrong bearing (ADR-0011).
+ */
+export const SessionFrame = z.object({
+  shore_bearing_deg: z.number().min(0).max(360),
+  coherence: z.number().min(0).max(1),
+  reliable: z.boolean(),
+  contributing_seconds: z.number().int().min(0),
+  effective_seconds: z.number().min(0),
+  origin_lat: z.number().min(-90).max(90),
+  origin_lon: z.number().min(-180).max(180),
+});
+export type SessionFrame = z.infer<typeof SessionFrame>;
+
+/** What the labeling UI draws a session from. The two tracks are index-aligned. */
+export const SessionTrack = z.object({
+  frame: SessionFrame,
+  smoothed: z.array(SmoothedSample),
+  framed: z.array(FramedSample),
+});
+export type SessionTrack = z.infer<typeof SessionTrack>;
+
+/** L3's proposals, with the frame they were measured against. */
+export const SessionCandidates = z.object({
+  frame: SessionFrame,
+  candidates: z.array(WaveCandidate),
+});
+export type SessionCandidates = z.infer<typeof SessionCandidates>;
+
+/**
+ * A label as the store holds it. Append-only: a correction is a new row naming the one it
+ * replaces, and the replaced row stays exactly where it was (ADR-0006).
+ */
+export const StoredLabel = z.object({
+  t_start: z.number(),
+  t_end: z.number(),
+  is_wave: z.boolean(),
+  source: LabelSource.default("human"),
+  verified: z.boolean().default(false),
+  direction: RideDirection.default("unknown"),
+  note: z.string().default(""),
+  counts_as_truth: z.boolean(),
+  label_id: z.string(),
+  activity_id: z.string(),
+  created_at: z.number(),
+  supersedes: z.string().nullable().default(null),
+});
+export type StoredLabel = z.infer<typeof StoredLabel>;
+
+/**
+ * A completed sweep of one session. The blind pass is what unlocks the assisted one, so
+ * the UI reads this rather than guessing from a label count (ADR-0012).
+ */
+export const LabelPass = z.object({
+  activity_id: z.string(),
+  kind: PassKind,
+  completed_at: z.number(),
+  label_count: z.number().int().min(0),
+});
+export type LabelPass = z.infer<typeof LabelPass>;
 
 export const Activity = z.object({
   activity_id: z.string(),

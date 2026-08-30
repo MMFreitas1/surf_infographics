@@ -65,6 +65,36 @@ def test_schema_version_is_stamped(repo):
     assert repo.schema_version == SCHEMA_VERSION
 
 
+def test_a_database_from_an_older_version_is_upgraded_and_restamped(tmp_path, cache):
+    """The schema is idempotent, so a new table reaches an existing file on open. The stamp
+    has to follow it, or the file claims a version it is no longer at."""
+    db_path = tmp_path / "surf.db"
+    first = ActivityRepository(db_path, cache)
+    first._db.execute("DELETE FROM schema_version")
+    first._db.execute("INSERT INTO schema_version (version) VALUES (1)")
+    first._db.commit()
+    first.close()
+
+    second = ActivityRepository(db_path, cache)
+    try:
+        assert second.schema_version == SCHEMA_VERSION
+        assert second._db.execute("SELECT COUNT(*) FROM labels").fetchone()[0] == 0
+    finally:
+        second.close()
+
+
+def test_a_database_from_a_newer_version_is_refused(tmp_path, cache):
+    """Old code quietly reading a file it does not understand is how data gets corrupted."""
+    db_path = tmp_path / "surf.db"
+    repo = ActivityRepository(db_path, cache)
+    repo._db.execute("INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION + 1,))
+    repo._db.commit()
+    repo.close()
+
+    with pytest.raises(StoreError, match="Refusing to open"):
+        ActivityRepository(db_path, cache)
+
+
 def test_save_and_get_returns_an_identical_activity(repo, cache):
     activity = make_activity()
     store(repo, cache, activity)
@@ -139,6 +169,31 @@ def test_deleting_an_activity_takes_its_windows_with_it(repo, cache):
     assert repo.delete(activity.activity_id) is False
     orphans = repo._db.execute("SELECT COUNT(*) FROM blind_windows").fetchone()[0]
     assert orphans == 0
+
+
+def test_an_activity_carrying_labels_cannot_be_deleted(repo, cache, tmp_path):
+    """Deleting a session must never quietly mean deleting the ground truth for it.
+
+    Everything else in this database can be recomputed. Labels are somebody's attention,
+    and they cannot, so the foreign key refuses the delete rather than cascading (ADR-0006).
+    """
+    from surf.models import WaveLabel
+    from surf.store import LabelRepository
+
+    activity = make_activity()
+    store(repo, cache, activity)
+    labels = LabelRepository(tmp_path / "surf.db")
+    try:
+        labels.append(
+            activity.activity_id,
+            WaveLabel(t_start=0.0, t_end=6.0, is_wave=True, verified=True),
+            created_at=1.0,
+        )
+        with pytest.raises(StoreError, match="append-only"):
+            repo.delete(activity.activity_id)
+        assert repo.get(activity.activity_id) is not None
+    finally:
+        labels.close()
 
 
 def test_metadata_without_its_samples_raises_rather_than_reporting_an_empty_session(

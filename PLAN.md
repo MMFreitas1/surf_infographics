@@ -22,6 +22,11 @@ cat docs/architecture.md   # component map + one-way doors
 ls docs/adr/               # why each decision was made
 ```
 
+> **"Reference session" means two different things in this file.** Phase 1 uses it for the
+> real FIT recording in `sample_data/` (3790 samples, 48.8% coverage); Phases 2–3 use it for
+> the seeded `surf.synthetic` session pinned in `evals/goldens/`. Where a number could be
+> either, this plan now says which.
+
 **Three rules that override convenience** (full list in `CLAUDE.md`):
 1. Never present an imputed wave as measured. Detected / uncertain / blind are three states.
 2. The pipeline consumes only first-party recorded signal (ADR-0008).
@@ -354,8 +359,9 @@ deliberately one place.
       (15), 4 chain tests in the spine, 3 in the eval gate. Threshold is a quantile of the
       session's **own** cross-shore speed, so no absolute m/s appears anywhere
 - [x] `WaveCandidate.position_coverage` filled from `observed` — and it earns its place:
-      2 of the 9 proposals on the reference session are built entirely from estimated
-      seconds and report 0.0
+      2 of the 9 proposals on the **synthetic** session are built entirely from estimated
+      seconds and report 0.0. (Phase 4 measured the real FIT session for the first time:
+      **22 proposals**, 2 at zero coverage and 8 more under 25%. See ADR-0012.)
 - [x] Tests: bearing to a stated 5° tolerance; candidate recall in the eval gate as **two**
       numbers, because one would have been misleading — see below
 
@@ -434,7 +440,7 @@ proposed = CandidateStage().run(framed)                      # CandidateSet: fra
 | `SessionFrame.reliable` | on a low-coherence session the cross-shore axis is not trustworthy, and the UI must not draw a confident shore line over it (ADR-0011) |
 | `FramedSample.observed` | the measured/estimated line (ADR-0010). **The UI has to render this**, or a labeller marks an interpolated stretch believing they saw it |
 | `FramedSample.position_sigma_m` — via the L1 track | what we do not know, in metres. This is the "render what we do not know" requirement in `CLAUDE.md` |
-| `WaveCandidate.position_coverage` | 2 of 9 proposals on the reference session are built entirely from estimated seconds. Those are exactly the ones a human should be asked about |
+| `WaveCandidate.position_coverage` | On the **real** session L3 proposes 22 intervals: 2 built entirely from estimated seconds, 8 more under 25% coverage. Those are exactly the ones a human should be asked about. (The "9 proposals" in Phase 3 is the *synthetic* session — ADR-0012 records the difference) |
 
 ### Decide before building — needs plan mode + sign-off
 

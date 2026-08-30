@@ -17,9 +17,20 @@ from surf.diagnostics import ErrorBuffer
 from surf.ingest import IngestError, source_digest
 from surf.ingest.stage import IngestStage
 from surf.logging import configure_logging, get_logger
-from surf.models import Activity, ActivitySummary
+from surf.models import (
+    Activity,
+    ActivitySummary,
+    LabelPass,
+    LabelSource,
+    PassKind,
+    SessionCandidates,
+    SessionTrack,
+    StoredLabel,
+    WaveLabel,
+)
 from surf.pipeline import StageCache, run_stage
-from surf.store import ActivityRepository
+from surf.pipeline.session import candidates_for, track_for
+from surf.store import ActivityRepository, LabelRepository, StoreError
 
 log = get_logger(__name__)
 
@@ -34,6 +45,26 @@ class ClientError(BaseModel):
     context: dict[str, Any] = Field(default_factory=dict)
 
 
+class LabelCreate(WaveLabel):
+    """What the labeling UI posts.
+
+    ``verified`` loses its default on purpose. Inherited, it would default to False, and a
+    UI that simply forgot the field would fill the store with labels that look complete and
+    silently count for nothing -- ``counts_as_truth`` requires it. Making the caller say so
+    turns a silent miss into a 422.
+    """
+
+    verified: bool
+    supersedes: str | None = None
+    """The label this one corrects. Nothing is edited; the old row stays (ADR-0006)."""
+
+
+class PassCreate(BaseModel):
+    """Recording that a labeller finished a sweep of a session."""
+
+    kind: PassKind
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     """Configure logging and diagnostics for the app's lifetime."""
@@ -42,6 +73,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings.cache_dir.mkdir(parents=True, exist_ok=True)
     app.state.cache = StageCache(settings.cache_dir)
     app.state.activities = ActivityRepository(settings.db_path, app.state.cache)
+    app.state.labels = LabelRepository(settings.db_path)
     log.info(
         "api.startup",
         version=__version__,
@@ -51,6 +83,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     )
     yield
     app.state.activities.close()
+    app.state.labels.close()
     log.info("api.shutdown")
 
 
@@ -159,6 +192,157 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if stored is None:
             raise HTTPException(status_code=404, detail="no such activity")
         return stored
+
+    def _stored_or_404(request: Request, activity_id: str) -> Activity:
+        """The activity, or a 404. Every session-scoped route starts here."""
+        repo: ActivityRepository = request.app.state.activities
+        stored = repo.get(activity_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail="no such activity")
+        return stored
+
+    def _samples_key_or_404(request: Request, activity_id: str) -> str:
+        """Head of the stage chain for a stored session."""
+        repo: ActivityRepository = request.app.state.activities
+        key = repo.samples_key(activity_id)
+        if key is None:  # pragma: no cover - _stored_or_404 raises first
+            raise HTTPException(status_code=404, detail="no such activity")
+        return key
+
+    @app.get("/activities/{activity_id}/track")
+    def read_track(request: Request, activity_id: str) -> SessionTrack:
+        """The smoothed track and its shore-frame rotation, aligned row for row.
+
+        Both tracks estimate every second, including the ~51% with no fix, so each row
+        carries ``observed`` and the client is expected to draw the two states differently
+        (ADR-0010). The frame is served with its reliability, not without it: an unreliable
+        bearing is an answer, and hiding it would let the UI draw a confident wrong shore.
+        """
+        activity = _stored_or_404(request, activity_id)
+        chain = track_for(
+            activity,
+            request.app.state.cache,
+            samples_key=_samples_key_or_404(request, activity_id),
+        )
+        log.info(
+            "track.served",
+            activity_id=activity_id,
+            seconds=len(chain.track.smoothed),
+            reliable=chain.track.frame.reliable,
+            from_cache=chain.cached,
+        )
+        return chain.track
+
+    @app.get("/activities/{activity_id}/candidates")
+    def read_candidates(request: Request, activity_id: str) -> SessionCandidates:
+        """L3's proposals for this session.
+
+        Deliberately a separate route from the track: the labeling UI has to be able to
+        draw a session without ever fetching this, because the blind pass is the one that
+        produces unanchored ground truth (ADR-0012).
+        """
+        activity = _stored_or_404(request, activity_id)
+        proposed, cached = candidates_for(
+            activity,
+            request.app.state.cache,
+            samples_key=_samples_key_or_404(request, activity_id),
+        )
+        log.info(
+            "candidates.served",
+            activity_id=activity_id,
+            proposals=len(proposed.candidates),
+            from_cache=cached,
+        )
+        return SessionCandidates(frame=proposed.frame, candidates=proposed.candidates)
+
+    @app.post("/activities/{activity_id}/labels", status_code=201)
+    def append_label(request: Request, activity_id: str, payload: LabelCreate) -> StoredLabel:
+        """Append one human judgement. Nothing is ever updated in place (ADR-0006).
+
+        A correction names the label it replaces; the replaced row stays exactly where it
+        was, which is what keeps the history of how judgement changed readable.
+        """
+        _stored_or_404(request, activity_id)
+        labels: LabelRepository = request.app.state.labels
+
+        if payload.source is LabelSource.CIQ_BOOTSTRAP:
+            raise HTTPException(
+                status_code=400,
+                detail="the API writes human labels only: bootstrap imports are not truth "
+                "and do not enter through here (ADR-0006)",
+            )
+        if payload.source is LabelSource.HUMAN_ASSISTED and not labels.has_pass(
+            activity_id, PassKind.BLIND
+        ):
+            raise HTTPException(
+                status_code=409,
+                detail="no blind pass on this session yet. Label it without candidates "
+                "first, so an unanchored set exists to measure against (ADR-0012)",
+            )
+
+        try:
+            stored = labels.append(
+                activity_id,
+                WaveLabel(**payload.model_dump(exclude={"supersedes", "counts_as_truth"})),
+                created_at=time.time(),
+                supersedes=payload.supersedes,
+            )
+        except StoreError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        log.info(
+            "label.appended",
+            activity_id=activity_id,
+            label_id=stored.label_id,
+            source=stored.source.value,
+            is_wave=stored.is_wave,
+            supersedes=stored.supersedes,
+        )
+        return stored
+
+    @app.get("/activities/{activity_id}/labels")
+    def read_labels(
+        request: Request,
+        activity_id: str,
+        current: bool = False,
+    ) -> list[StoredLabel]:
+        """Labels for one session, oldest first.
+
+        ``current=true`` drops superseded rows. The default is the whole record, because
+        the audit trail is the reason this table is append-only in the first place.
+        """
+        _stored_or_404(request, activity_id)
+        labels: LabelRepository = request.app.state.labels
+        return labels.for_activity(activity_id, current=current)
+
+    @app.post("/activities/{activity_id}/label-passes", status_code=201)
+    def complete_pass(request: Request, activity_id: str, payload: PassCreate) -> LabelPass:
+        """Record that a sweep of this session is finished.
+
+        This is what separates "nobody has looked at this session" from "somebody looked
+        carefully and there were no rides" -- and it is the gate the assisted pass opens
+        against (ADR-0012).
+        """
+        _stored_or_404(request, activity_id)
+        labels: LabelRepository = request.app.state.labels
+        try:
+            completed = labels.complete_pass(activity_id, payload.kind, completed_at=time.time())
+        except StoreError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        log.info(
+            "label_pass.completed",
+            activity_id=activity_id,
+            kind=completed.kind.value,
+            label_count=completed.label_count,
+        )
+        return completed
+
+    @app.get("/activities/{activity_id}/label-passes")
+    def read_passes(request: Request, activity_id: str) -> list[LabelPass]:
+        """Every completed sweep of this session, oldest first."""
+        _stored_or_404(request, activity_id)
+        labels: LabelRepository = request.app.state.labels
+        return labels.passes_for(activity_id)
 
     @app.get("/diagnostics/errors")
     def read_errors(
