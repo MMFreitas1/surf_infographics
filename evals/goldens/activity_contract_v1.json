@@ -1,0 +1,88 @@
+{
+  "_note": "The API contract, pinned once and read by both sides. api/tests/test_contract_parity.py checks it against the Pydantic models; web/tests/contract.test.ts checks it against the Zod schemas. Add a field on one side only and one of them fails. Synthetic values, no personal data -- see ADR-0008.",
+  "_version": 1,
+  "activity": {
+    "activity_id": "contract-v1",
+    "sport": "surfing",
+    "start_time": 1787937820.0,
+    "fidelity": "fit",
+    "samples": [
+      {
+        "t": 0.0,
+        "lat": 38.0,
+        "lon": -9.0,
+        "speed_ms": 1.25,
+        "hr_bpm": 104,
+        "temp_c": 21.0,
+        "distance_m": 0.0,
+        "confidence": 1.0,
+        "has_position": true
+      },
+      {
+        "t": 1.0,
+        "lat": 38.00001,
+        "lon": -9.00001,
+        "speed_ms": 3.5,
+        "hr_bpm": 105,
+        "temp_c": 21.0,
+        "distance_m": 3.5,
+        "confidence": 0.9,
+        "has_position": true
+      },
+      {
+        "t": 2.0,
+        "lat": null,
+        "lon": null,
+        "speed_ms": null,
+        "hr_bpm": 106,
+        "temp_c": 21.0,
+        "distance_m": 3.5,
+        "confidence": 0.25,
+        "has_position": false
+      },
+      {
+        "t": 3.0,
+        "lat": null,
+        "lon": null,
+        "speed_ms": null,
+        "hr_bpm": null,
+        "temp_c": null,
+        "distance_m": null,
+        "confidence": 1.0,
+        "has_position": false
+      }
+    ],
+    "blind_windows": [
+      {
+        "t_start": 2.0,
+        "t_end": 4.0,
+        "cause": "no_fix",
+        "duration_s": 2.0
+      },
+      {
+        "t_start": 10.0,
+        "t_end": 14.0,
+        "cause": "missing_record",
+        "duration_s": 4.0
+      }
+    ],
+    "device": "garmin:3291",
+    "source_file": "contract.fit",
+    "duration_s": 3.0,
+    "position_coverage": 0.5,
+    "blind_seconds": 6.0
+  },
+  "summary": {
+    "activity_id": "contract-v1",
+    "sport": "surfing",
+    "start_time": 1787937820.0,
+    "fidelity": "fit",
+    "device": "garmin:3291",
+    "source_file": "contract.fit",
+    "sample_count": 4,
+    "duration_s": 3.0,
+    "position_coverage": 0.5,
+    "blind_seconds": 6.0,
+    "ingested_at": 1787941610.0
+  }
+}

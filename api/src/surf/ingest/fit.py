@@ -22,6 +22,7 @@ from dataclasses import dataclass
 from typing import Any, Final
 
 from surf.ingest.blind import derive_blind_windows
+from surf.ingest.errors import IngestError
 from surf.models import Activity, Fidelity, Sample
 from surf.pipeline import content_hash
 
@@ -82,8 +83,12 @@ MANUFACTURER_NAMES: Final[dict[int, str]] = {1: "garmin"}
 BASE_TYPE_STRING: Final = 7
 
 
-class FitError(ValueError):
-    """The bytes are not a FIT file we can decode."""
+class FitError(IngestError):
+    """The bytes are not a FIT file we can decode.
+
+    An ``IngestError``, so a caller handling "this file cannot be read" catches every
+    format's failure the same way -- a corrupt FIT is a bad request, not a server fault.
+    """
 
 
 @dataclass(frozen=True)

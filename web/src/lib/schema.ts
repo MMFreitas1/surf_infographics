@@ -68,6 +68,28 @@ export const Activity = z.object({
 });
 export type Activity = z.infer<typeof Activity>;
 
+/**
+ * An activity without its samples, as `GET /activities` returns them.
+ *
+ * A projection, not a second shape: every field means what it means on `Activity`. The
+ * list endpoint must not ship thousands of samples per row, and an `Activity` with an
+ * empty `samples` array would read as "this session recorded nothing".
+ */
+export const ActivitySummary = z.object({
+  activity_id: z.string(),
+  sport: z.string(),
+  start_time: z.number(),
+  fidelity: Fidelity,
+  device: z.string().default(""),
+  source_file: z.string().default(""),
+  sample_count: z.number().int().min(0),
+  duration_s: z.number(),
+  position_coverage: z.number().min(0).max(1),
+  blind_seconds: z.number().min(0),
+  ingested_at: z.number(),
+});
+export type ActivitySummary = z.infer<typeof ActivitySummary>;
+
 export const Health = z.object({
   status: z.literal("ok"),
   version: z.string(),

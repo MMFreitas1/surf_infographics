@@ -10,9 +10,9 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics, eval harness · Phase 1 parsers (PR #10) |
-| **Next** | Phase 1 store — SQLite + `POST/GET /activities` + Zod parity (next PR) |
-| **Health** | `make check` → 121 tests green (88 api · 9 web · 24 evals); 10 api tests skip without `sample_data/` |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1 complete** — ingest, storage, REST |
+| **Next** | Phase 2 — kinematics: Kalman + RTS smoother, blind windows, propagated confidence |
+| **Health** | `make check` → 163 tests green (123 api · 16 web · 24 evals); 10 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
 **Orient in three commands:**
@@ -32,7 +32,7 @@ ls docs/adr/               # why each decision was made
 ## Phase checklist
 
 - [x] **0 · Boot** — conventions, architecture, ADRs, scaffold, CI, test + eval harness, local diagnostics
-- [ ] **1 · Ingest** — FIT/GPX/TCX → canonical `Activity`, fidelity-tagged, golden tests
+- [x] **1 · Ingest** — FIT/GPX/TCX → canonical `Activity`, fidelity-tagged, golden tests, stored
 - [ ] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
 - [ ] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
 - [ ] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
@@ -91,7 +91,7 @@ ls docs/adr/               # why each decision was made
 
 ---
 
-## Phase 1 · Ingest — next
+## Phase 1 · Ingest — ✅ complete
 
 **Goal:** a canonical `Activity` from any of the three formats, with fidelity tracked.
 
@@ -110,13 +110,15 @@ ls docs/adr/               # why each decision was made
       there are fixes, so it cannot be aligned to the timeline. Written up in
       `docs/data-findings.md` §6 and **not ingested**. Revisit only if a timestamped variant appears.
 
-**Store** ← next PR
+**Store** ✅ PR #11
 
-- [ ] SQLite `activities` + `blind_windows` tables — `store/schema.sql`, `store/repo.py`
-- [ ] Samples → Parquet through the existing `StageCache` (L0), keyed from the activities row
-- [ ] `POST /activities` + `GET /activities/{id}` + `GET /activities` in the canonical shape
-- [ ] Idempotent ingest: re-posting identical bytes returns the existing activity
-- [ ] Zod contract parity test — Python model and TS schema must not drift
+- [x] SQLite `activities` + `blind_windows` tables — `store/schema.sql`, `store/repo.py`
+- [x] Samples → Parquet through the existing `StageCache` (L0), keyed from the activities row
+- [x] `POST /activities` + `GET /activities/{id}` + `GET /activities` in the canonical shape
+      (raw bytes as the body, not multipart — see `docs/architecture.md` §6)
+- [x] Idempotent ingest: identical bytes return the stored activity with 200, not a second row
+- [x] Zod contract parity — one committed fixture read by both sides; **drift detection verified
+      in both directions**, not just asserted
 
 **Done when:** the reference FIT round-trips into an `Activity` whose numbers match the
 golden exactly, it survives a restart, and `make check` is green.
@@ -165,3 +167,20 @@ Browser errors POST to `/diagnostics/client-error`, so UI and API failures share
 | Sentry | single-user localhost app; local buffer + JSONL log is more useful and free (ADR-0007) |
 | Phoenix / LLM tracing | same; Phase 8 logs prompt/response pairs to disk (ADR-0007) |
 | Connect IQ bootstrap labels | derived from the same GPS we hold — their errors, no information (ADR-0008) |
+
+---
+
+## Phase 2 · Kinematics — next
+
+**Goal:** a smoothed position/velocity track with per-sample confidence, honest across blind windows.
+
+- [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003)
+- [ ] Confidence per sample, driven by fix availability and innovation — not a constant
+- [ ] Blind windows stay blind: the smoother may interpolate *through* one, but the result is
+      tagged so nothing downstream can present it as measured
+- [ ] Wire as an L1 stage behind the `Stage` protocol, cached by `StageCache`
+- [ ] Tests: a synthetic track with known kinematics recovers to a stated tolerance; a
+      positionless stretch produces low confidence, never silent certainty
+
+**Done when:** L1 runs over the reference session, confidence drops inside every blind window,
+and `make check` is green.

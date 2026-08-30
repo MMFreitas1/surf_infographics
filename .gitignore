@@ -30,6 +30,7 @@ sample_data/
 *.parquet
 *.sqlite
 *.sqlite3
+*.db
 
 # models
 models/

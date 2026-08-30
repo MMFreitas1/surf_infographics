@@ -60,7 +60,13 @@ sample_data/ reference session (FIT + GPX) — gitignored, local only
 ## Status
 
 **Phase 0 complete** — foundation, CI, test and eval harness.
-**Phase 1 in progress** — FIT, GPX and TCX parse into the canonical `Activity`, with blind
-windows derived from both causes. The FIT and the GPX of the same session are parsed by
-separate code down separate paths and agree, to the second, on how much of it was blind.
-Persistence and the REST endpoints are next.
+**Phase 1 complete** — FIT, GPX and TCX parse into the canonical `Activity`, with blind
+windows derived from both causes, and are stored: metadata in SQLite, samples as Parquet.
+The FIT and the GPX of the same session are parsed by separate code down separate paths and
+agree, to the second, on how much of it was blind. Kinematics is next.
+
+```bash
+curl --data-binary @session.fit 'localhost:8000/activities?filename=session.fit'
+curl localhost:8000/activities          # summaries, no samples
+curl localhost:8000/activities/<id>     # the full canonical Activity
+```

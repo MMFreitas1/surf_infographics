@@ -19,6 +19,9 @@ class Settings(BaseSettings):
     error_buffer_size: int = Field(default=200, alias="SURF_ERROR_BUFFER_SIZE")
     """How many recent errors the /diagnostics endpoint keeps in memory."""
 
+    max_upload_bytes: int = Field(default=64 * 1024 * 1024, alias="SURF_MAX_UPLOAD_BYTES")
+    """Ceiling on an ingested file. A season of surfing is a few hundred KB per session."""
+
     llm_enabled: bool = Field(default=False, alias="SURF_LLM_ENABLED")
     llm_model: str = Field(default="qwen2.5:7b-instruct-q4_K_M", alias="SURF_LLM_MODEL")
     llm_host: str = Field(default="http://127.0.0.1:11434", alias="SURF_LLM_HOST")
@@ -28,6 +31,11 @@ class Settings(BaseSettings):
     def cache_dir(self) -> Path:
         """Directory holding cached pipeline stage outputs."""
         return self.data_dir / "cache"
+
+    @property
+    def db_path(self) -> Path:
+        """The single SQLite file holding activity metadata, windows and (later) labels."""
+        return self.data_dir / "surf.db"
 
     @property
     def log_dir(self) -> Path:

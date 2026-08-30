@@ -2,18 +2,23 @@
 
 from __future__ import annotations
 
+import time
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
-from fastapi import FastAPI, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from surf import __version__
 from surf.config import Settings, get_settings
 from surf.diagnostics import ErrorBuffer
+from surf.ingest import IngestError, parse_activity, source_digest
 from surf.logging import configure_logging, get_logger
+from surf.models import Activity, ActivitySummary
+from surf.pipeline import StageCache
+from surf.store import ActivityRepository
 
 log = get_logger(__name__)
 
@@ -34,13 +39,16 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     settings: Settings = app.state.settings
     configure_logging(settings.log_level, settings.log_file)
     settings.cache_dir.mkdir(parents=True, exist_ok=True)
+    app.state.activities = ActivityRepository(settings.db_path, StageCache(settings.cache_dir))
     log.info(
         "api.startup",
         version=__version__,
         data_dir=str(settings.data_dir),
         log_file=str(settings.log_file),
+        db=str(settings.db_path),
     )
     yield
+    app.state.activities.close()
     log.info("api.shutdown")
 
 
@@ -66,6 +74,75 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def health() -> dict[str, Any]:
         """Liveness probe."""
         return {"status": "ok", "version": __version__}
+
+    @app.post("/activities", status_code=201)
+    async def ingest_activity(
+        request: Request,
+        response: Response,
+        filename: Annotated[str, Query(max_length=255)] = "",
+    ) -> Activity:
+        """Ingest an activity file posted as the raw request body.
+
+        The body is the file's bytes -- the format is detected from its content, so
+        ``filename`` is recorded for display only and never decides how it is parsed.
+        Posting identical bytes twice returns the activity already stored, with 200
+        rather than 201, so a repeated upload cannot fork one session into two.
+        """
+        cfg: Settings = request.app.state.settings
+        repo: ActivityRepository = request.app.state.activities
+
+        data = await request.body()
+        if not data:
+            raise HTTPException(status_code=400, detail="empty body: post the file's bytes")
+        if len(data) > cfg.max_upload_bytes:
+            raise HTTPException(
+                status_code=413,
+                detail=f"file is larger than the {cfg.max_upload_bytes} byte limit",
+            )
+
+        digest = source_digest(data)
+        existing = repo.id_for_digest(digest)
+        if existing is not None:
+            stored = repo.get(existing)
+            if stored is not None:
+                response.status_code = 200
+                log.info("activity.already_ingested", activity_id=existing)
+                return stored
+
+        try:
+            activity = parse_activity(data, source_file=filename)
+        except IngestError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+        repo.save(activity, source_sha256=digest, ingested_at=time.time())
+        log.info(
+            "activity.ingested",
+            activity_id=activity.activity_id,
+            fidelity=activity.fidelity.value,
+            sport=activity.sport,
+            samples=len(activity.samples),
+            position_coverage=round(activity.position_coverage, 4),
+            blind_seconds=activity.blind_seconds,
+        )
+        return activity
+
+    @app.get("/activities")
+    def list_activities(
+        request: Request,
+        limit: Annotated[int, Query(ge=1, le=500)] = 100,
+    ) -> list[ActivitySummary]:
+        """Stored activities without their samples, newest session first."""
+        repo: ActivityRepository = request.app.state.activities
+        return repo.summaries(limit)
+
+    @app.get("/activities/{activity_id}")
+    def read_activity(request: Request, activity_id: str) -> Activity:
+        """One activity in the canonical shape, samples included."""
+        repo: ActivityRepository = request.app.state.activities
+        stored = repo.get(activity_id)
+        if stored is None:
+            raise HTTPException(status_code=404, detail="no such activity")
+        return stored
 
     @app.get("/diagnostics/errors")
     def read_errors(

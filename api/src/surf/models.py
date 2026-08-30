@@ -137,6 +137,45 @@ class WaveLabel(BaseModel):
         return self.source is LabelSource.HUMAN and self.verified
 
 
+class ActivitySummary(BaseModel):
+    """An activity without its samples, for listing.
+
+    A projection, not a second canonical shape: every field here means exactly what it
+    means on :class:`Activity`. It exists because a list endpoint must not ship 3790
+    samples per row -- and because returning an ``Activity`` with an empty ``samples``
+    list would read as "this session recorded nothing", which is a lie about the data.
+    """
+
+    activity_id: str
+    sport: str
+    start_time: float
+    fidelity: Fidelity
+    device: str = ""
+    source_file: str = ""
+    sample_count: int
+    duration_s: float
+    position_coverage: float
+    blind_seconds: float
+    ingested_at: float
+
+    @classmethod
+    def of(cls, activity: Activity, *, ingested_at: float) -> ActivitySummary:
+        """Project a full activity down to its summary."""
+        return cls(
+            activity_id=activity.activity_id,
+            sport=activity.sport,
+            start_time=activity.start_time,
+            fidelity=activity.fidelity,
+            device=activity.device,
+            source_file=activity.source_file,
+            sample_count=len(activity.samples),
+            duration_s=activity.duration_s,
+            position_coverage=activity.position_coverage,
+            blind_seconds=activity.blind_seconds,
+            ingested_at=ingested_at,
+        )
+
+
 class Activity(BaseModel):
     """A single recorded session."""
 
