@@ -253,10 +253,12 @@ Gaussian noise and dropout — and **throws the clean track away**. `SyntheticSe
 only `activity` and `truth` (ride intervals). There is nothing to measure a recovered track
 against, so "recovers to a stated tolerance" is not currently writable.
 
-- [ ] Carry the noiseless per-second `(x, y, vx, vy)` out on `SyntheticSession` alongside
-      `truth`. **Draw no new random numbers while doing it** — the values already exist in
-      the generator; adding an RNG call would shift the sequence and move
-      `evals/test_synthetic_golden.py` off its golden. Run the eval gate to confirm it did not.
+- [x] Carry the noiseless per-second `(x, y, vx, vy)` out on `SyntheticSession` alongside
+      `truth`. ✅ PR #15 — `TrueState` per second on `SyntheticSession.true_track`, drawing
+      no random numbers, golden unmoved. It also closed a hole: coverage, blind windows and
+      truth intervals all fall out of the RNG *sequence*, so a changed speed profile moved
+      nothing the gate checked. The track's aggregates are pinned in the golden now, and a
+      mutation confirms they catch it.
 
 #### 3. Then the smoother
 

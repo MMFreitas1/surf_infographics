@@ -16,6 +16,13 @@
     "blind_seconds": 859.0,
     "wave_count": 8
   },
+  "true_track": {
+    "_note": "Aggregates of the noiseless track a smoother is scored against.",
+    "point_count": 1807,
+    "path_length_m": 1204.474796,
+    "max_speed_ms": 7.954511,
+    "mean_speed_ms": 0.66656
+  },
   "truth_intervals": [
     {
       "t_start": 145.0,
