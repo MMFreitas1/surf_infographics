@@ -1,10 +1,340 @@
 :root {
   color-scheme: light dark;
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+  /* The three states, named once. Nothing in this app may draw them the same way. */
+  --measured: #0f76b2;
+  --estimated: #8b8b9a;
+  --unknown: #b9b9c8;
+
+  --saved: #1f9d55;
+  --rejected: #b45309;
+  --draft: #6d28d9;
+  --candidate: #a16207;
+
+  --line: color-mix(in srgb, currentColor 15%, transparent);
+  --warn: #b45309;
 }
 
 body {
   margin: 0;
-  padding: 2rem;
+  padding: 1.25rem;
   line-height: 1.5;
+}
+
+h1 {
+  font-size: 1.15rem;
+  margin: 0.25rem 0 0;
+}
+h2 {
+  font-size: 0.8rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  margin: 0;
+  opacity: 0.75;
+}
+
+.muted {
+  opacity: 0.6;
+  font-size: 0.85rem;
+}
+.error {
+  color: #b91c1c;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  padding: 0.5rem 0.75rem;
+  font-size: 0.9rem;
+}
+.warn {
+  color: var(--warn);
+}
+
+/* ---- session list ---------------------------------------------------------------- */
+
+.session-list {
+  list-style: none;
+  padding: 0;
+  max-width: 46rem;
+}
+.session-list a {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.15rem 1rem;
+  padding: 0.6rem 0.75rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  margin-bottom: 0.4rem;
+  text-decoration: none;
+  color: inherit;
+}
+.session-list a:hover {
+  border-color: var(--measured);
+}
+.coverage {
+  font-size: 0.85rem;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- labeling workspace ---------------------------------------------------------- */
+
+.workspace-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 0.75rem;
+}
+.workspace-head a {
+  font-size: 0.85rem;
+}
+.columns {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 20rem;
+  gap: 1rem;
+  align-items: start;
+}
+@media (max-width: 60rem) {
+  .columns {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+.row {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.panel {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 0.2rem;
+}
+.caveat {
+  margin: 0;
+  font-size: 0.78rem;
+  opacity: 0.75;
+  text-align: right;
+}
+
+/* The plot and its overlay share one box, so the overlay's x is the plot's x. */
+.plot-host {
+  position: relative;
+  touch-action: none;
+}
+.drag-surface {
+  position: absolute;
+  inset: 0;
+  cursor: crosshair;
+}
+
+.band {
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  pointer-events: none;
+}
+/* Blind stretches are hatched, not tinted: a flat wash reads as decoration, and this has to
+   read as "there is nothing under here".
+
+   The weight is deliberately light. A real session has hundreds of separate blind windows —
+   381 on the reference recording — so a heavy hatch covers the whole chart and hides the
+   very trace it is annotating. Light and wide-spaced still reads as texture at a glance,
+   and the dashed line underneath is what carries the same fact precisely. */
+.band-blind {
+  background: repeating-linear-gradient(
+    45deg,
+    color-mix(in srgb, var(--unknown) 30%, transparent) 0 2px,
+    transparent 2px 7px
+  );
+}
+.band-saved {
+  background: color-mix(in srgb, var(--saved) 22%, transparent);
+  border-left: 2px solid var(--saved);
+  border-right: 2px solid var(--saved);
+}
+.band-rejected {
+  background: color-mix(in srgb, var(--rejected) 16%, transparent);
+  border-left: 2px dashed var(--rejected);
+  border-right: 2px dashed var(--rejected);
+}
+.band-draft {
+  background: color-mix(in srgb, var(--draft) 20%, transparent);
+  border-left: 2px solid var(--draft);
+  border-right: 2px solid var(--draft);
+}
+.band-candidate {
+  background: none;
+  border-bottom: 3px solid var(--candidate);
+}
+.playhead,
+.hoverline {
+  position: absolute;
+  top: 0;
+  bottom: 18px;
+  width: 1px;
+  pointer-events: none;
+}
+.playhead {
+  background: #dc502880;
+  box-shadow: 0 0 0 0.5px #dc5028;
+}
+.hoverline {
+  background: color-mix(in srgb, currentColor 35%, transparent);
+}
+
+.map-host {
+  position: relative;
+  border-radius: 4px;
+  overflow: hidden;
+  background: color-mix(in srgb, currentColor 6%, transparent);
+}
+.map-placeholder {
+  height: 260px;
+  display: grid;
+  place-items: center;
+  opacity: 0.6;
+}
+.legend {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  opacity: 0.75;
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.key {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  margin-left: 0.6rem;
+}
+.key-measured {
+  background: var(--measured);
+}
+.key-estimated {
+  background: var(--estimated);
+}
+.key-unknown {
+  background: var(--unknown);
+  height: 10px;
+  border-radius: 50%;
+  width: 10px;
+}
+
+/* ---- labels column --------------------------------------------------------------- */
+
+.labels section {
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 0.5rem 0.6rem;
+  margin-bottom: 0.6rem;
+}
+.draft {
+  display: grid;
+  gap: 0.35rem;
+  border-top: 1px solid var(--line);
+  padding-top: 0.5rem;
+  margin-top: 0.5rem;
+}
+.draft header {
+  display: flex;
+  justify-content: space-between;
+  font-variant-numeric: tabular-nums;
+}
+.draft label {
+  font-size: 0.85rem;
+  display: flex;
+  gap: 0.35rem;
+  align-items: center;
+}
+.saved {
+  list-style: none;
+  padding: 0;
+  margin: 0.35rem 0 0;
+  display: grid;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+}
+.saved li {
+  display: flex;
+  gap: 0.4rem;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.tag {
+  font-size: 0.7rem;
+  padding: 0.05rem 0.35rem;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+}
+.tag-wave {
+  border-color: var(--saved);
+  color: var(--saved);
+}
+.tag-not {
+  border-color: var(--rejected);
+  color: var(--rejected);
+}
+.tag-assisted {
+  border-color: var(--candidate);
+  color: var(--candidate);
+}
+.tag-blind {
+  border-color: var(--warn);
+  color: var(--warn);
+}
+
+button {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+button:hover:not(:disabled) {
+  border-color: var(--measured);
+}
+button:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+button.link,
+button.quiet {
+  border: none;
+  padding: 0;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+button.quiet {
+  opacity: 0.6;
+  font-size: 0.78rem;
+}
+button.primary {
+  width: 100%;
+  padding: 0.4rem;
+  border-color: var(--measured);
+  color: var(--measured);
+}
+input[type="text"],
+select {
+  font: inherit;
+  font-size: 0.85rem;
+  padding: 0.2rem 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: none;
+  color: inherit;
 }

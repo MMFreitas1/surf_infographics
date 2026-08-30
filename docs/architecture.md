@@ -83,6 +83,10 @@ A `Sample` without a position is still a valid sample: it carries HR, time and b
 | Database | **SQLite** + Parquet stage cache | ADR-0004 — local-first, zero-ops, one file to back up |
 | Deploy | **localhost only**, Docker Compose for reproducibility | no cloud, no auth surface |
 | Upload shape | `POST /activities` takes the **raw file bytes as the body**, not multipart | multipart would add `python-multipart` for no gain: the format is detected from content, so the filename is cosmetic. `curl --data-binary @file` |
+| Charts | **Observable Plot**, drawn into a node it owns | the overlay that reads drags is React's, positioned from `chart.scale("x")` so it cannot drift out of alignment |
+| Map | **scoped `@deck.gl/core` + `/layers` + `/react`** — never the `deck.gl` umbrella | the umbrella depends on `@deck.gl/arcgis`, which pulls all of `@arcgis/core` and a Vaadin usage-statistics package that phones home. Scoped packages avoid both |
+| Basemap | MapTiler when a key is present, **degrades to a bare track otherwise** | §7 requires the app to work offline; the track never depends on the network (ADR-0012) |
+| Browser access | explicit CORS allowlist, never `*` | the UI is a different origin from the API, and this process serves personal location history |
 | External | Open-Meteo Marine (keyless), MapTiler free tier | $0 stack rule |
 | Error tracking | **local** — bounded buffer + `/diagnostics/*` | ADR-0007, no SaaS |
 | Logging | structlog → stdout + `data/logs/api.jsonl` | ADR-0007 |

@@ -22,10 +22,25 @@ class Settings(BaseSettings):
     max_upload_bytes: int = Field(default=64 * 1024 * 1024, alias="SURF_MAX_UPLOAD_BYTES")
     """Ceiling on an ingested file. A season of surfing is a few hundred KB per session."""
 
+    web_origins: str = Field(
+        default="http://127.0.0.1:3000,http://localhost:3000", alias="SURF_WEB_ORIGINS"
+    )
+    """Browser origins allowed to call this API, comma separated.
+
+    The UI runs on :3000 and the API on :8000, which are different origins, so without this
+    the browser refuses every request before it is sent. It is an explicit list rather than
+    ``*`` because there is no reason for anything but the local UI to be talking to a
+    process that serves someone's location history (ADR-0004: localhost only)."""
+
     llm_enabled: bool = Field(default=False, alias="SURF_LLM_ENABLED")
     llm_model: str = Field(default="qwen2.5:7b-instruct-q4_K_M", alias="SURF_LLM_MODEL")
     llm_host: str = Field(default="http://127.0.0.1:11434", alias="SURF_LLM_HOST")
     llm_idle_ttl_seconds: float = Field(default=600.0, alias="SURF_LLM_IDLE_TTL_SECONDS")
+
+    @property
+    def allowed_origins(self) -> list[str]:
+        """``web_origins`` as a list, blanks dropped."""
+        return [origin.strip() for origin in self.web_origins.split(",") if origin.strip()]
 
     @property
     def cache_dir(self) -> Path:
