@@ -35,7 +35,6 @@ SEMICIRCLES_TO_DEGREES: Final = 180.0 / 2**31
 MSG_FILE_ID: Final = 0
 MSG_SESSION: Final = 18
 MSG_RECORD: Final = 20
-MSG_DEVICE_INFO: Final = 23
 
 FIELD_TIMESTAMP: Final = 253
 """Field 253 is ``timestamp`` in every message that has one; it anchors compressed stamps."""
