@@ -14,6 +14,7 @@ import pytest
 from surf.evaluation import Interval, score
 from surf.pipeline.l1 import KinematicsStage
 from surf.pipeline.l2 import FrameStage
+from surf.pipeline.l3 import CandidateStage
 from surf.synthetic import (
     M_PER_DEG_LAT,
     ORIGIN_LAT,
@@ -205,3 +206,57 @@ def test_the_frame_matches_the_golden_exactly(synthetic, synthetic_golden):
     assert round(frame.coherence, 6) == expected["coherence"]
     assert round(frame.effective_seconds, 6) == expected["effective_seconds"]
     assert frame.contributing_seconds == expected["contributing_seconds"]
+
+
+# ------------------------------------------------------------------ L3: the candidates
+
+
+def framed_reference(session):
+    """The session all the way through L1 and L2, which is L3's input."""
+    return FrameStage().run(KinematicsStage().run(session.activity))
+
+
+def coverage_of(track, interval):
+    """How much of a truth interval actually carried a GPS fix."""
+    during = [s for s in track.samples if interval.t_start <= s.t < interval.t_end]
+    return sum(1 for s in during if s.observed) / len(during) if during else 0.0
+
+
+def test_candidates_find_every_ride_that_was_actually_observed(synthetic, synthetic_golden):
+    """The gate on the rule itself, with blindness held out of it.
+
+    This is the one that must not move. Overall recall is capped by how much of each ride
+    the watch saw; this measures whether the rule finds what there was to find.
+    """
+    expected = synthetic_golden["candidates"]
+    track = framed_reference(synthetic)
+    proposals = [Interval(c.t_start, c.t_end) for c in CandidateStage().run(track).candidates]
+    visible = [
+        i for i in synthetic.truth if coverage_of(track, i) >= expected["observed_ride_threshold"]
+    ]
+
+    assert len(visible) == expected["observed_rides"]
+    assert score(proposals, visible).recall == expected["recall_on_observed_rides"]
+
+
+def test_candidate_recall_matches_the_golden(synthetic, synthetic_golden):
+    """Overall recall and the proposal count, pinned. Precision is recorded, not gated."""
+    expected = synthetic_golden["candidates"]
+    track = framed_reference(synthetic)
+    candidates = CandidateStage().run(track).candidates
+    result = score([Interval(c.t_start, c.t_end) for c in candidates], synthetic.truth)
+
+    assert len(candidates) == expected["candidate_count"]
+    assert round(result.recall, 6) == expected["recall_all"]
+    assert round(result.precision, 6) == expected["precision_not_gated"]
+
+
+def test_every_ride_the_candidates_miss_was_one_the_smoother_could_not_see(synthetic):
+    """A miss has to be explainable. A well-observed ride going missing is a real failure."""
+    track = framed_reference(synthetic)
+    proposals = [Interval(c.t_start, c.t_end) for c in CandidateStage().run(track).candidates]
+    for interval in synthetic.truth:
+        if score(proposals, [interval]).recall == 0.0:
+            assert coverage_of(track, interval) < 0.5, (
+                f"ride at {interval.t_start}s was well observed and still missed"
+            )

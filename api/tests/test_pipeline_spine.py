@@ -10,7 +10,7 @@ whole content-addressed design rests on:
 * changing a param that changes the output changes the key, so a stale payload can never
   be served under a new rule.
 
-L1 and L2 are here too, each chained off the key below it rather than run in isolation,
+L1, L2 and L3 are here too, each chained off the key below it rather than run in isolation,
 so that invalidation propagating *down* the chain is also a thing one test can prove.
 Later stages join the same file rather than getting a spine argument of their own.
 """
@@ -43,6 +43,7 @@ from surf.models import BlindCause, Sample
 from surf.pipeline import Stage, StageCache, StageMeta, run_stage, stage_key
 from surf.pipeline.l1 import KinematicsStage
 from surf.pipeline.l2 import FrameStage
+from surf.pipeline.l3 import CandidateStage
 
 NOT_AN_ACTIVITY = b"this is not a FIT file and parsing it would raise"
 """Handed to a stage that must not run. A cache hit is proved by this never being parsed."""
@@ -385,3 +386,79 @@ def test_changing_an_l0_param_invalidates_l2_two_links_down(tmp_path):
 
     assert on_strict.key != on_loose.key
     assert on_loose.cached is False, "L2 must not serve a frame built from another track"
+
+
+# --------------------------------------------------------------- L2 -> L3, as a chain
+
+
+def frame_into(cache, *, smoothed, **params: float):
+    """Run L2 off an L1 result and hand back what L3 needs: the output and its key."""
+    return run_stage(FrameStage(**params), cache, input_hash=smoothed.key, data=smoothed.output)
+
+
+def test_l3_runs_off_l2s_output_and_the_second_pass_never_re_proposes(tmp_path):
+    cache = StageCache(tmp_path)
+    framed = frame_into(cache, smoothed=smooth_into(cache, ingested=ingest_into(cache)))
+    stage = CandidateStage()
+
+    first = run_stage(stage, cache, input_hash=framed.key, data=framed.output)
+    second = run_stage(stage, cache, input_hash=framed.key, data=Exploded())
+
+    assert first.cached is False
+    assert second.cached is True
+    assert second.output.frame == first.output.frame
+    assert [c.model_dump() for c in second.output.candidates] == [
+        c.model_dump() for c in first.output.candidates
+    ]
+
+
+def test_an_l3_param_lands_in_a_different_entry(tmp_path):
+    cache = StageCache(tmp_path)
+    framed = frame_into(cache, smoothed=smooth_into(cache, ingested=ingest_into(cache)))
+
+    generous = run_stage(
+        CandidateStage(quantile=0.60), cache, input_hash=framed.key, data=framed.output
+    )
+    strict = run_stage(
+        CandidateStage(quantile=0.95), cache, input_hash=framed.key, data=framed.output
+    )
+
+    assert generous.key != strict.key
+    assert strict.cached is False
+
+
+def test_sweeping_an_l3_threshold_reuses_the_frame_beneath_it(tmp_path):
+    """Why L2 and L3 are two stages at all (ADR-0011).
+
+    Retuning candidate generation must not drag bearing estimation along with it. The L2
+    entry is keyed on L1, not on anything L3 chose, so it is computed once and reused.
+    """
+    cache = StageCache(tmp_path)
+    smoothed = smooth_into(cache, ingested=ingest_into(cache))
+
+    first = frame_into(cache, smoothed=smoothed)
+    for quantile in (0.60, 0.75, 0.95):
+        again = frame_into(cache, smoothed=smoothed)
+        assert again.cached is True, "the frame was re-estimated for a candidate sweep"
+        assert again.key == first.key
+        run_stage(CandidateStage(quantile=quantile), cache, input_hash=again.key, data=again.output)
+
+
+def test_changing_an_l0_param_invalidates_l3_three_links_down(tmp_path):
+    """Invalidation has to travel the whole chain, not just the link above."""
+    cache = StageCache(tmp_path)
+    stage = CandidateStage()
+
+    strict = frame_into(
+        cache, smoothed=smooth_into(cache, ingested=ingest_into(cache, gap_tolerance=1.5))
+    )
+    loose = frame_into(
+        cache, smoothed=smooth_into(cache, ingested=ingest_into(cache, gap_tolerance=10.0))
+    )
+    assert strict.key != loose.key
+
+    on_strict = run_stage(stage, cache, input_hash=strict.key, data=strict.output)
+    on_loose = run_stage(stage, cache, input_hash=loose.key, data=loose.output)
+
+    assert on_strict.key != on_loose.key
+    assert on_loose.cached is False, "L3 must not serve candidates built from another frame"
