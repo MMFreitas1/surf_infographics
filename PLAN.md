@@ -10,9 +10,9 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1** — ingest, storage, REST · **Phase 2 complete** — pipeline spine, L0 and L1 as cached stages, RTS-smoothed track |
-| **Next** | Phase 3 — frame: shore bearing, cross-shore/alongshore transform, candidate generation. Start at **"Phase 3 · Frame"** below |
-| **Health** | `make check` → 203 tests green (158 api · 16 web · 29 evals); 12 api tests skip without `sample_data/` |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1** — ingest, storage, REST · **Phase 2** — pipeline spine, L0 and L1 as cached stages, RTS-smoothed track · **Phase 3 complete** — shore frame (L2) and high-recall candidates (L3) |
+| **Next** | Phase 4 — labeling UI: scrub a session and mark waves from raw signal. **This is the gate.** No phase past here can claim a quality number without it. Start at **"Phase 4 · Labeling UI"** below |
+| **Health** | `make check` → 246 tests green (196 api · 16 web · 34 evals); 12 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
 **Orient in three commands:**
@@ -34,7 +34,7 @@ ls docs/adr/               # why each decision was made
 - [x] **0 · Boot** — conventions, architecture, ADRs, scaffold, CI, test + eval harness, local diagnostics
 - [x] **1 · Ingest** — FIT/GPX/TCX → canonical `Activity`, fidelity-tagged, golden tests, stored
 - [x] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
-- [ ] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
+- [x] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
 - [ ] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
 - [ ] **5 · Rule detector** — transparent scorer → **first real precision/recall**
 - [ ] **6 · Core infographics** — session map, sawtooth, state ribbon, wave cards
@@ -302,7 +302,7 @@ with the maximum at the last index, the RTS pass has stopped running whatever el
 
 ---
 
-## Phase 3 · Frame — next
+## Phase 3 · Frame — ✅ complete
 
 **Goal:** a shore-relative frame per session, so a feature means the same thing at Sines as
 anywhere else (ADR-0003), and a first pass at candidate intervals.
@@ -348,17 +348,46 @@ deliberately one place.
 ### Then build
 
 - [x] L2: estimate the bearing, rotate velocity and position into cross-shore / alongshore
-      — `pipeline/l2.py`, `tests/test_frame.py` (15), 4 chain tests in the spine, 2 in the
-      eval gate. **Built, not yet merged** — this line gets a PR number when it lands.
-- [ ] L3: high-recall candidate intervals — recall matters far more than precision here, the
-      scorer in L5 is what tightens it
-- [ ] `WaveCandidate.position_coverage` already exists on the model: fill it from `observed`
-- [ ] Tests: bearing recovered on the synthetic to a stated tolerance; candidates achieve a
-      stated recall against `SyntheticSession.truth` via `surf.evaluation.score`
+      ✅ PR #17 — `pipeline/l2.py`, `tests/test_frame.py` (15), 4 chain tests in the spine,
+      2 in the eval gate
+- [x] L3: high-recall candidate intervals ✅ — `pipeline/l3.py`, `tests/test_candidates.py`
+      (15), 4 chain tests in the spine, 3 in the eval gate. Threshold is a quantile of the
+      session's **own** cross-shore speed, so no absolute m/s appears anywhere
+- [x] `WaveCandidate.position_coverage` filled from `observed` — and it earns its place:
+      2 of the 9 proposals on the reference session are built entirely from estimated
+      seconds and report 0.0
+- [x] Tests: bearing to a stated 5° tolerance; candidate recall in the eval gate as **two**
+      numbers, because one would have been misleading — see below
 
 **Done when:** L0→L1→L2→L3 all run as cached stages over the reference session, the frame is
 recovered on the synthetic to a pinned tolerance, candidate recall is a number in the eval
-gate, and `make check` is green.
+gate, and `make check` is green. — **all met.**
+
+### What L3 measured, and the number that would have lied
+
+| | |
+|---|---|
+| Recall on rides the smoother could **see** (≥50% position coverage) | **1.000** — every seed tried, every quantile tried |
+| Recall over **all** rides | 0.750 on the reference session |
+| Precision | 0.667, recorded and **not gated**: L5 tightens it, and a ride never proposed here cannot be recovered later |
+| `quantile = 0.75` | swept over seven seeded sessions. Mean recall is flat at 0.821 from q=0.70 to q=0.75 and falls away above; below 0.75 only costs precision for recall already saturated |
+
+The gap between those first two numbers is the whole finding. The rides L3 misses are the
+ones that were **mostly blind** — on the reference session, one 33% observed and one 12%,
+where the RTS pass has no position evidence and damps the track toward stillness. Their true
+top speeds were 4.1 and 8.0 m/s; the smoothed track shows 0.9 and 1.2.
+
+So "recall = 0.75" is a statement about the *fixture*, not about the rule, and reporting it
+alone would have quietly attributed a data limit to the detector. The eval gate asserts both,
+and `test_every_ride_the_candidates_miss_was_one_the_smoother_could_not_see` fails loudly if a
+**well-observed** ride ever goes missing — which is the only version of this that is a bug.
+
+> **This makes Phase 4 more urgent, not less.** The standing hypothesis says GPS *recovers*
+> during a ride, because the wrist comes clear of the water. If it holds on real sessions,
+> these blind rides are an artefact of `surf.synthetic`'s deliberately state-independent
+> dropout, and the real ceiling is higher than 0.75. If it does not hold, a mostly-submerged
+> ride may be genuinely undetectable from GPS alone and that is a product fact worth knowing
+> early. Human labels settle it; nothing before Phase 4 can.
 
 ### What L2 measured
 
@@ -376,8 +405,70 @@ bearing instead of checking the stage's output. That test was rewritten to asser
 known heading, and now catches it. Worth remembering: a test that derives its expectation
 from the code under test agrees with that code whatever it does.
 
-> **Carry this warning forward.** The smoothed top-end speed on real data is sensitive to
+> **Still carried forward.** The smoothed top-end speed on real data is sensitive to
 > `measurement_noise_m`, which is currently the synthetic's 3.0 m and probably too low for
 > the real watch. A candidate rule keyed on absolute peak speed would be tuned to that
 > assumption rather than to surfing. Prefer shape — acceleration, duration, direction
 > relative to shore — until Phase 4 labels can settle the noise level.
+
+---
+
+## Phase 4 · Labeling UI — next
+
+**Goal:** a person scrubs a real session and marks where the waves were, from raw signal.
+This is the phase everything after it depends on: no ground truth, no quality claim.
+
+### What Phase 3 hands you
+
+```python
+from surf.pipeline.l1 import KinematicsStage
+from surf.pipeline.l2 import FrameStage
+from surf.pipeline.l3 import CandidateStage
+
+framed = FrameStage().run(KinematicsStage().run(activity))   # FramedTrack: frame + samples
+proposed = CandidateStage().run(framed)                      # CandidateSet: frame + candidates
+```
+
+| You get | Why it matters to the UI |
+|---|---|
+| `SessionFrame.reliable` | on a low-coherence session the cross-shore axis is not trustworthy, and the UI must not draw a confident shore line over it (ADR-0011) |
+| `FramedSample.observed` | the measured/estimated line (ADR-0010). **The UI has to render this**, or a labeller marks an interpolated stretch believing they saw it |
+| `FramedSample.position_sigma_m` — via the L1 track | what we do not know, in metres. This is the "render what we do not know" requirement in `CLAUDE.md` |
+| `WaveCandidate.position_coverage` | 2 of 9 proposals on the reference session are built entirely from estimated seconds. Those are exactly the ones a human should be asked about |
+
+### Decide before building — needs plan mode + sign-off
+
+- [ ] **Are L3's candidates shown to the labeller?** This is the sharp one. Showing them
+      makes labelling far faster; it also means human labels inherit the detector's blind
+      spots, and a detector then scored against them would be grading its own homework.
+      That is ADR-0008's objection — *their errors, no information* — arriving from inside
+      the project rather than from a third party. Options: label blind; label blind then
+      reveal candidates for a second pass; or record `WaveLabel.source` and keep
+      candidate-assisted labels out of the metric. **Recommend labelling blind for the first
+      session at minimum**, so there is an unanchored set to measure the assisted ones
+      against.
+- [ ] **What does the labeller actually see?** Speed trace, map track, cross-shore velocity,
+      or all three? Blind stretches have to be visually distinct from measured ones, not a
+      smooth line that hides them.
+- [ ] **Storage and API shape.** `WaveLabel` exists and is append-only (ADR-0006). Needs a
+      table, endpoints, and a Zod mirror with drift detection in both directions, as the
+      activities contract already has.
+
+### Then build
+
+- [ ] `labels` table + repo, append-only; corrections are new rows, never updates
+- [ ] `POST /activities/{id}/labels`, `GET /activities/{id}/labels`
+- [ ] Zod contract parity with a committed fixture, drift verified both ways
+- [ ] The scrub UI itself, with measured/estimated rendered differently
+- [ ] Human labels join the eval harness next to `surf.synthetic` — same `surf.evaluation`
+      code path, so a real precision/recall becomes possible in Phase 5
+
+**Done when:** a real session can be labelled end to end, the labels survive a restart, they
+are readable through the API in the canonical shape, and `make check` is green.
+
+> **The first thing to check once labels exist.** The standing hypothesis: GPS *recovers*
+> during a ride, because the wrist lifts clear of the water. `surf.synthetic` deliberately
+> does not model it, and Phase 3 measured the consequence — every ride L3 misses is one that
+> was mostly blind. If real labelled rides turn out to be *better* observed than the session
+> around them, position availability becomes a strong positive feature and L3's ceiling rises
+> on its own. Settle this before tuning anything else.

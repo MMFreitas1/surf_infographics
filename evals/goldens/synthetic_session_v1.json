@@ -33,6 +33,15 @@
     "contributing_seconds": 1807,
     "reliable": true
   },
+  "candidates": {
+    "_note": "L3's high-recall proposals. Two numbers, deliberately: recall over every true ride is capped by blindness -- rides that were mostly unobserved leave the smoother nothing to recover -- while recall over rides with at least 50% position coverage measures the rule itself. The second is the one that must stay at 1.0; the first moving is information about the fixture, not necessarily a regression. Precision is recorded and NOT gated: L5 is what tightens it, and a ride never proposed here cannot be recovered later.",
+    "observed_ride_threshold": 0.5,
+    "candidate_count": 9,
+    "observed_rides": 5,
+    "recall_all": 0.75,
+    "recall_on_observed_rides": 1.0,
+    "precision_not_gated": 0.666667
+  },
   "truth_intervals": [
     {
       "t_start": 145.0,
