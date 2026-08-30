@@ -10,8 +10,8 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics, eval harness · Phase 1 parsers (PR #2) |
-| **Next** | Phase 1 store — SQLite + `POST/GET /activities` + Zod parity (PR #3) |
+| **Done** | Phase 0 — foundation, CI, diagnostics, eval harness · Phase 1 parsers (PR #10) |
+| **Next** | Phase 1 store — SQLite + `POST/GET /activities` + Zod parity (next PR) |
 | **Health** | `make check` → 121 tests green (88 api · 9 web · 24 evals); 10 api tests skip without `sample_data/` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
 
@@ -95,7 +95,7 @@ ls docs/adr/               # why each decision was made
 
 **Goal:** a canonical `Activity` from any of the three formats, with fidelity tracked.
 
-**PR #2 — parsers** ✅
+**Parsers** ✅ PR #10
 
 - [x] Port `research/fit_probe.py` → `api/src/surf/ingest/fit.py` as production code
       (full field profile, both endiannesses, compressed timestamps with rollover, CRC-16)
@@ -110,7 +110,7 @@ ls docs/adr/               # why each decision was made
       there are fixes, so it cannot be aligned to the timeline. Written up in
       `docs/data-findings.md` §6 and **not ingested**. Revisit only if a timestamped variant appears.
 
-**PR #3 — store** ← next
+**Store** ← next PR
 
 - [ ] SQLite `activities` + `blind_windows` tables — `store/schema.sql`, `store/repo.py`
 - [ ] Samples → Parquet through the existing `StageCache` (L0), keyed from the activities row
@@ -156,7 +156,7 @@ Browser errors POST to `/diagnostics/client-error`, so UI and API failures share
 | Ollama + quantized model | not needed until Phase 8 | Phase 8 |
 | Playwright in CI | needs a browser download in the runner; runs locally today | Phase 6, if warranted |
 | Docker Desktop | install needs a sudo password it cannot prompt for; Colima provides the daemon and compose is verified | only if the GUI is wanted |
-| SQLite persistence | ~~nothing to persist until ingest exists~~ | **unblocked — lands in PR #3** |
+| SQLite persistence | ~~nothing to persist until ingest exists~~ | **unblocked — lands in the store PR** |
 
 ## Decided against
 
