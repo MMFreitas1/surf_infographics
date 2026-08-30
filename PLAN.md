@@ -158,7 +158,6 @@ Browser errors POST to `/diagnostics/client-error`, so UI and API failures share
 | Ollama + quantized model | not needed until Phase 8 | Phase 8 |
 | Playwright in CI | needs a browser download in the runner; runs locally today | Phase 6, if warranted |
 | Docker Desktop | install needs a sudo password it cannot prompt for; Colima provides the daemon and compose is verified | only if the GUI is wanted |
-| SQLite persistence | ~~nothing to persist until ingest exists~~ | **unblocked — lands in the store PR** |
 
 ## Decided against
 
@@ -173,6 +172,29 @@ Browser errors POST to `/diagnostics/client-error`, so UI and API failures share
 ## Phase 2 · Kinematics — next
 
 **Goal:** a smoothed position/velocity track with per-sample confidence, honest across blind windows.
+
+### What Phase 1 hands you
+
+```python
+from pathlib import Path
+from surf.ingest import parse_file
+activity = parse_file(Path("sample_data/24151923839_ACTIVITY.fit"))   # or POST it to the API
+```
+
+`Sample.confidence` already exists on the model and defaults to `1.0` — **L1 is what refines it.**
+Measured properties of that input, which the smoother has to respect rather than average away:
+
+| Property | Value on the reference session | Why it matters to L1 |
+|---|---|---|
+| cadence | 1 Hz (derived as the *mode* of the steps, not the median) | the process model's dt |
+| position coverage | 48.8% — 1849 of 3790 samples | half the updates are missing, not noisy |
+| blind time | 1942.0 s over 128 windows, longest **107 s** | a 107 s unobserved stretch cannot yield a confident track |
+| `speed_ms` | present **only where positioned**; absent from GPX entirely | not an independent measurement to lean on when blind |
+| `distance_m` | 100% present in FIT, and **does not advance while blind** (`docs/data-findings.md` §4) | the watch adds no dead reckoning — a real constraint, not a gap to fill |
+| differencing positions | yields up to 109 m/s, 11 segments over 20 m/s (§3) | raw finite differences are unusable as a velocity measurement |
+
+Blind windows arrive as `BlindWindow` objects with a cause (`no_fix` vs `missing_record`), not as
+absences to be discovered. Do not re-derive them.
 
 - [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003)
 - [ ] Confidence per sample, driven by fix availability and innovation — not a constant
