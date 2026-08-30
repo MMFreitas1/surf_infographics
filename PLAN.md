@@ -196,6 +196,24 @@ Measured properties of that input, which the smoother has to respect rather than
 Blind windows arrive as `BlindWindow` objects with a cause (`no_fix` vs `missing_record`), not as
 absences to be discovered. Do not re-derive them.
 
+### Do these two first — groundwork, not smoothing
+
+Phase 2 is the first phase that must implement `Stage`, and that abstraction has never run.
+
+- [ ] **Pipeline spine.** `Stage` has **no implementations**. Phase 0 defined the protocol
+      L1–L6 are meant to hang off; `test_cache.py` exercises `StageCache` with `b"payload"`
+      literals, and ingest writes under the name `"L0"` without going *through* the
+      abstraction. Make L0 a real `Stage`, then add one spine test: a real file through L0,
+      asserting cache **miss → hit** and that a changed param changes the key. Extend the
+      same assertions to L1 as it lands, so "does data actually flow end to end" stays a
+      single test rather than a per-phase argument.
+- [ ] **Move stage identity out of storage.** `SAMPLES_STAGE = "L0"` and
+      `INGEST_CODE_VERSION` live in `api/src/surf/store/repo.py` today. A stage's identity
+      belongs to the pipeline, not to the thing that persists its output — otherwise L1
+      copies the pattern instead of inheriting it.
+
+### Then the kinematics
+
 - [ ] Kalman filter + RTS backward smoother over the 1 Hz samples (ADR-0003)
 - [ ] Confidence per sample, driven by fix availability and innovation — not a constant
 - [ ] Blind windows stay blind: the smoother may interpolate *through* one, but the result is
@@ -204,5 +222,11 @@ absences to be discovered. Do not re-derive them.
 - [ ] Tests: a synthetic track with known kinematics recovers to a stated tolerance; a
       positionless stretch produces low confidence, never silent certainty
 
-**Done when:** L1 runs over the reference session, confidence drops inside every blind window,
-and `make check` is green.
+**Done when:** L0 and L1 both run as cached `Stage`s over the reference session, the spine
+test proves the cache actually hits, confidence drops inside every blind window, and
+`make check` is green.
+
+> **A seam that is not yet closable.** No test spans ingest and `surf.evaluation`. That is
+> not a Phase 2 gap: `evaluation` compares interval lists and has nothing to say about an
+> `Activity` until a detector consumes one. It first becomes testable in **Phase 5**, and
+> should be closed there rather than faked earlier.
