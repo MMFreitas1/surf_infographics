@@ -11,7 +11,10 @@ caller's job -- this module scores whatever it is handed.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
+
+from surf.models import WaveLabel
 
 
 @dataclass(frozen=True)
@@ -130,3 +133,37 @@ def score(
         false_positives=len(result.unmatched_predictions),
         false_negatives=len(result.unmatched_truths),
     )
+
+
+def truth_intervals(labels: Iterable[WaveLabel]) -> list[Interval]:
+    """The rides a person marked, as intervals a detector can be scored against.
+
+    Two filters, and both matter. ``counts_as_truth`` keeps out unverified imports
+    (ADR-0006) and labels made with L3's proposals on screen (ADR-0012). ``is_wave`` keeps
+    out the other half of ground truth: a label saying "I looked, and this is not a ride"
+    is a real judgement, but it is not a ride to be found.
+
+    This is the whole join between the labeling UI and the eval harness. Human truth reaches
+    :func:`score` through the identical path the synthetic golden uses, so a number measured
+    against people and a number measured against the generator are directly comparable.
+    """
+    return [
+        Interval(label.t_start, label.t_end)
+        for label in labels
+        if label.counts_as_truth and label.is_wave
+    ]
+
+
+def rejected_intervals(labels: Iterable[WaveLabel]) -> list[Interval]:
+    """The stretches a person looked at and ruled out.
+
+    Not the complement of :func:`truth_intervals`: everything unlabelled is simply unknown,
+    while these are the intervals somebody actually examined and rejected. A detection here
+    is a *confirmed* false positive rather than a merely unmatched one, which is the only
+    kind precision can be measured on honestly.
+    """
+    return [
+        Interval(label.t_start, label.t_end)
+        for label in labels
+        if label.counts_as_truth and not label.is_wave
+    ]

@@ -37,9 +37,11 @@ Rejected alternatives:
 ## Consequences
 - Downstream stages join the two tracks on `t`. That is a real cost, paid once per stage,
   and it is the cost of never being able to confuse the two.
-- The API contract is unaffected for now: no endpoint serves a track yet, so `SmoothedSample`
-  has no Zod mirror. The first endpoint that serves one owes the contract fixture a row and
-  `web/` a schema — see `api/tests/test_contract_parity.py`.
+- ~~The API contract is unaffected for now: no endpoint serves a track yet.~~ **Settled in
+  Phase 4.** `GET /activities/{id}/track` serves both tracks as `SessionTrack`, and the debt
+  this bullet describes was paid with it: `SmoothedSample` and `FramedSample` have Zod
+  mirrors, and `evals/goldens/labeling_contract_v1.json` pins a row of each in both states of
+  `observed`, checked from both sides.
 - A session with no fix anywhere yields an empty track rather than an invented one.
 - If a future stage genuinely needs one merged row per second, it builds that view itself
   and states which fields are estimates. It does not get to collapse these two shapes.

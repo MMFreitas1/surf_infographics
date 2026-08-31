@@ -10,14 +10,15 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **Phase 1** — ingest, storage, REST · **Phase 2** — pipeline spine, L0 and L1 as cached stages, RTS-smoothed track · **Phase 3 complete** — shore frame (L2) and high-recall candidates (L3) |
-| **Next** | Phase 4 — labeling UI: scrub a session and mark waves from raw signal. **This is the gate.** No phase past here can claim a quality number without it. Start at **"Phase 4 · Labeling UI"** below |
-| **Health** | `make check` → 246 tests green (196 api · 16 web · 34 evals); 12 api tests skip without `sample_data/` |
-| **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **Phase 4 complete** — append-only labels, six endpoints, the scrub UI, and human labels joined to the eval harness |
+| **Next** | Phase 5 — rule detector, the first real precision/recall. **Blocked on one human act:** nobody has labelled a session yet. Run `make api` + `make web`, label the reference session at `/label/<id>`, then `make labels`. Without truth, Phase 5 can build a scorer but cannot report a number |
+| **Health** | `make check` → 344 tests green (253 api · 43 web · 48 evals); 12 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
+| **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
-**Orient in three commands:**
+**Orient in four commands:**
 ```bash
 make check                 # everything CI runs
+make labels                # what the human labels say — empty until a session is labelled
 cat docs/architecture.md   # component map + one-way doors
 ls docs/adr/               # why each decision was made
 ```
@@ -30,7 +31,10 @@ ls docs/adr/               # why each decision was made
 **Three rules that override convenience** (full list in `CLAUDE.md`):
 1. Never present an imputed wave as measured. Detected / uncertain / blind are three states.
 2. The pipeline consumes only first-party recorded signal (ADR-0008).
-3. Phase 4 (labeling) lands before Phase 5 (detector). No ground truth, no quality claim.
+3. No ground truth, no quality claim. Phase 4's tooling exists now, but a *labelled session*
+   still does not — and labels cannot be generated, only made (ADR-0012). A Phase 5 number
+   quoted against zero human labels would be the exact failure this project is built to
+   avoid.
 
 ---
 
@@ -40,7 +44,7 @@ ls docs/adr/               # why each decision was made
 - [x] **1 · Ingest** — FIT/GPX/TCX → canonical `Activity`, fidelity-tagged, golden tests, stored
 - [x] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
 - [x] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
-- [ ] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
+- [x] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
 - [ ] **5 · Rule detector** — transparent scorer → **first real precision/recall**
 - [ ] **6 · Core infographics** — session map, sawtooth, state ribbon, wave cards
 - [ ] **7 · ML detector** — gradient-boosted trees, calibration, CI regression gate
@@ -419,7 +423,7 @@ from the code under test agrees with that code whatever it does.
 
 ---
 
-## Phase 4 · Labeling UI — next
+## Phase 4 · Labeling UI — ✅ complete
 
 **Goal:** a person scrubs a real session and marks where the waves were, from raw signal.
 This is the phase everything after it depends on: no ground truth, no quality claim.
@@ -442,9 +446,12 @@ proposed = CandidateStage().run(framed)                      # CandidateSet: fra
 | `FramedSample.position_sigma_m` — via the L1 track | what we do not know, in metres. This is the "render what we do not know" requirement in `CLAUDE.md` |
 | `WaveCandidate.position_coverage` | On the **real** session L3 proposes 22 intervals: 2 built entirely from estimated seconds, 8 more under 25% coverage. Those are exactly the ones a human should be asked about. (The "9 proposals" in Phase 3 is the *synthetic* session — ADR-0012 records the difference) |
 
-### Decide before building — needs plan mode + sign-off
+### Decided before building — all three approved 2026-08-30, recorded in ADR-0012
 
-- [ ] **Are L3's candidates shown to the labeller?** This is the sharp one. Showing them
+- [x] **Are L3's candidates shown to the labeller?** → **blind pass first, assisted second.**
+      Candidates are not fetched until a blind pass is recorded; assisted labels are stored
+      `human_assisted` and excluded from `counts_as_truth`. Enforced in the store and the
+      endpoints, not in the UI. This is the sharp one. Showing them
       makes labelling far faster; it also means human labels inherit the detector's blind
       spots, and a detector then scored against them would be grading its own homework.
       That is ADR-0008's objection — *their errors, no information* — arriving from inside
@@ -453,24 +460,44 @@ proposed = CandidateStage().run(framed)                      # CandidateSet: fra
       candidate-assisted labels out of the metric. **Recommend labelling blind for the first
       session at minimum**, so there is an unanchored set to measure the assisted ones
       against.
-- [ ] **What does the labeller actually see?** Speed trace, map track, cross-shore velocity,
-      or all three? Blind stretches have to be visually distinct from measured ones, not a
-      smooth line that hides them.
-- [ ] **Storage and API shape.** `WaveLabel` exists and is append-only (ADR-0006). Needs a
-      table, endpoints, and a Zod mirror with drift detection in both directions, as the
-      activities contract already has.
+- [x] **What does the labeller actually see?** → **all three, plus the map.** Speed,
+      cross-shore velocity, position uncertainty in metres, and the track. Measured solid,
+      estimated dashed, blind hatched, in every panel at the same x.
+- [x] **Storage and API shape.** → `labels` + `label_passes` (schema v2), six endpoints, a
+      Zod mirror per shape and `labeling_contract_v1.json` checked from both sides.
 
 ### Then build
 
-- [ ] `labels` table + repo, append-only; corrections are new rows, never updates
-- [ ] `POST /activities/{id}/labels`, `GET /activities/{id}/labels`
-- [ ] Zod contract parity with a committed fixture, drift verified both ways
-- [ ] The scrub UI itself, with measured/estimated rendered differently
-- [ ] Human labels join the eval harness next to `surf.synthetic` — same `surf.evaluation`
-      code path, so a real precision/recall becomes possible in Phase 5
+- [x] `labels` table + repo, append-only; corrections are new rows, never updates ✅ PR #19
+- [x] Six endpoints: track, candidates, labels (POST/GET), label-passes (POST/GET) ✅ PR #19
+- [x] Zod contract parity with a committed fixture, drift verified both ways ✅ PR #19
+- [x] The scrub UI itself, with measured/estimated rendered differently ✅ PR #20
+- [x] Human labels join the eval harness next to `surf.synthetic` — `truth_intervals` feeds
+      the same `surf.evaluation.score`, so a real precision/recall is now possible ✅ PR #21
 
 **Done when:** a real session can be labelled end to end, the labels survive a restart, they
 are readable through the API in the canonical shape, and `make check` is green.
+— **all met.** Verified in a browser against a scratch store: two blind labels saved,
+candidates absent until the pass was recorded, 22 proposals revealed after, an assisted label
+excluded from truth, and a correction leaving the original row in place.
+
+### What building it turned up
+
+| | |
+|---|---|
+| The real session's frame is **not reliable** | coherence 0.365 against a 0.85 threshold. The "we cannot tell where the shore is" path is the *default* on real data, not an edge case. Phase 3's 0.51° error was the synthetic, where rides dominate the velocity sum |
+| L3 proposes **22** intervals on the real session | not the 9 quoted for the synthetic. 2 at zero coverage, 8 more under 25% |
+| **381 separate blind windows** | blindness on real data is shredded, not blocky. Heavy hatching covered the whole chart and had to be lightened to stay readable |
+| No CORS anywhere in the API | the UI could not call it at all, and the failure hid itself by blocking the error-reporting call too. Found by running it, not by reading it |
+| Observable Plot deletes its container's children | `replaceChildren` wiped the React overlay — the drag surface and every band. Plot gets its own node now |
+| `deck.gl` the umbrella pulls `@arcgis/core` + a Vaadin package that phones home | scoped `@deck.gl/{core,layers,react}` instead. `architecture.md` §6 |
+
+### Still owed by a person, not by the code
+
+- [ ] **Label the reference session.** Nobody has yet. The tooling is finished and `make
+      labels` will answer the standing hypothesis the moment a session is labelled — but the
+      labels themselves cannot be generated, only made. Inventing them would be exactly the
+      fabricated ground truth this whole phase exists to avoid.
 
 > **The first thing to check once labels exist.** The standing hypothesis: GPS *recovers*
 > during a ride, because the wrist lifts clear of the water. `surf.synthetic` deliberately
@@ -478,3 +505,8 @@ are readable through the API in the canonical shape, and `make check` is green.
 > was mostly blind. If real labelled rides turn out to be *better* observed than the session
 > around them, position availability becomes a strong positive feature and L3's ceiling rises
 > on its own. Settle this before tuning anything else.
+>
+> **`make labels` is that check**, built in PR #21. It reports coverage inside labelled rides
+> against coverage across the session, and refuses a verdict below 5 rides — three rides can
+> point anywhere. It reports; it does not gate, because the answer is a property of the sport
+> and the watch, not of our code.
