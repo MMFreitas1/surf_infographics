@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help setup dev api web check lint fmt typecheck test evals verify logs errors clean
+.PHONY: help setup dev api web check lint fmt typecheck test evals verify labels logs errors clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN{FS=":.*?## "}{printf "  \033[36m%-10s\033[0m %s\n", $$1, $$2}'
@@ -37,6 +37,9 @@ evals: ## Detection eval gate
 
 verify: ## Drive the UI with Playwright: screenshots + console errors -> web/verification/
 	cd web && pnpm run verify
+
+labels: ## What the human labels say, including the GPS-recovery hypothesis
+	cd api && uv run python -m surf.report
 
 logs: ## Tail the API's structured log
 	@tail -n 50 data/logs/api.jsonl 2>/dev/null || echo "no log yet - start the API first"
