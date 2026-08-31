@@ -61,16 +61,16 @@ describe("labeling contract", () => {
 
   it("keeps the measured/estimated line visible in the data the UI receives", () => {
     const track = SessionTrack.parse(contract.track);
-    const seen = track.smoothed.find((s) => s.observed);
-    const blind = track.smoothed.find((s) => !s.observed);
+    const seen = track.smoothed.filter((s) => s.observed);
+    const blind = track.smoothed.filter((s) => !s.observed);
 
-    expect(seen).toBeDefined();
-    expect(blind).toBeDefined();
+    expect(seen.length).toBeGreaterThan(0);
+    expect(blind.length).toBeGreaterThan(0);
     // An invented second always has a position — that is the trap ADR-0010 exists for.
-    expect(blind?.lat).not.toBeNull();
+    expect(blind[0]?.lat).not.toBeNull();
     // ...so the only honest way to draw it differently is these two numbers.
-    expect(blind!.position_sigma_m).toBeGreaterThan(seen!.position_sigma_m);
-    expect(blind!.confidence).toBeLessThan(seen!.confidence);
+    expect(blind[0]?.position_sigma_m ?? 0).toBeGreaterThan(seen[0]?.position_sigma_m ?? 0);
+    expect(blind[0]?.confidence ?? 1).toBeLessThan(seen[0]?.confidence ?? 0);
   });
 
   it("only counts unassisted human labels as truth", () => {

@@ -8,6 +8,7 @@ from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -93,6 +94,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     resolved = settings or get_settings()
     app.state.settings = resolved
     app.state.errors = ErrorBuffer(resolved.error_buffer_size)
+
+    # The UI is a separate origin (:3000 against this :8000), so without this the browser
+    # blocks every call before it leaves the tab -- including the one that reports errors,
+    # which is how a CORS problem hides itself. Named origins only, never "*".
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=resolved.allowed_origins,
+        allow_methods=["GET", "POST", "DELETE"],
+        allow_headers=["Content-Type"],
+    )
 
     @app.exception_handler(Exception)
     async def capture_unhandled(request: Request, exc: Exception) -> JSONResponse:
