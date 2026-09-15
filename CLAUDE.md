@@ -4,7 +4,7 @@
 ## Project summary
 - What this is: A local-first surf analytics app that turns Garmin FIT/GPX/TCX activities into measurable wave detection and session infographics.
 - Tier: 2
-- Stack: Python 3.12 (FastAPI, uv) + TypeScript (Next.js 14, deck.gl, pnpm), SQLite + Parquet stage cache
+- Stack: Python 3.12 (FastAPI, uv) + TypeScript (Next.js 16, React 19, deck.gl, pnpm), SQLite + Parquet stage cache
 
 ## Architecture (one-way doors — DO NOT change without explicit sign-off)
 - Two processes on localhost: `api/` (Python pipeline + REST, :8000) and `web/` (Next.js UI, :3000). Full component map in [docs/architecture.md](./docs/architecture.md).
