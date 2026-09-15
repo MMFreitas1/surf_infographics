@@ -23,7 +23,7 @@ as well as the past, which no watch-side filter can ever have.
                       └───────────────┬──────────────────────────┘
                                       │  REST/JSON
                       ┌───────────────▼──────────────────────────┐
-                      │ web/  Next.js 14 · TS strict      :3000  │
+                      │ web/  Next.js 16 · React 19 · TS   :3000 │
                       │  deck.gl map · Observable Plot charts    │
                       │  labeling UI (ground truth)              │
                       └──────────────────────────────────────────┘
