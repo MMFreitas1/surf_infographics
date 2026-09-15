@@ -742,9 +742,9 @@ Built in Claude Design over two weeks against `DESIGN_BRIEF.md`, then exported.
 
 **What it decided that the brief did not:**
 
-- **The UI is in Portuguese (pt-PT).** Tabs are *Sessões · Sessão · Onda*. Nothing in
-  `DESIGN_BRIEF.md` specified a language — this is a real product decision arriving with the
-  design, and it reaches every string in the app.
+- ~~**The UI is in Portuguese (pt-PT).**~~ **Overridden 2026-09-15: the UI follows the
+  system language**, and so does the LLM's prose. The design's Portuguese (*Sessões · Sessão ·
+  Onda*) becomes the `pt-PT` catalogue rather than the only one. See "Language" below.
 - **The measured/estimated/blind language changed, for the better.** Solid stroke = measured;
   dashed translucent (`#3E6B7C`) = estimated; **absence plus a dedicated "blind rail"** = no
   data. It explicitly replaces the hatch — which this project had already had to lighten
@@ -754,7 +754,8 @@ Built in Claude Design over two weeks against `DESIGN_BRIEF.md`, then exported.
   and more transparent, plus a small coverage arc. That answers the open question in
   `DESIGN_BRIEF.md` §10.2 ("how does 12% coverage look different from 100%, at card size?").
 - **Basemap is OpenStreetMap tiles**, not MapTiler, with a warm-grid fallback that is a
-  *designed state*, not an error. Revisit `architecture.md` §6, which names MapTiler.
+  *designed state*, not an error. **Amended 2026-09-15: satellite imagery, not street tiles** —
+  see "Basemap" below. `architecture.md` §6 names MapTiler and needs revisiting either way.
 - **It names `llama-3.1-8b-instruct` as the local model.** We installed
   `qwen2.5:7b-instruct-q4_K_M`. Same size class; pick one deliberately in Phase 11 rather
   than letting the mismatch decide.
@@ -819,3 +820,46 @@ phases that depend on them:
       manoeuvre definition says "changes in acceleration and/or height" — so either accept a
       third-party derived signal for that half, or drop height and work from acceleration
       alone. Blocks Phase 7.
+
+
+---
+
+## Decisions taken on the handover — 2026-09-15
+
+### Language — follows the system, never hard-coded
+
+The design ships Portuguese. **The product does not.** UI strings and the LLM's prose both
+follow the user's system locale; `pt-PT` becomes the first catalogue, not the only one.
+
+- [ ] Message catalogues keyed by locale; `pt-PT` transcribed from the design, `en` alongside it
+- [ ] Locale resolved from the browser (`navigator.language`) with an explicit override, since
+      a local-first app has no account to carry a preference
+- [ ] **The LLM answers in the resolved locale too.** The prompt states the target language;
+      the model is asked for prose in that language, not for English later translated
+- [ ] No string literal in a component. A hard-coded label is the bug this decision exists to
+      prevent, and it is cheapest to enforce from the first screen rather than retrofit
+- [ ] Numbers and dates go through `Intl` — km/h, decimal commas and date order are all
+      locale-dependent, and Portuguese formats differ from English
+
+### Basemap — satellite, cached once
+
+Satellite imagery, not street tiles: a surf session is coastline, sandbanks and a peak, none
+of which a street map renders. Miguel's observation shapes the implementation — **the tiles
+are static and load once per session**, so smooth-pan performance is not a requirement and
+caching is trivially correct.
+
+- [ ] **Esri World Imagery** as the source: keyless, free, satellite, and it satisfies the $0
+      stack rule. Attribution is required and goes in the map's corner
+- [ ] **Cache tiles to disk on first fetch**, keyed by z/x/y, exactly as the marine data will
+      be. A session's tiles are fetched once and the app is fully offline afterwards —
+      which is what `architecture.md` §7 requires
+- [ ] The designed warm-grid fallback stays, for a session whose tiles were never fetched
+- [ ] A session covers a few hundred metres of coast, so the tile count per session is small.
+      Bound it anyway, and never fetch tiles for a viewport the user has not opened
+
+### Accepted from the design as-is
+
+- **Measured / estimated / blind**: solid · dashed translucent (`#3E6B7C`) · absence plus a
+  dedicated blind rail. Replaces the hatch.
+- **Coverage expressed typographically**: low-coverage numbers render lighter and more
+  transparent, plus a coverage arc.
