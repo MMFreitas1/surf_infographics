@@ -1,0 +1,1988 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/tokens/fonts.css">
+<link rel="stylesheet" href="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/tokens/colors.css">
+<link rel="stylesheet" href="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/tokens/typography.css">
+<link rel="stylesheet" href="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/tokens/spacing.css">
+<link rel="stylesheet" href="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/tokens/elevation.css">
+<link rel="stylesheet" href="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/tokens/base.css">
+<link rel="stylesheet" href="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/styles.css">
+<script src="_ds/mf-concepts-design-system-a3a656dd-58bd-4e9a-8520-20689840e448/_ds_bundle.js"></script>
+<style>
+body{margin:0;background:var(--warm-50);color:var(--text);font-family:var(--font-body)}
+a{color:var(--accent);text-decoration:none}a:hover{color:var(--accent-hover);text-decoration:underline}
+@keyframes mf-fade-up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+@keyframes mf-pulse{0%,100%{opacity:.3}50%{opacity:.85}}
+select,input{font-family:var(--font-mono);font-size:11px;color:var(--text);background:var(--surface);border:1px solid var(--border-strong);border-radius:var(--radius-sm);padding:4px 7px}
+select:focus,input:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--ring)}
+input[type=range]{accent-color:var(--accent);padding:0;border:0}
+::selection{background:var(--amber-200)}
+svg text{font-variant-numeric:tabular-nums}
+.g{transition:transform .55s cubic-bezier(.22,1,.36,1),opacity .4s linear}
+</style>
+</helmet>
+
+<div style="min-width:1440px;background:var(--warm-50)">
+<div style="max-width:1500px;margin:0 auto;padding:0 46px 90px">
+
+<!-- ── masthead ─────────────────────────────────────────── -->
+<header style="display:flex;align-items:flex-end;justify-content:space-between;gap:30px;padding:30px 0 0">
+  <div style="display:flex;flex-direction:column;gap:16px">
+    <div style="display:flex;align-items:center;gap:11px">
+      <img src="assets/logo-mark.png" alt="MF Concepts" width="34" height="34" style="display:block;width:34px;height:34px;object-fit:contain">
+      <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.22em;text-transform:uppercase;color:var(--text-muted)">MF Concepts · Technology</span>
+    </div>
+    <h1 style="margin:0;font-family:var(--font-display);font-size:52px;font-weight:600;letter-spacing:-.035em;line-height:.94;color:var(--ink-800)">Surf Analytics</h1>
+  </div>
+  <div style="display:flex;flex-direction:column;align-items:flex-end;gap:9px;padding-bottom:5px">
+    <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-subtle)">Local-first · FIT · {{ stats.spot }}</span>
+  </div>
+</header>
+<div style="height:2px;background:var(--gradient-brand);margin:22px 0 0"></div>
+
+<nav style="display:flex;align-items:stretch;gap:4px;border-bottom:1px solid var(--border)">
+  <sc-for list="{{ tabs }}" as="tab" hint-placeholder-count="3">
+    <button type="button" onClick="{{ tab.go }}" style="{{ tab.css }}">
+      <span style="font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.01em">{{ tab.name }}</span>
+    </button>
+  </sc-for>
+</nav>
+
+<!-- ── aviso ────────────────────────────────────────────── -->
+<sc-if value="{{ banner }}" hint-placeholder-val="{{ true }}">
+<div style="position:relative;overflow:hidden;background:var(--gradient-ink);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);margin:26px 0 0;padding:26px 30px;animation:mf-fade-up var(--dur-slow) var(--ease-out) both">
+  <div style="position:absolute;left:0;top:0;bottom:0;width:3px;background:var(--gradient-brand)"></div>
+  <div style="display:grid;grid-template-columns:1fr auto;gap:40px;align-items:center">
+    <div style="display:flex;flex-direction:column;gap:10px;max-width:1000px">
+      <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber-300)">Como estes números são feitos</span>
+      <p style="margin:0;font-family:var(--font-body);font-size:15px;line-height:1.7;color:var(--warm-50)">Os dados são limpos e normalizados com a ajuda de um LLM. O mesmo modelo infere o <span style="color:var(--amber-300)">Nível de Surf</span>, a <span style="color:var(--amber-300)">Qualidade da Sessão</span> e a <span style="color:var(--amber-300)">Técnica de Onda</span>. O contexto é gerido dinamicamente ao longo do tempo e os dados ficam guardados localmente, não em servidores. Consoante o endpoint, se o modelo não for local a inferência é feita na nuvem — nesse caso a privacidade não é total.</p>
+    </div>
+    <x-import component-from-global-scope="MFConceptsDesignSystem_a3a656.Button" variant="primary" size="md" onClick="{{ dismiss }}" hint-size="150px,42px">Compreendi</x-import>
+  </div>
+</div>
+</sc-if>
+
+
+<!-- ══════════════════ NÍVEL 1 · SESSÕES ══════════════════ -->
+<sc-if value="{{ isSessions }}" hint-placeholder-val="{{ true }}">
+<section data-screen-label="N1 Sessoes" style="display:flex;flex-direction:column;gap:0;animation:mf-fade-up var(--dur-slow) var(--ease-out) both">
+
+  <div style="display:flex;align-items:center;gap:14px;padding:38px 0 18px">
+    <span style="width:7px;height:7px;background:var(--amber-500)"></span>
+    <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-800)">Stats</span>
+    <span style="flex:1;height:1px;background:var(--border)"></span>
+    <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-subtle)">10 sessões · 6 semanas · clique para abrir</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:14px">
+    <sc-for list="{{ statTiles }}" as="s" hint-placeholder-count="5">
+      <button type="button" onClick="{{ s.open }}" style="{{ s.css }}" style-hover="transform:translateY(-5px);box-shadow:0 14px 26px -12px rgba(18,40,50,.34);border-color:var(--amber-400)">
+        <span style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;width:100%;min-height:30px">
+          <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.15em;text-transform:uppercase;color:var(--text-muted);line-height:1.5;text-align:left">{{ s.label }}</span>
+          <span style="{{ s.chipCss }}">{{ s.chip }}</span>
+        </span>
+        <span style="display:flex;align-items:baseline;gap:6px;height:48px;margin-top:auto">
+          <span style="{{ s.valCss }}">{{ s.value }}</span>
+          <span style="font-family:var(--font-mono);font-size:12px;color:var(--text-muted)">{{ s.unit }}</span>
+        </span>
+        <span style="{{ s.markCss }}"></span>
+      </button>
+    </sc-for>
+  </div>
+
+  <!-- breakdown -->
+  <sc-if value="{{ bdOpen }}" hint-placeholder-val="{{ false }}">
+    <div style="margin-top:16px;border-top:2px solid var(--amber-500);border-right:1px solid var(--border);border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:24px 28px 18px;animation:mf-fade-up var(--dur-slow) var(--ease-out) both">
+      <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:24px;margin-bottom:6px">
+        <div style="display:flex;flex-direction:column;gap:5px">
+          <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.2em;text-transform:uppercase;color:var(--amber-700)">Detalhe</span>
+          <span style="font-family:var(--font-display);font-size:23px;font-weight:600;letter-spacing:-.02em;color:var(--ink-800)">{{ bd.title }}</span>
+          <span style="font-size:12px;color:var(--text-muted)">{{ bd.sub }}</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <button type="button" onClick="{{ toggleOrdem }}" style="{{ bd.ordemCss }}">{{ bd.ordemLabel }}</button>
+          <button type="button" onClick="{{ toggleReg }}" style="{{ bd.regCss }}">ajustar linha de regressão</button>
+          <button type="button" onClick="{{ closeBd }}" style="font:inherit;font-family:var(--font-mono);font-size:15px;line-height:1;background:none;border:1px solid var(--border);color:var(--text-muted);width:30px;height:30px;cursor:pointer">×</button>
+        </div>
+      </div>
+      <svg viewBox="0 0 1360 330" width="100%" height="330">
+        <sc-for list="{{ bd.grid }}" as="g" hint-placeholder-count="5">
+          <line x1="70" y1="{{ g.y }}" x2="1340" y2="{{ g.y }}" stroke="var(--border)" strokeWidth="1"></line>
+        </sc-for>
+        {{ bd.gridText }}
+        {{ bd.yText }}
+
+        <g class="g" style="{{ bd.timeStyle }}">
+          <sc-for list="{{ bd.bars }}" as="b" hint-placeholder-count="10">
+            <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.fill }}" fillOpacity="{{ b.op }}" stroke="{{ b.stroke }}" strokeWidth="{{ b.sw }}"></rect>
+          </sc-for>
+          <sc-for list="{{ bd.ranges }}" as="r" hint-placeholder-count="10">
+            <line x1="{{ r.x }}" y1="{{ r.y1 }}" x2="{{ r.x }}" y2="{{ r.y2 }}" stroke="var(--ink-500)" strokeOpacity=".45" strokeWidth="1.5"></line>
+          </sc-for>
+          <sc-for list="{{ bd.dots }}" as="p" hint-placeholder-count="20">
+            <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.r }}" fill="{{ p.fill }}" fillOpacity="{{ p.op }}" stroke="var(--warm-50)" strokeWidth="1.2"></circle>
+          </sc-for>
+          <sc-if value="{{ bd.showReg }}" hint-placeholder-val="{{ false }}">
+            <g>
+              <path d="{{ bd.reg.d }}" fill="none" stroke="var(--amber-600)" strokeWidth="2" strokeDasharray="7 5"></path>
+              {{ bd.regText }}
+            </g>
+          </sc-if>
+          {{ bd.xTimeText }}
+        </g>
+
+        <g class="g" style="{{ bd.spotStyle }}">
+          <sc-for list="{{ bd.boxes }}" as="b" hint-placeholder-count="3">
+            <line x1="{{ b.cx }}" y1="{{ b.min }}" x2="{{ b.cx }}" y2="{{ b.max }}" stroke="var(--ink-500)" strokeOpacity=".5" strokeWidth="1.2"></line>
+            <line x1="{{ b.wx1 }}" y1="{{ b.min }}" x2="{{ b.wx2 }}" y2="{{ b.min }}" stroke="var(--ink-500)" strokeOpacity=".5" strokeWidth="1.2"></line>
+            <line x1="{{ b.wx1 }}" y1="{{ b.max }}" x2="{{ b.wx2 }}" y2="{{ b.max }}" stroke="var(--ink-500)" strokeOpacity=".5" strokeWidth="1.2"></line>
+            <rect x="{{ b.x }}" y="{{ b.q3 }}" width="{{ b.w }}" height="{{ b.h }}" fill="var(--blue-500)" fillOpacity=".2" stroke="var(--blue-600)" strokeWidth="1.4"></rect>
+            <line x1="{{ b.x }}" y1="{{ b.med }}" x2="{{ b.x2 }}" y2="{{ b.med }}" stroke="var(--amber-500)" strokeWidth="2.6"></line>
+          </sc-for>
+          {{ bd.boxText }}
+        </g>
+      </svg>
+      <div style="display:flex;gap:20px;padding-top:6px;border-top:1px solid var(--border)">
+        <sc-for list="{{ bd.legend }}" as="l" hint-placeholder-count="3">
+          <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.06em;color:var(--text-muted)"><span style="{{ l.sw }}"></span>{{ l.t }}</span>
+        </sc-for>
+      </div>
+    </div>
+  </sc-if>
+
+  <!-- nível de surf / estado inicial -->
+  <div style="display:flex;align-items:center;gap:14px;padding:40px 0 18px">
+    <span style="width:7px;height:7px;background:var(--amber-500)"></span>
+    <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-800)">Nível de surf</span>
+    <span style="flex:1;height:1px;background:var(--border)"></span>
+  </div>
+
+  <sc-if value="{{ hasLevel }}" hint-placeholder-val="{{ true }}">
+    <div style="position:relative;overflow:hidden;background:var(--gradient-ink);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);display:grid;grid-template-columns:400px 1fr;gap:0">
+      <div style="padding:30px 32px;border-right:1px solid rgba(251,247,240,.14);display:flex;flex-direction:column;justify-content:space-between;gap:22px">
+        <div style="display:flex;flex-direction:column;gap:12px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:#5E7178">Próxima avaliação em 5 sessões</span>
+          <span style="font-family:var(--font-display);font-size:40px;font-weight:600;letter-spacing:-.03em;line-height:1;color:{{ levelColor }}">{{ levelName }}</span>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <div style="display:flex;gap:3px">
+            <sc-for list="{{ levelSteps }}" as="s" hint-placeholder-count="5">
+              <div style="{{ s.css }}" title="{{ s.name }}"></div>
+            </sc-for>
+          </div>
+          <div style="display:flex;justify-content:space-between">
+            <span style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#5E7178">Iniciado</span>
+            <span style="font-family:var(--font-mono);font-size:8.5px;letter-spacing:.1em;text-transform:uppercase;color:#5E7178">Atleta</span>
+          </div>
+        </div>
+      </div>
+      <div style="padding:30px 32px;display:flex;flex-direction:column;justify-content:space-between;gap:18px">
+        <p style="margin:0;font-size:15px;line-height:1.75;color:var(--warm-50)">{{ prose.sessions }}</p>
+        <div style="padding-top:14px;border-top:1px solid rgba(251,247,240,.14)">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;color:#5E7178">{{ prose.sig }}</span>
+        </div>
+      </div>
+    </div>
+  </sc-if>
+  <sc-if value="{{ noLevel }}" hint-placeholder-val="{{ false }}">
+    <div style="border:1px dashed var(--border-strong);border-radius:var(--radius-lg);background:var(--warm-100);padding:34px 32px;display:grid;grid-template-columns:1fr auto;gap:40px;align-items:center">
+      <div style="display:flex;flex-direction:column;gap:9px;max-width:760px">
+        <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted)">Ainda sem nível — estado inicial</span>
+        <span style="font-family:var(--font-display);font-size:26px;font-weight:600;letter-spacing:-.02em;color:var(--ink-800)">São necessárias 3 sessões. Tens {{ nSessoes }}.</span>
+        <p style="margin:0;font-size:13.5px;line-height:1.65;color:var(--text-muted)">Isto é normal, não é um erro. As estatísticas acima já funcionam — o nível só aparece quando houver histórico suficiente para o modelo dizer algo de útil.</p>
+      </div>
+      <span style="font-family:var(--font-display);font-size:64px;font-weight:600;color:var(--warm-300);line-height:1">{{ nSessoes }}/3</span>
+    </div>
+  </sc-if>
+
+  <!-- análise bivariada -->
+  <div style="display:flex;align-items:center;gap:14px;padding:40px 0 18px">
+    <span style="width:7px;height:7px;background:var(--amber-500)"></span>
+    <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-800)">Análise bivariada</span>
+    <span style="flex:1;height:1px;background:var(--border)"></span>
+  </div>
+  <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:22px 26px 14px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:6px">
+      <span style="font-size:12.5px;color:var(--text-muted)">Duas métricas à sua escolha, uma sessão por ponto. O tamanho do ponto é a cobertura GPS; o tempo é agora uma métrica como as outras.</span>
+      <span style="display:flex;gap:12px;align-items:center">
+        <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--blue-700)">eixo X</span>
+        <select value="{{ s3x }}" onChange="{{ setS3x }}">
+          <sc-for list="{{ sessionMetrics }}" as="o" hint-placeholder-count="5"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+        </select>
+        <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--amber-700)">eixo Y</span>
+        <select value="{{ s3y }}" onChange="{{ setS3y }}">
+          <sc-for list="{{ sessionMetrics }}" as="o" hint-placeholder-count="5"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+        </select>
+      </span>
+    </div>
+    <svg viewBox="0 0 1160 470" width="100%" height="470">
+      <sc-for list="{{ biv.grid }}" as="g" hint-placeholder-count="10">
+        <line x1="{{ g.x1 }}" y1="{{ g.y1 }}" x2="{{ g.x2 }}" y2="{{ g.y2 }}" stroke="var(--border)" strokeWidth="1"></line>
+      </sc-for>
+      <line x1="82" y1="24" x2="82" y2="392" stroke="var(--ink-800)" strokeWidth="1.4"></line>
+      <line x1="82" y1="392" x2="1136" y2="392" stroke="var(--ink-800)" strokeWidth="1.4"></line>
+      <sc-if value="{{ biv.showFit }}" hint-placeholder-val="{{ true }}">
+        <path d="{{ biv.fit }}" fill="none" stroke="var(--amber-600)" strokeWidth="2" strokeDasharray="7 5"></path>
+      </sc-if>
+      <sc-for list="{{ biv.points }}" as="p" hint-placeholder-count="10">
+        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.r }}" fill="{{ p.fill }}" fillOpacity="{{ p.op }}" stroke="{{ p.stroke }}" strokeWidth="1.4"></circle>
+      </sc-for>
+      {{ biv.text }}
+    </svg>
+    <div style="display:flex;gap:22px;padding-top:8px;border-top:1px solid var(--border)">
+      <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--blue-500)"></span>sessões anteriores</span>
+      <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber-500)"></span>sessão atual</span>
+      <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)">tamanho do ponto = cobertura GPS</span>
+      <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--amber-700)">{{ biv.rTxt }}</span>
+    </div>
+  </div>
+
+  <!-- análise comparativa -->
+  <div style="display:flex;align-items:center;gap:14px;padding:40px 0 18px">
+    <span style="width:7px;height:7px;background:var(--amber-500)"></span>
+    <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-800)">Análise comparativa</span>
+    <span style="flex:1;height:1px;background:var(--border)"></span>
+  </div>
+  <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:22px 26px 16px">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap;margin-bottom:16px">
+      <div style="display:flex;flex-direction:column;gap:4px;max-width:560px">
+        <span style="font-family:var(--font-display);font-size:19px;font-weight:600;letter-spacing:-.02em;color:var(--ink-800)">{{ cmp.title }}</span>
+        <span style="font-size: 12px; color: var(--text-muted); line-height: 1.6; width: 790px; height: 37px">{{ cmp.sub }}</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:12px">
+        <span style="display:flex;align-items:center;gap:7px">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--blue-500);opacity:.55"></span>
+          <select value="{{ cmpA }}" onChange="{{ setCmpA }}">
+            <sc-for list="{{ cmp.options }}" as="o" hint-placeholder-count="10"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+          </select>
+        </span>
+        <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-subtle)">vs</span>
+        <span style="display:flex;align-items:center;gap:7px">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:var(--amber-500);opacity:.55"></span>
+          <select value="{{ cmpB }}" onChange="{{ setCmpB }}">
+            <sc-for list="{{ cmp.options }}" as="o" hint-placeholder-count="10"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+          </select>
+        </span>
+      </div>
+    </div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+      <sc-for list="{{ cmp.metrics }}" as="m" hint-placeholder-count="8">
+        <button type="button" onClick="{{ m.pick }}" style="{{ m.css }}">{{ m.label }}</button>
+      </sc-for>
+    </div>
+    <svg viewBox="0 0 1160 400" width="100%" height="400">
+      <sc-for list="{{ cmp.grid }}" as="g" hint-placeholder-count="5">
+        <line x1="86" y1="{{ g.y }}" x2="1140" y2="{{ g.y }}" stroke="var(--border)" strokeWidth="1"></line>
+      </sc-for>
+      <sc-for list="{{ cmp.zones }}" as="z" hint-placeholder-count="0">
+        <rect x="{{ z.x }}" y="{{ z.y }}" width="{{ z.w }}" height="{{ z.h }}" fill="transparent" onMouseEnter="{{ z.he }}" onMouseLeave="{{ z.hl }}"></rect>
+      </sc-for>
+      <sc-for list="{{ cmp.areas }}" as="a" hint-placeholder-count="4">
+        <path d="{{ a.d }}" fill="{{ a.fill }}" fillOpacity="{{ a.op }}" stroke="none" onMouseEnter="{{ a.he }}" onMouseLeave="{{ a.hl }}"></path>
+      </sc-for>
+      <sc-for list="{{ cmp.bars }}" as="b" hint-placeholder-count="12">
+        <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.fill }}" fillOpacity="{{ b.op }}" stroke="{{ b.stroke }}" strokeWidth="1" rx="2" onMouseEnter="{{ b.he }}" onMouseLeave="{{ b.hl }}"></rect>
+      </sc-for>
+      <sc-for list="{{ cmp.boxes }}" as="b" hint-placeholder-count="4">
+        <line x1="{{ b.cx }}" y1="{{ b.min }}" x2="{{ b.cx }}" y2="{{ b.max }}" stroke="{{ b.stroke }}" strokeOpacity=".6" strokeWidth="1.2"></line>
+        <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.fill }}" fillOpacity="{{ b.op }}" stroke="{{ b.stroke }}" strokeWidth="1.4" rx="2" onMouseEnter="{{ b.he }}" onMouseLeave="{{ b.hl }}"></rect>
+        <line x1="{{ b.x }}" y1="{{ b.med }}" x2="{{ b.x2 }}" y2="{{ b.med }}" stroke="{{ b.stroke }}" strokeWidth="2.4"></line>
+      </sc-for>
+      <sc-for list="{{ cmp.lines }}" as="l" hint-placeholder-count="4">
+        <path d="{{ l.d }}" fill="none" stroke="{{ l.stroke }}" strokeOpacity="{{ l.op }}" strokeWidth="{{ l.sw }}" strokeDasharray="{{ l.dash }}" strokeLinecap="round" strokeLinejoin="round" onMouseEnter="{{ l.he }}" onMouseLeave="{{ l.hl }}"></path>
+      </sc-for>
+      <sc-for list="{{ cmp.dots }}" as="p" hint-placeholder-count="12">
+        <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.r }}" fill="{{ p.fill }}" fillOpacity="{{ p.op }}" stroke="{{ p.stroke }}" strokeWidth="1.2" onMouseEnter="{{ p.he }}" onMouseLeave="{{ p.hl }}"></circle>
+      </sc-for>
+      <g style="{{ cmp.ovCss }}">
+        <sc-for list="{{ cmp.ovLines }}" as="l" hint-placeholder-count="0">
+          <path d="{{ l.d }}" fill="none" stroke="{{ l.stroke }}" strokeOpacity="{{ l.op }}" strokeWidth="{{ l.sw }}" strokeDasharray="{{ l.dash }}" strokeLinecap="round"></path>
+        </sc-for>
+        <sc-for list="{{ cmp.ovDots }}" as="p" hint-placeholder-count="0">
+          <circle cx="{{ p.x }}" cy="{{ p.y }}" r="{{ p.r }}" fill="{{ p.fill }}" fillOpacity="{{ p.op }}" stroke="{{ p.stroke }}" strokeWidth="1.2"></circle>
+        </sc-for>
+        {{ cmp.ovText }}
+      </g>
+      <line x1="86" y1="330" x2="1140" y2="330" stroke="var(--ink-800)" strokeWidth="1.2"></line>
+      {{ cmp.text }}
+    </svg>
+    <div style="display:flex;gap:24px;padding-top:10px;border-top:1px solid var(--border)">
+      <sc-for list="{{ cmp.legend }}" as="l" hint-placeholder-count="3">
+        <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="{{ l.sw }}"></span>{{ l.t }}</span>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- lista de sessões -->
+  <div style="display:flex;align-items:center;gap:14px;padding:40px 0 14px">
+    <span style="width:7px;height:7px;background:var(--amber-500)"></span>
+    <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-800)">Sessões</span>
+    <span style="flex:1;height:1px;background:var(--border)"></span>
+  </div>
+  <div style="border-top:1.5px solid var(--ink-800)">
+    <div style="display:grid;grid-template-columns:110px 1fr 92px 84px 100px 96px 150px 100px;gap:14px;padding:11px 6px;border-bottom:1px solid var(--border)">
+      <sc-for list="{{ listHead }}" as="h" hint-placeholder-count="8">
+        <span style="{{ h.css }}">{{ h.t }}</span>
+      </sc-for>
+    </div>
+    <sc-for list="{{ sessions }}" as="s" hint-placeholder-count="10">
+      <div onClick="{{ s.open }}" style="{{ s.rowCss }}" style-hover="background:var(--warm-100)">
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--text)">{{ s.date }}</span>
+        <span style="display:flex;align-items:center;gap:10px;font-size:14px;color:var(--text)">{{ s.spot }}<span style="{{ s.tagCss }}">{{ s.tag }}</span></span>
+        <span style="font-family:var(--font-mono);font-size:12px;color:var(--text);text-align:right">{{ s.dur }}</span>
+        <span style="{{ s.wavesCss }}">{{ s.waves }}</span>
+        <span style="display:flex;justify-content:flex-end;align-items:center;gap:7px">
+          <svg viewBox="0 0 22 22" width="14" height="14"><circle cx="11" cy="11" r="9" fill="none" stroke="var(--warm-300)" strokeWidth="3"></circle><circle cx="11" cy="11" r="9" fill="none" stroke="var(--blue-600)" strokeWidth="3" strokeDasharray="{{ s.arc }}" transform="rotate(-90 11 11)"></circle></svg>
+          <span style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted)">{{ s.cov }}%</span>
+        </span>
+        <span style="font-family:var(--font-mono);font-size:11.5px;color:var(--text-muted);text-align:right">{{ s.longest }}</span>
+        <span style="display:flex;justify-content:flex-end"><svg viewBox="0 0 140 20" width="140" height="20" preserveAspectRatio="none"><sc-for list="{{ s.bars }}" as="b" hint-placeholder-count="8"><rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="{{ b.fill }}" fillOpacity="{{ b.op }}"></rect></sc-for></svg></span>
+        <span style="{{ s.chipCss }}">{{ s.chip }}</span>
+      </div>
+    </sc-for>
+  </div>
+</section>
+</sc-if>
+
+
+<!-- ══════════════════ NÍVEL 2 · SESSÃO ══════════════════ -->
+<sc-if value="{{ isSession }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="N2 Sessao" style="display:flex;flex-direction:column;gap:0;animation:mf-fade-up var(--dur-slow) var(--ease-out) both">
+
+  <div style="display:flex;align-items:center;gap:14px;padding:38px 0 18px">
+    <span style="width:7px;height:7px;background:var(--amber-500)"></span>
+    <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.24em;text-transform:uppercase;color:var(--ink-800)">Ondas</span>
+    <span style="flex:1;height:1px;background:var(--border)"></span>
+  </div>
+
+  <div style="border-top:1.5px solid var(--ink-800);border-bottom:1px solid var(--border);padding:22px 0 26px">
+    <span style="font-family:var(--font-display);font-size:104px;font-weight:600;line-height:.84;letter-spacing:-.045em;color:var(--blue-600)">{{ stats.realWaves }}</span>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 440px;gap:26px;align-items:start;padding-top:26px">
+    <div style="display:flex;flex-direction:column;gap:26px">
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface)">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 20px 13px;border-bottom:1px solid var(--border)">
+          <div style="display:flex;flex-direction:column;gap:4px">
+            <span style="font-family:var(--font-mono);font-size:11px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">{{ stats.spot }}</span>
+          </div>
+          <div style="display:flex;align-items:center;gap:9px">
+            <button type="button" onClick="{{ toggleSwell }}" style="{{ swellBtnCss }}">Sobreposição radial</button>
+            <button type="button" onClick="{{ togglePlay }}" title="{{ playLabel }}" style="{{ playBtnCss }}" style-hover="background:var(--accent-hover)">{{ playIcon }}</button>
+          </div>
+        </div>
+
+        <div style="position:relative;width:100%;height:470px;background:var(--warm-100);overflow:hidden">
+          <sc-if value="{{ map.basemap }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;inset:0">
+              <sc-for list="{{ map.tiles }}" as="t" hint-placeholder-count="0">
+                <div style="{{ t.css }}"></div>
+              </sc-for>
+              <div style="position:absolute;inset:0;background:var(--warm-50);opacity:.36;mixBlendMode:screen"></div>
+            </div>
+          </sc-if>
+          <sc-if value="{{ map.noBasemap }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;inset:0;background:repeating-linear-gradient(90deg,var(--warm-200) 0 1px,transparent 1px 44px),repeating-linear-gradient(0deg,var(--warm-200) 0 1px,transparent 1px 44px)"></div>
+          </sc-if>
+
+          <svg viewBox="{{ map.vb }}" width="100%" height="470" style="position:absolute;inset:0" onClick="{{ clearSel }}">
+            <sc-if value="{{ swellOn }}" hint-placeholder-val="{{ true }}">
+              <g>
+                <sc-for list="{{ cones }}" as="c" hint-placeholder-count="3">
+                  <path d="{{ c.d }}" fill="{{ c.fill }}" fillOpacity="{{ c.op }}" stroke="{{ c.stroke }}" strokeOpacity="{{ c.sop }}" strokeWidth="{{ c.sw }}" strokeDasharray="{{ c.dash }}" onMouseEnter="{{ c.he }}" onMouseLeave="{{ c.hl }}"></path>
+                </sc-for>
+                <sc-for list="{{ radials }}" as="r" hint-placeholder-count="0">
+                  <line x1="{{ r.x1 }}" y1="{{ r.y1 }}" x2="{{ r.x2 }}" y2="{{ r.y2 }}" stroke="var(--ink-600)" strokeOpacity="{{ r.op }}" strokeWidth="{{ r.sw }}"></line>
+                </sc-for>
+                <sc-for list="{{ rings }}" as="r" hint-placeholder-count="0">
+                  <circle cx="{{ r.cx }}" cy="{{ r.cy }}" r="{{ r.r }}" fill="none" stroke="var(--ink-600)" strokeOpacity=".07" strokeWidth="1"></circle>
+                </sc-for>
+                {{ radialsText }}
+                <sc-for list="{{ spokes }}" as="s" hint-placeholder-count="3">
+                  <line x1="{{ s.x1 }}" y1="{{ s.y1 }}" x2="{{ s.x2 }}" y2="{{ s.y2 }}" stroke="{{ s.stroke }}" strokeOpacity="{{ s.op }}" strokeWidth="{{ s.sw }}" strokeDasharray="4 4"></line>
+                  <circle cx="{{ s.x2 }}" cy="{{ s.y2 }}" r="{{ s.r }}" fill="{{ s.stroke }}" fillOpacity="{{ s.op }}"></circle>
+                </sc-for>
+                {{ conesText }}
+              </g>
+            </sc-if>
+            <sc-for list="{{ map.est }}" as="p" hint-placeholder-count="0">
+              <path d="{{ p.d }}" fill="none" stroke="#3E6B7C" strokeOpacity=".32" strokeWidth="2" strokeDasharray="4 4"></path>
+            </sc-for>
+            <sc-for list="{{ map.meas }}" as="p" hint-placeholder-count="0">
+              <path d="{{ p.d }}" fill="none" stroke="var(--blue-600)" strokeOpacity="{{ map.trackOp }}" strokeWidth="2.4"></path>
+            </sc-for>
+            <sc-for list="{{ map.waveMarks }}" as="w" hint-placeholder-count="0">
+              <path d="{{ w.d }}" fill="none" stroke="{{ w.stroke }}" strokeWidth="{{ w.sw }}" strokeOpacity="{{ w.op }}" strokeDasharray="{{ w.dash }}" onClick="{{ w.pick }}" style="cursor:pointer;pointer-events:stroke"></path>
+            </sc-for>
+            <sc-for list="{{ map.waveDots }}" as="w" hint-placeholder-count="0">
+              <circle cx="{{ w.x }}" cy="{{ w.y }}" r="{{ w.r }}" fill="{{ w.fill }}" fillOpacity="{{ w.op }}" stroke="var(--warm-50)" strokeWidth="1.5" onClick="{{ w.pick }}" style="cursor:pointer"></circle>
+            </sc-for>
+            <circle cx="{{ map.head.x }}" cy="{{ map.head.y }}" r="6" fill="{{ map.head.fill }}" stroke="var(--warm-0)" strokeWidth="2"></circle>
+          </svg>
+
+          <div style="position:absolute;right:14px;bottom:14px;background:rgba(251,247,240,.95);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:var(--shadow-sm);padding:11px 13px;display:flex;flex-direction:column;gap:7px;minWidth:196px">
+            <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted)">Legenda</span>
+            <sc-for list="{{ legend }}" as="l" hint-placeholder-count="6">
+              <div style="display:flex;align-items:center;gap:8px">
+                <span style="{{ l.swatch }}"></span>
+                <span style="font-family:var(--font-mono);font-size:10px;color:var(--text)">{{ l.t }}</span>
+              </div>
+            </sc-for>
+          </div>
+
+          <sc-if value="{{ selected }}" hint-placeholder-val="{{ false }}">
+            <div style="position:absolute;left:14px;top:14px;background:var(--gradient-ink);border-radius:var(--radius-md);box-shadow:var(--shadow-lg);color:var(--warm-50);padding:13px 16px;display:flex;flex-direction:column;gap:7px;minWidth:220px">
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--amber-300)">Isolada · restantes ocultas</span>
+              <span style="font-family:var(--font-display);font-size:17px;font-weight:600">Onda {{ sel.no }} · {{ sel.durTxt }}</span>
+              <span style="font-family:var(--font-mono);font-size:10.5px;color:#93A4AB">{{ sel.covTxt }} medido · {{ sel.dirTxt }}</span>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <button type="button" onClick="{{ openWave }}" style="font:inherit;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;background:var(--primary);color:var(--ink-900);border:none;padding:7px 11px;cursor:pointer">Abrir onda</button>
+                <button type="button" onClick="{{ clearSel }}" style="font:inherit;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;background:none;color:var(--blue-300);border:1px solid rgba(251,247,240,.25);padding:7px 11px;cursor:pointer">Ver todas</button>
+              </div>
+            </div>
+          </sc-if>
+        </div>
+
+        <div style="padding:14px 20px 18px;display:flex;flex-direction:column;gap:11px">
+          <div style="display:flex;align-items:center;gap:14px">
+            <span style="font-family:var(--font-mono);font-size:12px;color:var(--text);minWidth:52px">{{ clock }}</span>
+            <input type="range" min="0" max="3789" value="{{ now }}" onChange="{{ seek }}" style="flex:1;height:4px">
+            <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;color:var(--text-subtle)">250 ms / passo</span>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;padding:12px 0;border-top:1px solid var(--border);border-bottom:1px solid var(--border)">
+            <sc-for list="{{ tick }}" as="k" hint-placeholder-count="4">
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted)">{{ k.label }}</span>
+                <span style="{{ k.css }}">{{ k.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display:flex;flex-direction:column;gap:5px">
+            <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted)">Fita de estados</span>
+            <div style="position:relative;height:20px;overflow:hidden;border-radius:3px;background:var(--warm-100)">
+              <sc-for list="{{ ribbon }}" as="r" hint-placeholder-count="0">
+                <div style="{{ r.css }}" title="{{ r.title }}"></div>
+              </sc-for>
+              <div style="{{ playheadCss }}"></div>
+            </div>
+            <div style="position:relative;height:9px;background:var(--warm-100);border-radius:2px;overflow:hidden">
+              <sc-for list="{{ blindRail }}" as="b" hint-placeholder-count="0">
+                <div style="{{ b.css }}"></div>
+              </sc-for>
+            </div>
+            <div style="display:flex;justify-content:space-between;align-items:center">
+              <span style="display:flex;gap:12px">
+                <sc-for list="{{ ribbonKey }}" as="k" hint-placeholder-count="4">
+                  <span style="display:flex;align-items:center;gap:5px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="{{ k.sw }}"></span>{{ k.t }}</span>
+                </sc-for>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px;align-items:start">
+        <div style="display:flex;flex-direction:column;gap:26px">
+        <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Distância</span>
+          <div style="display:flex;align-items:baseline;gap:8px;margin:12px 0 4px">
+            <span style="font-family:var(--font-display);font-size:46px;font-weight:600;letter-spacing:-.03em;color:var(--ink-800);line-height:1">{{ stats.distKm }}</span>
+            <span style="font-family:var(--font-mono);font-size:13px;color:var(--text-muted)">km</span>
+          </div>
+          <div style="display:flex;height:11px;overflow:hidden;border-radius:3px;margin:18px 0 12px">
+            <div style="{{ split.swimCss }}"></div>
+            <div style="{{ split.rideCss }}"></div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
+            <sc-for list="{{ split.rows }}" as="s" hint-placeholder-count="2">
+              <div style="display:flex;flex-direction:column;gap:3px">
+                <span style="display:flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)"><span style="{{ s.sw }}"></span>{{ s.label }}</span>
+                <span style="font-family:var(--font-display);font-size:21px;font-weight:600;color:var(--ink-800)">{{ s.value }}</span>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Cadência</span>
+          <svg viewBox="0 0 400 168" width="100%" height="168" style="margin-top:12px">
+            <sc-for list="{{ cad.grid }}" as="g" hint-placeholder-count="3">
+              <line x1="34" y1="{{ g.y }}" x2="396" y2="{{ g.y }}" stroke="var(--border)" strokeWidth="1"></line>
+            </sc-for>
+            <path d="{{ cad.area }}" fill="var(--blue-500)" fillOpacity=".14"></path>
+            <path d="{{ cad.line }}" fill="none" stroke="var(--blue-600)" strokeWidth="2" strokeLinejoin="round"></path>
+            <sc-for list="{{ cad.dots }}" as="p" hint-placeholder-count="12">
+              <circle cx="{{ p.x }}" cy="{{ p.y }}" r="3" fill="{{ p.fill }}"></circle>
+            </sc-for>
+            <line x1="34" y1="132" x2="396" y2="132" stroke="var(--ink-800)" strokeWidth="1"></line>
+            {{ cad.text }}
+          </svg>
+        </div>
+        </div>
+
+        <div style="display:flex;flex-direction:column;gap:26px">
+
+        <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Velocidade</span>
+          <svg viewBox="0 0 400 156" width="100%" height="156" style="margin-top:12px">
+            <path d="{{ bell.area }}" fill="var(--blue-500)" fillOpacity=".16"></path>
+            <path d="{{ bell.sdArea }}" fill="var(--blue-500)" fillOpacity=".16"></path>
+            <path d="{{ bell.line }}" fill="none" stroke="var(--blue-600)" strokeWidth="2.2"></path>
+            <line x1="{{ bell.meanX }}" y1="14" x2="{{ bell.meanX }}" y2="118" stroke="var(--amber-500)" strokeWidth="2"></line>
+            <line x1="{{ bell.sd1 }}" y1="48" x2="{{ bell.sd1 }}" y2="118" stroke="var(--ink-500)" strokeOpacity=".45" strokeWidth="1" strokeDasharray="4 3"></line>
+            <line x1="{{ bell.sd2 }}" y1="48" x2="{{ bell.sd2 }}" y2="118" stroke="var(--ink-500)" strokeOpacity=".45" strokeWidth="1" strokeDasharray="4 3"></line>
+            <line x1="0" y1="118" x2="400" y2="118" stroke="var(--ink-800)" strokeWidth="1"></line>
+            {{ bell.labels }}
+          </svg>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Retorno</span>
+          <svg viewBox="0 0 400 168" width="100%" height="168" style="margin-top:12px">
+            <sc-for list="{{ eff.grid }}" as="g" hint-placeholder-count="3">
+              <line x1="34" y1="{{ g.y }}" x2="396" y2="{{ g.y }}" stroke="var(--border)" strokeWidth="1"></line>
+            </sc-for>
+            <sc-for list="{{ eff.bars }}" as="b" hint-placeholder-count="12">
+              <rect x="{{ b.x }}" y="{{ b.y }}" width="{{ b.w }}" height="{{ b.h }}" fill="var(--warm-400)" fillOpacity=".55" rx="1"></rect>
+            </sc-for>
+            <path d="{{ eff.line }}" fill="none" stroke="var(--amber-600)" strokeWidth="2" strokeLinejoin="round"></path>
+            <sc-for list="{{ eff.dots }}" as="p" hint-placeholder-count="12">
+              <circle cx="{{ p.x }}" cy="{{ p.y }}" r="3" fill="var(--amber-600)"></circle>
+            </sc-for>
+            <line x1="34" y1="132" x2="396" y2="132" stroke="var(--ink-800)" strokeWidth="1"></line>
+            {{ eff.text }}
+          </svg>
+        </div>
+        </div>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;gap:16px;margin-bottom:14px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Perfis de onda</span>
+          <span style="display:flex;align-items:center;gap:12px">
+            <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-subtle)">{{ lockHint }}</span>
+            <button type="button" onClick="{{ toggleLock }}" title="{{ lockHint }}" style="{{ lockCss }}" style-hover="border-color:var(--border-strong)">{{ lockIcon }}</button>
+          </span>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:12px">
+          <sc-for list="{{ small }}" as="w" hint-placeholder-count="0">
+            <div style="position:relative;perspective:900px;height:132px">
+              <sc-if value="{{ unlocked }}" hint-placeholder-val="{{ false }}">
+                <button type="button" onClick="{{ w.remove }}" title="Eliminar onda" style="position:absolute;z-index:3;top:-7px;right:-7px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;padding:0;border:1px solid var(--danger);border-radius:var(--radius-full);background:var(--surface);color:var(--danger);cursor:pointer;box-shadow:var(--shadow-sm)" style-hover="background:var(--danger);color:var(--warm-50)">
+                  <svg width="11" height="11" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round"><path d="M2.5 2.5 9.5 9.5M9.5 2.5 2.5 9.5"></path></svg>
+                </button>
+              </sc-if>
+              <button type="button" onClick="{{ w.open }}" style="{{ w.css }}" style-hover="transform:rotateY(360deg)">
+                <span style="{{ w.frontCss }}">
+                  <span style="{{ w.headCss }}">
+                    <span style="font-family:var(--font-mono);font-size:10px;color:var(--text-muted)">{{ w.no }}</span>
+                    <span style="{{ w.badgeCss }}">{{ w.signal }}{{ w.covTxt }}</span>
+                  </span>
+                  <svg viewBox="0 0 60 30" width="100%" height="42">
+                    <sc-for list="{{ w.est }}" as="d" hint-placeholder-count="0"><path d="{{ d.d }}" fill="none" stroke="#3E6B7C" strokeOpacity=".34" strokeWidth="1.3" strokeDasharray="3 3"></path></sc-for>
+                    <sc-for list="{{ w.meas }}" as="d" hint-placeholder-count="0"><path d="{{ d.d }}" fill="none" stroke="var(--blue-600)" strokeWidth="1.7" strokeLinecap="round"></path></sc-for>
+                    <circle cx="{{ w.startX }}" cy="{{ w.startY }}" r="2" fill="var(--amber-500)"></circle>
+                  </svg>
+                  <span style="display:flex;justify-content:space-between;align-items:flex-end;gap:8px">
+                    <span style="display:flex;flex-direction:column;line-height:1.15">
+                      <span style="font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.02em;color:var(--ink-800)">{{ w.avgTxt }}</span>
+                      <span style="font-family:var(--font-mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle)">km/h</span>
+                    </span>
+                    <span style="display:flex;flex-direction:column;align-items:flex-end;line-height:1.15">
+                      <span style="font-family:var(--font-display);font-size:16px;font-weight:600;letter-spacing:-.02em;color:var(--ink-800)">{{ w.durTxt }}</span>
+                      <span style="font-family:var(--font-mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--text-subtle)">segundos</span>
+                    </span>
+                  </span>
+                </span>
+                <span style="{{ w.backCss }}">
+                  {{ w.backIcon }}
+                  <span style="font-family:var(--font-mono);font-size:8px;letter-spacing:.14em;text-transform:uppercase;text-align:center;line-height:1.5">{{ w.backLabel }}</span>
+                </span>
+              </button>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:26px">
+      <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Estado do mar</span>
+          <span style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-subtle)">API marinha · 3 de 4</span>
+        </div>
+        <span style="display:block;font-size:11.5px;color:var(--text-muted);margin-bottom:14px">O tamanho do cartão é a altura da ondulação. Não se desenha cartão para ondulação que o fornecedor não reportou.</span>
+        <div style="display:flex;gap:10px;align-items:flex-end">
+          <sc-for list="{{ swells }}" as="s" hint-placeholder-count="3">
+            <div style="{{ s.css }}">
+              <span style="font-family:var(--font-mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;opacity:.85">{{ s.name }}</span>
+              <span style="{{ s.hCss }}">{{ s.h }}<span style="font-size:11px;font-family:var(--font-mono);opacity:.75"> m</span></span>
+              <span style="font-family:var(--font-mono);font-size:10px;opacity:.9">{{ s.period }} s · {{ s.dir }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;padding-top:14px;border-top:1px solid var(--border)">
+          <sc-for list="{{ seaFacts }}" as="f" hint-placeholder-count="4">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:var(--text-muted)">{{ f.k }}</span>
+              <span style="{{ f.css }}">{{ f.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="background:var(--gradient-ink);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;color:var(--warm-50)">
+        <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:3px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue-300)">Aeróbico</span>
+          <x-import component-from-global-scope="MFConceptsDesignSystem_a3a656.Badge" tone="blue" size="sm" hint-size="122px,20px">100% COBERTURA</x-import>
+        </div>
+        <span style="display:block;font-size:11.5px;color:#93A4AB;margin-bottom:18px">O único sinal sem falhas. É aqui que o design pode ser confiante.</span>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin-bottom:16px">
+          <sc-for list="{{ hrStats }}" as="h" hint-placeholder-count="3">
+            <div style="display:flex;flex-direction:column;gap:3px">
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:#5E7178">{{ h.k }}</span>
+              <span style="font-family:var(--font-display);font-size:28px;font-weight:600;line-height:1;color:var(--warm-50)">{{ h.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <svg viewBox="0 0 400 90" width="100%" height="90">
+          <sc-for list="{{ hrTrace }}" as="p" hint-placeholder-count="0">
+            <path d="{{ p.d }}" fill="none" stroke="var(--blue-400)" strokeWidth="1.4"></path>
+          </sc-for>
+          <path d="{{ hrArea }}" fill="var(--blue-400)" fillOpacity=".13"></path>
+        </svg>
+        <div style="display:flex;flex-direction:column;gap:7px;margin-top:14px">
+          <sc-for list="{{ zones }}" as="z" hint-placeholder-count="5">
+            <div style="display:grid;grid-template-columns:44px 1fr 44px;gap:10px;align-items:center">
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.1em;text-transform:uppercase;color:#5E7178">{{ z.k }}</span>
+              <div style="height:4px;border-radius:3px;background:rgba(251,247,240,.12)"><div style="{{ z.barCss }}"></div></div>
+              <span style="font-family:var(--font-mono);font-size:10.5px;color:var(--warm-50);text-align:right">{{ z.v }}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-top:18px;padding-top:14px;border-top:1px solid rgba(251,247,240,.14)">
+          <sc-for list="{{ effort }}" as="e" hint-placeholder-count="2">
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.13em;text-transform:uppercase;color:#5E7178">{{ e.k }}</span>
+              <span style="font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--warm-50)">{{ e.v }}</span>
+              <span style="font-size:11px;line-height:1.5;color:#93A4AB">{{ e.n }}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="border-left:3px solid var(--accent);border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+          <span style="width:6px;height:6px;border-radius:50%;background:var(--accent)"></span>
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--accent-hover)">Qualidade da sessão</span>
+        </div>
+        <p style="margin:0;font-size:14px;line-height:1.78;color:var(--text)">{{ prose.session }}</p>
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--border)">
+          <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.08em;color:var(--text-subtle)">{{ prose.sig }}</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+</sc-if>
+
+
+<!-- ══════════════════ NÍVEL 3 · ONDA ══════════════════ -->
+<sc-if value="{{ isWave }}" hint-placeholder-val="{{ false }}">
+<section data-screen-label="N3 Onda" style="display:flex;flex-direction:column;gap:26px;animation:mf-fade-up var(--dur-slow) var(--ease-out) both">
+
+  <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:20px;border-top:1.5px solid var(--ink-800);border-bottom:1px solid var(--border);padding:26px 0;margin-top:38px">
+    <div style="display:flex;align-items:baseline;gap:16px">
+      <span style="font-family:var(--font-display);font-size:40px;font-weight:600;letter-spacing:-.035em;color:var(--ink-800)">Onda {{ w.no }}</span>
+      <span style="font-family:var(--font-mono);font-size:12.5px;color:var(--text-muted)">{{ w.at }} · {{ w.durTxt }}</span>
+    </div>
+    <div style="display:flex;align-items:center;gap:14px">
+      <select value="{{ w.id }}" onChange="{{ pickWave }}">
+        <sc-for list="{{ waveOptions }}" as="o" hint-placeholder-count="0"><option value="{{ o.id }}">{{ o.label }}</option></sc-for>
+      </select>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:1fr 420px;gap:26px;align-items:start">
+    <div style="display:flex;flex-direction:column;gap:26px">
+      <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:22px 24px">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:20px;margin-bottom:14px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Perfil da onda</span>
+          <span style="display:flex;align-items:center;gap:12px">
+            <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">{{ wp.clock }} / {{ wp.total }}</span>
+            <input type="range" min="0" max="{{ wp.max }}" step="0.1" value="{{ wp.now }}" onChange="{{ wp.seek }}" style="width:190px;accent-color:var(--accent)">
+            <button type="button" onClick="{{ wp.toggle }}" title="{{ wp.label }}" style="{{ wp.btnCss }}">{{ wp.icon }}</button>
+          </span>
+        </div>
+        <svg viewBox="0 0 720 300" width="100%" height="300">
+          <defs>
+            <linearGradient id="wp-crest" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="var(--blue-700)" stopOpacity="0"></stop>
+              <stop offset=".26" stopColor="var(--blue-700)" stopOpacity=".22"></stop>
+              <stop offset=".48" stopColor="var(--blue-600)" stopOpacity=".48"></stop>
+              <stop offset=".6" stopColor="#8ED2F2" stopOpacity=".82"></stop>
+              <stop offset=".665" stopColor="#FFFFFF" stopOpacity=".95"></stop>
+              <stop offset=".72" stopColor="var(--blue-400)" stopOpacity=".5"></stop>
+              <stop offset=".88" stopColor="var(--blue-300)" stopOpacity=".16"></stop>
+              <stop offset="1" stopColor="var(--blue-300)" stopOpacity="0"></stop>
+            </linearGradient>
+            <linearGradient id="wp-vfade" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#FFFFFF" stopOpacity="0"></stop>
+              <stop offset=".22" stopColor="#FFFFFF" stopOpacity=".6"></stop>
+              <stop offset=".54" stopColor="#FFFFFF" stopOpacity="1"></stop>
+              <stop offset=".86" stopColor="#FFFFFF" stopOpacity=".45"></stop>
+              <stop offset="1" stopColor="#FFFFFF" stopOpacity="0"></stop>
+            </linearGradient>
+            <mask id="wp-mask"><rect x="0" y="22" width="1440" height="236" fill="url(#wp-vfade)"></rect></mask>
+            <linearGradient id="wp-shore" x1="0" y1="0" x2="1" y2="0">
+              <stop offset="0" stopColor="var(--amber-400)" stopOpacity="0"></stop>
+              <stop offset="1" stopColor="var(--amber-400)" stopOpacity=".34"></stop>
+            </linearGradient>
+          </defs>
+          <polygon points="672,16 712,16 712,266 700,266" fill="url(#wp-shore)"></polygon>
+          <line x1="672" y1="16" x2="700" y2="266" stroke="var(--amber-500)" strokeOpacity=".5" strokeWidth="1.6" strokeDasharray="7 5"></line>
+          <g transform="{{ wp.crestT }}">
+            <rect x="{{ wp.barX }}" y="16" width="136" height="250" fill="url(#wp-crest)" mask="url(#wp-mask)"></rect>
+            <line x1="{{ wp.crestX }}" y1="20" x2="{{ wp.crestX }}" y2="260" stroke="#FFFFFF" strokeOpacity=".9" strokeWidth="3.2" mask="url(#wp-mask)"></line>
+            <line x1="{{ wp.lipX }}" y1="20" x2="{{ wp.lipX }}" y2="260" stroke="var(--blue-600)" strokeOpacity=".4" strokeWidth="1.2" mask="url(#wp-mask)"></line>
+          </g>
+          <sc-for list="{{ wp.est }}" as="p" hint-placeholder-count="0">
+            <path d="{{ p.d }}" fill="none" stroke="#3E6B7C" strokeOpacity=".45" strokeWidth="2" strokeDasharray="5 4"></path>
+          </sc-for>
+          <sc-for list="{{ wp.meas }}" as="p" hint-placeholder-count="0">
+            <path d="{{ p.d }}" fill="none" stroke="var(--ink-800)" strokeOpacity=".24" strokeWidth="2.4" strokeLinecap="round"></path>
+          </sc-for>
+          <path d="{{ wp.trail }}" fill="none" stroke="var(--amber-500)" strokeWidth="3" strokeLinecap="round"></path>
+          <sc-for list="{{ wp.moves }}" as="m" hint-placeholder-count="0">
+            <circle cx="{{ m.x }}" cy="{{ m.y }}" r="4" fill="{{ m.fill }}" stroke="var(--warm-0)" strokeWidth="1.4"></circle>
+          </sc-for>
+          {{ wp.movesText }}
+          <circle cx="{{ wp.sx }}" cy="{{ wp.sy }}" r="13" fill="var(--amber-500)" fillOpacity=".18"></circle>
+          <circle cx="{{ wp.sx }}" cy="{{ wp.sy }}" r="6.5" fill="var(--amber-500)" stroke="var(--warm-0)" strokeWidth="1.8"></circle>
+          {{ wp.readout }}
+          {{ wp.axisText }}
+        </svg>
+        <div style="display:flex;gap:18px;margin-top:6px">
+          <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="display:inline-block;width:16px;height:9px;border-radius:2px;background:linear-gradient(90deg,rgba(47,168,230,0),rgba(47,168,230,.6),#BFE6FA)"></span>crista a avançar — o tempo a passar</span>
+          <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="display:inline-block;width:9px;height:9px;border-radius:50%;background:var(--amber-500)"></span>surfista · percurso GPS</span>
+          <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="display:inline-block;width:14px;height:0;border-top:2px dashed #3E6B7C"></span>segundos estimados</span>
+          <span style="display:flex;align-items:center;gap:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-muted)"><span style="display:inline-block;width:14px;height:9px;border-radius:2px;background:linear-gradient(90deg,rgba(232,149,28,0),rgba(232,149,28,.34))"></span>linha de costa inferida do GPS</span>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:18px">
+        <sc-for list="{{ w.metrics }}" as="m" hint-placeholder-count="6">
+          <div style="{{ m.cardCss }}">
+            <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-muted);line-height:1.5">{{ m.label }}</span>
+              <svg viewBox="0 0 20 20" width="14" height="14"><circle cx="10" cy="10" r="8" fill="none" stroke="var(--warm-200)" strokeWidth="3"></circle><circle cx="10" cy="10" r="8" fill="none" stroke="{{ m.arcColor }}" strokeWidth="3" strokeDasharray="{{ m.arc }}" transform="rotate(-90 10 10)"></circle></svg>
+            </div>
+            <div style="display:flex;align-items:baseline;gap:5px;margin-top:10px">
+              <span style="{{ m.valCss }}">{{ m.value }}</span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-muted)">{{ m.unit }}</span>
+            </div>
+          </div>
+        </sc-for>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:26px">
+        <div style="border:1px dashed var(--border-strong);border-radius:var(--radius-lg);background:var(--warm-100);padding:20px 22px;display:flex;flex-direction:column;gap:11px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--text-muted)">Perfil do bottom turn — reservado</span>
+          <div style="height:112px;border:1px dashed var(--border-strong);border-radius:var(--radius-md);display:grid;place-items:center;background:repeating-linear-gradient(135deg,var(--warm-200) 0 5px,transparent 5px 11px)">
+            <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.12em;color:var(--text-subtle);text-align:center;line-height:1.8">VISUAL NÃO DESENHADO<br>investigação aberta — nada inventado aqui</span>
+          </div>
+          <span style="font-size:11.5px;line-height:1.6;color:var(--text-muted)">Espaço reservado e dimensionado, deliberadamente vazio até o método estar decidido.</span>
+        </div>
+
+        <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px;display:flex;flex-direction:column;gap:14px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Retidão do percurso</span>
+          <div style="display:flex;align-items:center;gap:22px">
+            <svg viewBox="0 0 130 76" width="140" height="82">
+              <path d="{{ w.pathShape }}" fill="none" stroke="var(--blue-600)" strokeWidth="2.4" strokeLinecap="round"></path>
+              <line x1="{{ w.chord.x1 }}" y1="{{ w.chord.y1 }}" x2="{{ w.chord.x2 }}" y2="{{ w.chord.y2 }}" stroke="var(--amber-500)" strokeWidth="1.8" strokeDasharray="4 3"></line>
+            </svg>
+            <div style="display:flex;flex-direction:column;gap:4px">
+              <span style="font-family:var(--font-display);font-size:44px;font-weight:600;line-height:1;letter-spacing:-.03em;color:var(--ink-800)">{{ w.straight }}</span>
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-muted)">líquido ÷ percurso</span>
+            </div>
+          </div>
+          <p style="margin:0;font-size:12px;line-height:1.7;color:var(--text-muted);text-wrap:pretty">Divide-se a distância em linha reta entre o primeiro e o último ponto (a tracejado) pelo comprimento real do traçado (a azul). Um valor perto de <span style="color:var(--text)">1.00</span> é uma onda levada quase a direito; quanto mais baixo, mais o percurso subiu e desceu a parede. Só entram na conta os segundos com posição medida.</p>
+        </div>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:26px">
+      <div style="background:var(--gradient-ink);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);padding:22px 24px;color:var(--warm-50)">
+        <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--blue-300)">Direção</span>
+        <div style="display:flex;align-items:baseline;gap:12px;margin:12px 0 4px">
+          <span style="{{ w.dirCss }}">{{ w.dirTxt }}</span>
+        </div>
+        <div style="height:4px;border-radius:3px;background:rgba(251,247,240,.12);margin:14px 0 9px"><div style="{{ w.dirBarCss }}"></div></div>
+        <span style="font-family:var(--font-mono);font-size:10px;color:#93A4AB">confiança {{ w.dirConf }} · {{ w.dirWhy }}</span>
+      </div>
+
+      <div style="border:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+        <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.2em;text-transform:uppercase;color:var(--ink-800)">Manobras</span>
+        <div style="margin:16px 0 12px">
+          <span style="font-family:var(--font-display);font-size:52px;font-weight:600;line-height:1;letter-spacing:-.03em;color:var(--ink-800)">{{ w.man }}</span>
+        </div>
+        <p style="margin:0;font-size:12px;line-height:1.7;color:var(--text-muted);text-wrap:pretty">Conta-se o que os sensores registam como movimento franco: uma mudança de direção rápida acompanhada de <span style="color:var(--text)">queda clara de velocidade e recuperação</span> a seguir. Uma curva ligeira, feita sem travar, não tem esse perfil dinâmico e não entra na contagem.</p>
+      </div>
+
+      <div style="border-left:3px solid var(--accent);border-top:1px solid var(--border);border-right:1px solid var(--border);border-bottom:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);background:var(--surface);padding:20px 22px">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:11px">
+          <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.18em;text-transform:uppercase;color:var(--accent-hover)">Técnica de onda · leitura do modelo</span>
+        </div>
+        <p style="margin:0;font-size:13.5px;line-height:1.75;color:var(--text)">{{ prose.wave }}</p>
+        <span style="display:block;margin-top:12px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-subtle)">{{ prose.sig }}</span>
+      </div>
+    </div>
+  </div>
+</section>
+</sc-if>
+
+<footer style="margin-top:44px;padding-top:18px;border-top:1px solid var(--border);display:flex;justify-content:space-between;gap:20px">
+  <span style="font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--text-subtle)">Sessão em {{ stats.spot }} · {{ stats.samples }} amostras a 1 Hz</span>
+</footer>
+
+</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;$preview&quot;:{&quot;width&quot;:1500},&quot;offline&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Estados&quot;},&quot;poucasSessoes&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Estados&quot;}}">
+class Component extends DCLogic {
+  state = { level: 'sessions', wave: 0, banner: true, now: 0, playing: false, why: false,
+    s3x: 'tempo', s3y: 'topSpeed', cx: 'coverage', cy: 'topSpeed',
+    cmpA: 5, cmpB: 9, cmpMetric: 'dist',
+    wcx: 'speed', wcy: 'hr', sel: null, swellOn: true, mapReady: false, drag: null, anim: 1,
+    hov: null, del: [], unlocked: false, wPlaying: false, wNow: 0,
+    stat: null, ordem: 'tempo', reg: false };
+
+  // setInterval, not rAF: rAF is paused in a background/hidden frame and the numbers
+  // would stay frozen at zero instead of counting up.
+  startAnim() {
+    clearInterval(this._anim);
+    const t0 = Date.now();
+    this.setState({ anim: 0 });
+    this._anim = setInterval(() => {
+      const p = Math.min(1, (Date.now() - t0) / 900);
+      this.setState({ anim: 1 - Math.pow(1 - p, 3) });
+      if (p >= 1) clearInterval(this._anim);
+    }, 32);
+  }
+  componentDidUpdate() {
+    // a animação de crescimento corre uma vez por visita ao nível, não a cada troca de gráfico
+    if (this._lvl !== this.state.level) { this._lvl = this.state.level; this.startAnim(); }
+  }
+  componentDidMount() {
+    this._lvl = this.state.level;
+    this.startAnim();
+    // Basemap preflight: probe one real tile instead of an onError hole in the template.
+    const im = new Image();
+    im.onload = () => this.setState({ mapReady: true });
+    im.onerror = () => this.setState({ mapReady: false });
+    const p = this.merc(37.9107, -8.8360, 17);
+    im.src = 'https://tile.openstreetmap.org/17/' + Math.floor(p.x / 256) + '/' + Math.floor(p.y / 256) + '.png';
+    this._iv = setInterval(() => {
+      if (this.state.playing) this.setState(s => ({ now: s.now + 1 > 3789 ? 0 : s.now + 1 }));
+    }, 250);
+    // a onda corre em tempo real com interpolação sub-segundo — a crista desliza, não salta
+    this._wIv = setInterval(() => {
+      if (!this.state.wPlaying) return;
+      this.setState(s => s.wNow >= (this._wN || 1) ? { wPlaying: false }
+        : { wNow: Math.min(this._wN || 1, +(s.wNow + 0.08).toFixed(2)) });
+    }, 80);
+  }
+  componentWillUnmount() { clearInterval(this._iv); clearInterval(this._wIv); clearInterval(this._anim); }
+
+  rng(seed) {
+    let a = seed >>> 0;
+    return () => { a = (a + 0x6D2B79F5) >>> 0; let t = Math.imul(a ^ (a >>> 15), 1 | a);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+  }
+
+  data() {
+    if (this._d) return this._d;
+    const N = 3790, IN = 3300;
+    let best = null;
+    for (let bm = 10; bm <= 30; bm += 0.5) {
+      const r = this.rng(7331); const obs = new Array(N).fill(true);
+      let i = 0, on = true, wins = 0;
+      while (i < IN) {
+        const len = Math.max(2, Math.round(on ? 4 + r() * 14 : bm * (0.45 + r() * 1.1)));
+        if (!on) wins++;
+        for (let k = 0; k < len && i < IN; k++, i++) obs[i] = on;
+        on = !on;
+      }
+      let blind = 0; for (let k = 0; k < N; k++) if (!obs[k]) blind++;
+      const err = Math.abs((N - blind) / N - 0.488) * 60 + Math.abs(wins - 127) / 40;
+      if (!best || err < best.err) best = { err, obs };
+    }
+    const obs = best.obs;
+
+    const r = this.rng(99001);
+    const segs = [{ kind: 'paddling', t0: 0, t1: 150 }];
+    const waves = []; let t = 150;
+    while (t < IN - 150 && waves.length < 22) {
+      const wait = Math.round(20 + r() * 52);
+      segs.push({ kind: 'waiting', t0: t, t1: t + wait }); t += wait;
+      const dur = Math.round(6 + r() * 13);
+      const id = waves.length;
+      const sign = r() < 0.44 ? -1 : (r() < 0.72 ? 1 : 0);
+      waves.push({ id, t0: t, t1: t + dur, dur, peak: 5.4 + r() * 3.1, sign });
+      segs.push({ kind: 'riding', t0: t, t1: t + dur, w: id }); t += dur;
+      const pad = Math.round(38 + r() * 52);
+      segs.push({ kind: 'paddling', t0: t, t1: Math.min(t + pad, IN) }); t += pad;
+    }
+    if (t < IN) segs.push({ kind: 'waiting', t0: t, t1: IN });
+    segs.push({ kind: 'out', t0: IN, t1: N });
+
+    const kindAt = new Array(N).fill('out'), rideOf = new Array(N).fill(-1);
+    for (const s of segs) for (let i = s.t0; i < Math.min(s.t1, N); i++) {
+      kindAt[i] = s.kind; if (s.kind === 'riding') rideOf[i] = s.w;
+    }
+    const covOf = w => { let c = 0; for (let i = w.t0; i < w.t1; i++) if (obs[i]) c++; return c / w.dur; };
+    [...waves].sort((a, b) => covOf(a) - covOf(b)).slice(0, 2).forEach(w => {
+      for (let i = w.t0; i < w.t1; i++) obs[i] = false;
+    });
+
+    const r2 = this.rng(4242);
+    const S = new Array(N);
+    let x = -18, y = 0, hr = 68;
+    for (let i = 0; i < N; i++) {
+      const k = kindAt[i]; let v = 0, dx = 0, dy = 0;
+      if (k === 'paddling') { v = 1.62 + 0.3 * Math.sin(i / 3) + r2() * 0.42; dx = -v * 0.94; dy = (r2() - 0.5) * 0.55; }
+      else if (k === 'waiting') { v = 0.28 + r2() * 0.55; dx = (r2() - 0.5) * 0.45; dy = (r2() - 0.38) * 0.7; }
+      else if (k === 'riding') {
+        const w = waves[rideOf[i]], p = (i - w.t0) / Math.max(1, w.dur - 1);
+        const shape = p < 0.22 ? 0.42 + (p / 0.22) * 0.58 : (p < 0.72 ? 1 - (p - 0.22) * 0.14 : Math.max(0.16, 1 - (p - 0.72) * 2.7));
+        v = Math.max(0.4, w.peak * shape + (r2() - 0.5) * 0.55);
+        dx = v * 0.87; dy = v * 0.44 * w.sign;
+      } else { v = i < IN + 190 ? 1.25 + r2() * 0.45 : 0.04 + r2() * 0.1; dx = v * 0.92; dy = (r2() - 0.5) * 0.22; }
+      x += dx; y += dy;
+      const bump = k === 'paddling' ? 20 : (k === 'riding' ? 9 : (k === 'waiting' ? -5 : -14));
+      hr += (92 + bump - hr) * 0.021 + (r2() - 0.5) * 1.7;
+      if (i < 170) hr = Math.min(hr, 67 + i * 0.3);
+      hr = Math.max(66, Math.min(139, hr));
+      S[i] = { t: i, x, y, v: Math.max(0, v), hr: Math.round(hr), obs: obs[i], k };
+    }
+
+    const wins = []; let i0 = null;
+    for (let i = 0; i < N; i++) {
+      if (!obs[i] && i0 === null) i0 = i;
+      if ((obs[i] || i === N - 1) && i0 !== null) { wins.push({ t0: i0, t1: i, dur: i - i0 }); i0 = null; }
+    }
+    let blindSec = 0; for (let i = 0; i < N; i++) if (!obs[i]) blindSec++;
+    let dist = 0, rideDist = 0, swimDist = 0;
+    for (const s of S) if (s.obs) { dist += s.v; if (s.k === 'riding') rideDist += s.v; else swimDist += s.v; }
+
+    for (const w of waves) {
+      const rows = S.slice(w.t0, w.t1), o = rows.filter(q => q.obs);
+      w.cov = o.length / rows.length;
+      w.top = Math.max(...rows.map(q => q.v)) * 3.6;
+      w.avg = rows.reduce((a, q) => a + q.v, 0) / rows.length * 3.6;
+      w.takeoff = rows.slice(0, 3).reduce((a, q) => a + q.v, 0) / 3 * 3.6;
+      let path = 0;
+      for (let j = 1; j < rows.length; j++) path += Math.hypot(rows[j].x - rows[j - 1].x, rows[j].y - rows[j - 1].y);
+      const netX = rows[rows.length - 1].x - rows[0].x, netY = rows[rows.length - 1].y - rows[0].y;
+      const net = Math.hypot(netX, netY);
+      w.straight = path > 0 ? net / path : 0;
+      w.dist = path;
+      w.dir = w.cov < 0.2 ? 'indeterminável' : (Math.abs(netY) < net * 0.22 ? 'em frente' : (netY > 0 ? 'direita' : 'esquerda'));
+      w.dirConf = w.cov < 0.2 ? 0.1 : Math.min(0.95, 0.25 + w.cov * 0.72);
+      let man = 0;
+      for (let j = 2; j < rows.length - 2; j++) {
+        if (rows[j].v < rows[j - 1].v && rows[j].v < rows[j + 1].v && rows[j + 2].v > rows[j].v * 1.18) man++;
+      }
+      w.man = w.cov < 0.25 ? Math.min(1, man) : man;
+      w.falls = rows[rows.length - 1].v < w.peak * 0.28 && w.cov > 0.3 ? 1 : 0;
+      w.hrAvg = Math.round(rows.reduce((a, q) => a + q.hr, 0) / rows.length);
+      w.hrMax = Math.max(...rows.map(q => q.hr));
+      w.rows = rows;
+      w.waveSpeed = w.cov > 0.3 ? 26 + (w.id % 5) * 1.4 : null;
+    }
+
+    const raw = [
+      { date: '21 Jul', spot: 'São Torpes', dur: 48.6, ondas: 8, real: 6, cov: 0.39, top: 23.1, avg: 14.2, longest: 8.6, hr: 98 },
+      { date: '26 Jul', spot: 'São Torpes', dur: 55.2, ondas: 11, real: 8, cov: 0.44, top: 25.4, avg: 15.1, longest: 9.4, hr: 101 },
+      { date: '02 Ago', spot: 'Vila Nova', dur: 41.8, ondas: 6, real: 4, cov: 0.36, top: 22.0, avg: 13.4, longest: 7.9, hr: 96 },
+      { date: '08 Ago', spot: 'São Torpes', dur: 61.0, ondas: 13, real: 10, cov: 0.47, top: 27.2, avg: 16.4, longest: 11.2, hr: 103 },
+      { date: '13 Ago', spot: 'Porto Covo', dur: 58.4, ondas: 12, real: 9, cov: 0.42, top: 26.1, avg: 15.8, longest: 10.4, hr: 104 },
+      { date: '18 Ago', spot: 'São Torpes', dur: 64.9, ondas: 16, real: 13, cov: 0.51, top: 28.6, avg: 17.2, longest: 12.8, hr: 105 },
+      { date: '22 Ago', spot: 'Vila Nova', dur: 44.2, ondas: 9, real: 6, cov: 0.38, top: 24.8, avg: 14.9, longest: 9.1, hr: 99 },
+      { date: '25 Ago', spot: 'São Torpes', dur: 60.1, ondas: 15, real: 12, cov: 0.49, top: 29.0, avg: 17.6, longest: 13.4, hr: 102 },
+      { date: '28 Ago', spot: 'Porto Covo', dur: 57.6, ondas: 14, real: 11, cov: 0.46, top: 28.2, avg: 16.9, longest: 12.1, hr: 101 },
+      { date: '31 Ago', spot: 'São Torpes', dur: 63.2, ondas: waves.length, real: waves.filter(w => w.cov >= 0.25).length,
+        cov: (N - blindSec) / N, top: Math.max(...waves.map(w => w.top)),
+        avg: waves.reduce((a, w) => a + w.avg, 0) / waves.length,
+        longest: Math.max(...waves.map(w => w.dur)), hr: 102, current: true }
+    ];
+    // distância medida por sessão: só os segundos com fix contam
+    const sessions = raw.map(q => ({ ...q, perHeat: q.ondas / (q.dur / 20),
+      dist: q.current ? dist : Math.round(q.dur * 60 * q.cov * 1.42) }));
+
+    this._d = { N, IN, S, obs, waves, wins, blindSec, dist, rideDist, swimDist, sessions,
+      cov: (N - blindSec) / N, longest: Math.max(...wins.map(w => w.dur)) };
+    return this._d;
+  }
+
+  runs(rows, xOf, yOf) {
+    const meas = [], est = [];
+    let cur = null, mode = null;
+    for (const q of rows) {
+      const m = q.obs;
+      if (m !== mode) { if (cur && cur.length > 1) (mode ? meas : est).push({ d: 'M' + cur.join(' L ') });
+        cur = cur && cur.length ? [cur[cur.length - 1]] : []; mode = m; }
+      cur.push(xOf(q).toFixed(1) + ',' + yOf(q).toFixed(1));
+    }
+    if (cur && cur.length > 1) (mode ? meas : est).push({ d: 'M' + cur.join(' L ') });
+    return { meas, est };
+  }
+  merc(lat, lon, z) {
+    const s = 256 * Math.pow(2, z);
+    const f = lat * Math.PI / 180;
+    return { x: (lon + 180) / 360 * s, y: (1 - Math.log(Math.tan(f) + 1 / Math.cos(f)) / Math.PI) / 2 * s };
+  }
+  chip(pct) {
+    if (pct === null) return { t: 'sem comparação', css: this.chipCss('flat') };
+    const s = (pct > 0 ? '▲ +' : pct < 0 ? '▼ ' : '— ') + Math.abs(pct).toFixed(0) + '%';
+    return { t: s, css: this.chipCss(pct > 1 ? 'up' : pct < -1 ? 'down' : 'flat') };
+  }
+  chipCss(kind) {
+    const c = { up: ['var(--success-soft)', 'var(--success)'], down: ['var(--danger-soft)', 'var(--danger)'],
+      flat: ['var(--surface-2)', 'var(--text-muted)'] }[kind];
+    return 'font-family:var(--font-mono);font-size:9.5px;letter-spacing:.04em;white-space:nowrap;padding:2px 7px;border-radius:var(--radius-full);background:' + c[0] + ';color:' + c[1];
+  }
+  numCss(cov, size) {
+    const w = cov >= 0.6 ? 600 : cov >= 0.25 ? 500 : 400;
+    const op = cov >= 0.6 ? 1 : cov >= 0.25 ? 0.72 : 0.5;
+    const extra = cov < 0.25 ? ';-webkit-text-stroke:0.6px var(--ink-800);color:transparent' : ';color:var(--ink-800)';
+    return 'font-family:var(--font-display);font-size:' + size + 'px;font-weight:' + w + ';line-height:1;letter-spacing:-.03em;opacity:' + op + extra;
+  }
+  // SVG labels must be real text nodes: a {{ hole }} inside <text> gets wrapped in a
+  // span, which is not renderable in the SVG namespace.
+  T(x, y, txt, o) {
+    o = o || {};
+    return React.createElement('text', { key: o.key, x: x, y: y, transform: o.transform,
+      textAnchor: o.anchor, fill: o.fill || 'var(--text-muted)',
+      style: Object.assign({ fontFamily: o.disp ? 'var(--font-display)' : 'var(--font-mono)',
+        fontSize: (o.size || 9.5) + 'px', fontWeight: o.disp ? 600 : 400,
+        letterSpacing: o.ls || '.04em', textTransform: o.tt || 'none' },
+        // reveal: nasce do ponto, sobe uma dezena de pixeis e desaparece pelo mesmo caminho
+        o.show === undefined ? null : { opacity: o.show ? 1 : 0, pointerEvents: 'none',
+          transform: 'translateY(' + (o.show ? 0 : 11) + 'px)',
+          transition: 'opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out)' },
+        o.extra || {}) }, txt);
+  }
+  quart(a0) {
+    const a = [...a0].sort((x, y) => x - y);
+    const g = p => { const i = (a.length - 1) * p, lo = Math.floor(i), hi = Math.ceil(i); return a[lo] + (a[hi] - a[lo]) * (i - lo); };
+    return { min: a[0], q1: g(0.25), med: g(0.5), q3: g(0.75), max: a[a.length - 1], n: a.length };
+  }
+
+  renderVals() {
+    const d = this.data(), st = this.state;
+    const S = d.S, N = d.N;
+    // as ondas eliminadas pelo utilizador saem de todos os cálculos a jusante
+    const WV = d.waves.filter(q => !st.del.includes(q.id));
+    const selW = st.sel === null ? null : (WV.find(q => q.id === st.sel) || null);
+    const fmt = (n, k = 1) => n.toFixed(k);
+    const mmss = s => Math.floor(s / 60) + ':' + String(Math.floor(s % 60)).padStart(2, '0');
+    const A = st.anim, gn = (v, dc) => (v * A).toFixed(dc), gi = v => String(Math.round(v * A));
+    const nrm = (v, a) => { const lo = Math.min(...a), hi = Math.max(...a); return hi === lo ? 0.5 : (v - lo) / (hi - lo); };
+
+    const poucas = this.props.poucasSessoes === true;
+    const sess = poucas ? d.sessions.slice(0, 2) : d.sessions;
+    const cur = sess[sess.length - 1], prev = sess[sess.length - 2];
+
+    const go = l => () => { this.setState({ level: l }); window.scrollTo(0, 0); };
+    const tabCss = a => 'display:flex;flex-direction:column;gap:3px;align-items:flex-start;text-align:left;padding:14px 24px 15px;cursor:pointer;margin-bottom:-1px;background:' +
+      (a ? 'var(--surface)' : 'transparent') +
+      ';border-radius:var(--radius-md) var(--radius-md) 0 0' +
+      ';border-top:2px solid ' + (a ? 'var(--amber-500)' : 'transparent') +
+      ';border-right:1px solid ' + (a ? 'var(--border)' : 'transparent') +
+      ';border-left:1px solid ' + (a ? 'var(--border)' : 'transparent') +
+      ';border-bottom:1px solid ' + (a ? 'var(--surface)' : 'transparent') +
+      ';color:' + (a ? 'var(--ink-800)' : 'var(--text-muted)') +
+      ';transition:background var(--dur-fast) var(--ease-out),color var(--dur-fast) var(--ease-out)';
+    const tabs = [
+      { id: 'sessions', no: 'N1', name: 'Sessões', sub: 'estou a melhorar?' },
+      { id: 'session', no: 'N2', name: 'Sessão', sub: 'como foi este surf?' },
+      { id: 'wave', no: 'N3', name: 'Onda', sub: 'como foi esta onda?' }
+    ].map(t => ({ ...t, go: go(t.id), css: tabCss(st.level === t.id) }));
+
+    // ── STATS
+    const avgCov = sess.reduce((a, s) => a + s.cov, 0) / sess.length;
+    const pc = (a, b) => b ? ((a - b) / b) * 100 : null;
+    const tileDefs = [
+      { id: 'ondas', label: 'Total de ondas', value: gi(cur.ondas), unit: '', ch: pc(cur.ondas, prev && prev.ondas), cov: 0.7 },
+      { id: 'speed', label: 'Vel. média / máx.', value: gn(cur.avg, 1) + '/' + gn(cur.top, 1), unit: 'km/h', ch: pc(cur.top, prev && prev.top), cov: 0.7 },
+      { id: 'cov', label: 'Cobertura GPS média', value: gn(avgCov * 100, 1), unit: '%', ch: undefined, cov: 1 },
+      { id: 'heat', label: 'Ondas por heat (20 min)', value: gn(cur.perHeat, 1), unit: '', ch: pc(cur.perHeat, prev && prev.perHeat), cov: 0.7 },
+      { id: 'longest', label: 'Onda mais longa', value: gn(cur.longest, 1), unit: 's', ch: pc(cur.longest, prev && prev.longest), cov: 0.7 }
+    ];
+    const statTiles = tileDefs.map(s => {
+      const active = st.stat === s.id;
+      const c = s.ch === undefined ? null : this.chip(s.ch);
+      return { label: s.label, value: s.value, unit: s.unit,
+        chip: c ? c.t : '', chipCss: c ? c.css : 'display:none',
+        valCss: 'font-family:var(--font-display);font-size:40px;font-weight:600;line-height:1;letter-spacing:-.035em;color:' +
+          (s.id === 'ondas' ? 'var(--blue-600)' : 'var(--ink-800)'),
+        open: () => this.setState({ stat: active ? null : s.id, ordem: 'tempo', reg: false }),
+        css: 'display:flex;flex-direction:column;align-items:flex-start;text-align:left;padding:18px 20px 20px;cursor:pointer;background:' +
+          (active ? 'var(--amber-50)' : 'var(--surface)') + ';border:1px solid ' + (active ? 'var(--amber-400)' : 'var(--border)') +
+          ';border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);transition:transform var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast) var(--ease-out),border-color var(--dur-fast) var(--ease-out);position:relative',
+        markCss: 'position:absolute;left:0;right:0;bottom:0;height:3px;border-radius:0 0 var(--radius-lg) var(--radius-lg);background:var(--amber-500);display:' + (active ? 'block' : 'none') };
+    });
+
+    // ── breakdown
+    const BD = {
+      ondas: { title: 'Total de ondas por sessão', sub: 'Ondas identificadas pela pipeline a partir do padrão de movimento — uma barra por sessão.', y: 'ondas', kind: 'stack', get: s => s.ondas },
+      speed: { title: 'Velocidade média e máxima', sub: 'Um par de pontos por sessão, ligados. Eixo X são os spots por ordem temporal — mais antigo à esquerda.', y: 'km/h', kind: 'range', get: s => s.top },
+      cov: { title: 'Cobertura GPS por sessão', sub: 'A percentagem de segundos em que o relógio teve fix. É a única métrica medida, não inferida.', y: '% medido', kind: 'dot', get: s => s.cov * 100 },
+      heat: { title: 'Ondas por heat (20 min)', sub: 'Normalizado para 20 minutos, para comparar sessões de duração diferente.', y: 'ondas / 20 min', kind: 'dot', get: s => s.perHeat },
+      longest: { title: 'Onda mais longa por sessão', sub: 'A duração da ride mais longa de cada sessão.', y: 'segundos', kind: 'dot', get: s => s.longest }
+    };
+    let bd = {};
+    if (st.stat) {
+      const cfg = BD[st.stat], W = 1360, x0 = 70, xw = 1270, y0 = 30, ph = 210;
+      const all = st.stat === 'speed' ? sess.flatMap(s => [s.avg, s.top]) : sess.map(cfg.get);
+      let lo = Math.min(...all), hi = Math.max(...all);
+      const pad = (hi - lo) * 0.18 || 1; lo = Math.max(0, lo - pad); hi = hi + pad;
+      const Y = v => y0 + ph - (v - lo) / (hi - lo) * ph;
+      const step = xw / sess.length, bw = Math.min(58, step * 0.5);
+      const X = i => x0 + step * (i + 0.5);
+      const grid = [0, 1, 2, 3, 4].map(g => { const v = lo + (hi - lo) * (1 - g / 4); return { y: Y(v).toFixed(1), ty: (Y(v) + 3.5).toFixed(1), t: v.toFixed(v > 30 ? 0 : 1) }; });
+
+      const bars = [], dots = [], ranges = [];
+      sess.forEach((s, i) => {
+        if (cfg.kind === 'stack') {
+          bars.push({ x: (X(i) - bw / 2).toFixed(1), y: Y(s.ondas).toFixed(1), w: bw.toFixed(1), h: Math.max(1, Y(lo) - Y(s.ondas)).toFixed(1), fill: s.current ? 'var(--amber-500)' : 'var(--blue-600)', op: '.9', stroke: 'none', sw: 0 });
+        } else if (cfg.kind === 'range') {
+          ranges.push({ x: X(i).toFixed(1), y1: Y(s.avg).toFixed(1), y2: Y(s.top).toFixed(1) });
+          dots.push({ x: X(i).toFixed(1), y: Y(s.avg).toFixed(1), r: 5, fill: 'var(--blue-600)', op: '.9' });
+          dots.push({ x: X(i).toFixed(1), y: Y(s.top).toFixed(1), r: 5, fill: 'var(--amber-500)', op: '1' });
+        } else {
+          dots.push({ x: X(i).toFixed(1), y: Y(cfg.get(s)).toFixed(1), r: 6, fill: s.current ? 'var(--amber-500)' : 'var(--blue-600)', op: '.9' });
+        }
+      });
+      const xTime = sess.map((s, i) => ({ tr: 'translate(' + (X(i) + 4).toFixed(1) + ',' + (y0 + ph + 16) + ') rotate(-38)', t: s.spot + ' · ' + s.date }));
+
+      const ys = sess.map(cfg.get);
+      const n = sess.length, sx = sess.reduce((a, _, i) => a + i, 0), sy = ys.reduce((a, v) => a + v, 0);
+      const sxy = ys.reduce((a, v, i) => a + v * i, 0), sxx = sess.reduce((a, _, i) => a + i * i, 0);
+      const slope = (n * sxy - sx * sy) / (n * sxx - sx * sx), icpt = (sy - slope * sx) / n;
+      const reg = { d: 'M' + X(0).toFixed(1) + ',' + Y(icpt).toFixed(1) + ' L' + X(n - 1).toFixed(1) + ',' + Y(icpt + slope * (n - 1)).toFixed(1),
+        lx: (X(n - 1) - 210).toFixed(1), ly: (Y(icpt + slope * (n - 1)) - 12).toFixed(1),
+        label: 'declive ' + (slope >= 0 ? '+' : '') + slope.toFixed(2) + ' por sessão' };
+
+      const spots = [...new Set(sess.map(s => s.spot))];
+      const bstep = xw / spots.length, bwid = Math.min(120, bstep * 0.34);
+      const boxes = spots.map((sp, i) => {
+        const q = this.quart(sess.filter(s => s.spot === sp).map(cfg.get));
+        const cx = x0 + bstep * (i + 0.5);
+        return { name: sp, n: 'n=' + q.n, cx: cx.toFixed(1), x: (cx - bwid / 2).toFixed(1), x2: (cx + bwid / 2).toFixed(1),
+          w: bwid.toFixed(1), wx1: (cx - bwid / 4).toFixed(1), wx2: (cx + bwid / 4).toFixed(1),
+          min: Y(q.min).toFixed(1), max: Y(q.max).toFixed(1), q3: Y(q.q3).toFixed(1),
+          h: Math.max(2, Y(q.q1) - Y(q.q3)).toFixed(1), med: Y(q.med).toFixed(1),
+          ly: (y0 + ph + 26).toFixed(1), ly2: (y0 + ph + 42).toFixed(1) };
+      });
+
+      const isTime = st.ordem === 'tempo';
+      const btn = (on, off) => 'font:inherit;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:8px 14px;border-radius:var(--radius-sm);cursor:' + (off ? 'not-allowed' : 'pointer') +
+        ';background:' + (on ? 'var(--ink-800)' : 'transparent') + ';color:' + (on ? 'var(--warm-50)' : off ? 'var(--text-subtle)' : 'var(--ink-800)') +
+        ';border:1px solid ' + (on ? 'var(--ink-800)' : off ? 'var(--border)' : 'var(--border-strong)') + ';opacity:' + (off ? 0.5 : 1);
+      const legendFor = {
+        stack: [{ t: 'ondas na sessão', c: 'var(--blue-600)', o: 1 }, { t: 'sessão atual', c: 'var(--amber-500)', o: 1 }],
+        range: [{ t: 'velocidade média', c: 'var(--blue-600)', o: 1 }, { t: 'velocidade máxima', c: 'var(--amber-500)', o: 1 }],
+        dot: [{ t: 'sessões', c: 'var(--blue-600)', o: 1 }, { t: 'sessão atual', c: 'var(--amber-500)', o: 1 }]
+      }[cfg.kind];
+
+      bd = { title: cfg.title, sub: cfg.sub, yAxis: cfg.y, grid, bars, dots, ranges, boxes, xTime, reg,
+        gridText: grid.map((g, i) => this.T(60, g.ty, g.t, { anchor: 'end', fill: 'var(--text-subtle)', size: 10, key: 'g' + i })),
+        yText: this.T(70, 14, cfg.y, { ls: '.14em', tt: 'uppercase', key: 'y' }),
+        regText: this.T(reg.lx, reg.ly, reg.label, { fill: 'var(--amber-700)', size: 10, key: 'r' }),
+        xTimeText: xTime.map((x, i) => this.T(0, 0, x.t, { transform: x.tr, anchor: 'end', key: 'x' + i })),
+        boxText: boxes.flatMap((b, i) => [
+          this.T(b.cx, b.ly, b.name, { anchor: 'middle', fill: 'var(--text)', size: 10.5, ls: '.1em', key: 'bn' + i }),
+          this.T(b.cx, b.ly2, b.n, { anchor: 'middle', fill: 'var(--text-subtle)', size: 9, key: 'bc' + i })]),
+        showReg: isTime && st.reg,
+        timeStyle: 'opacity:' + (isTime ? 1 : 0) + ';pointer-events:' + (isTime ? 'auto' : 'none'),
+        spotStyle: 'opacity:' + (isTime ? 0 : 1) + ';pointer-events:' + (isTime ? 'none' : 'auto'),
+        ordemLabel: isTime ? 'ordenar por spot' : 'ordenar por tempo',
+        ordemCss: btn(!isTime, false), regCss: btn(st.reg && isTime, !isTime),
+        legend: legendFor.map(l => ({ t: l.t, sw: 'display:inline-block;width:14px;height:9px;background:' + l.c + ';opacity:' + l.o })) };
+    }
+
+    const levelNames = ['Iniciado', 'Intermédio', 'Intermédio-alto', 'Avançado', 'Atleta'];
+    const levelCols = ['var(--blue-300)', 'oklch(.80 .17 149)', 'var(--amber-300)', 'var(--amber-500)', 'var(--red-500)'];
+    const levelIdx = 1;
+    // os níveis alcançados "acendem"; os seguintes ficam apagados, sem cor
+    const levelSteps = levelNames.map((n, i) => { const lit = i <= levelIdx;
+      return { name: n, css: 'flex:1;height:' + (lit ? 9 : 5) + 'px;border-radius:4px;align-self:center;background:' +
+        (lit ? levelCols[i] : 'rgba(251,247,240,.14)') + ';box-shadow:' +
+        (lit ? '0 0 14px ' + levelCols[i] + ',0 0 4px ' + levelCols[i] : 'none') +
+        ';transition:all var(--dur-slow) var(--ease-out)' }; });
+    const levelWhy = [
+      { k: 'Ondas por hora', v: '13.3', p: 0.62 }, { k: 'Duração da ride', v: '12.4 s med', p: 0.55 },
+      { k: 'Consistência de vel.', v: '0.71', p: 0.71 }, { k: 'Sessões vistas', v: '10', p: 0.5 },
+      { k: 'Penalização cobertura', v: '−0.18', p: 0.18 }
+    ].map(w => ({ ...w, barCss: 'height:100%;width:' + (w.p * 100) + '%;background:' + (w.p < 0.2 ? 'var(--danger)' : 'var(--gradient-brand)') }));
+
+    const SM = [{ id: 'tempo', label: 'tempo (ordem)' }, { id: 'ondas', label: 'ondas' }, { id: 'topSpeed', label: 'vel. máxima' },
+      { id: 'avgSpeed', label: 'vel. média' }, { id: 'cov', label: 'cobertura GPS' }, { id: 'dur', label: 'duração' },
+      { id: 'perHeat', label: 'ondas por heat' }, { id: 'longest', label: 'onda mais longa' }];
+    const getS = (q, id, i) => ({ tempo: i + 1, ondas: q.ondas, topSpeed: q.top, avgSpeed: q.avg, cov: q.cov * 100,
+      dur: q.dur, perHeat: q.perHeat, longest: q.longest }[id]);
+
+    // ── Análise bivariada (2D; o tempo é agora uma métrica como as outras)
+    const bx0 = 82, bx1 = 1136, by0 = 24, by1 = 392;
+    const bxv = d.sessions.map((q, i) => getS(q, st.s3x, i)), byv = d.sessions.map((q, i) => getS(q, st.s3y, i));
+    const padr = a2 => { const lo = Math.min(...a2), hi = Math.max(...a2), p = (hi - lo) * 0.14 || 1; return [lo - p, hi + p]; };
+    const xr2 = padr(bxv), yr2 = padr(byv);
+    const xlo = xr2[0], xhi = xr2[1], ylo = yr2[0], yhi = yr2[1];
+    const bvX = v => bx0 + (v - xlo) / (xhi - xlo) * (bx1 - bx0);
+    const bvY = v => by1 - (v - ylo) / (yhi - ylo) * (by1 - by0);
+    const bGrid = [0, 1, 2, 3, 4].map(g => ({ x1: bx0, y1: (by0 + (by1 - by0) * g / 4).toFixed(1),
+      x2: bx1, y2: (by0 + (by1 - by0) * g / 4).toFixed(1) }));
+    // Os pontos sobem da base do eixo até ao valor, no mesmo ritmo dos números.
+    const bPts = d.sessions.map((q, i) => ({ q, i, x: bvX(getS(q, st.s3x, i)),
+      y: by1 - (by1 - bvY(getS(q, st.s3y, i))) * A }));
+    const bn = bPts.length;
+    const mux = bxv.reduce((a2, b2) => a2 + b2, 0) / bn, muy = byv.reduce((a2, b2) => a2 + b2, 0) / bn;
+    const cvxy = bxv.reduce((a2, v, i) => a2 + (v - mux) * (byv[i] - muy), 0);
+    const vxx = bxv.reduce((a2, v) => a2 + Math.pow(v - mux, 2), 0);
+    const vyy = byv.reduce((a2, v) => a2 + Math.pow(v - muy, 2), 0);
+    const rcoef = vxx && vyy ? cvxy / Math.sqrt(vxx * vyy) : 0;
+    const slp = vxx ? cvxy / vxx : 0, icp = muy - slp * mux;
+    const fitY = v => by1 - (by1 - bvY(icp + slp * v)) * A;
+    const biv = {
+      grid: bGrid,
+      showFit: Math.abs(rcoef) > 0.25,
+      fit: 'M' + bvX(xlo).toFixed(1) + ',' + fitY(xlo).toFixed(1) + ' L' + bvX(xhi).toFixed(1) + ',' + fitY(xhi).toFixed(1),
+      points: bPts.map(p => ({ x: p.x.toFixed(1), y: p.y.toFixed(1), r: (5 + p.q.cov * 11).toFixed(1),
+        fill: p.q.current ? 'var(--amber-500)' : 'var(--blue-500)', op: (0.35 + p.q.cov * 0.5).toFixed(2),
+        stroke: p.q.current ? 'var(--amber-700)' : 'var(--blue-700)' })),
+      rTxt: 'r = ' + rcoef.toFixed(2),
+      text: [
+        this.T(bx0, 14, SM.find(m2 => m2.id === st.s3y).label, { fill: 'var(--amber-700)', size: 10.5, ls: '.16em', tt: 'uppercase', key: 'yl' }),
+        this.T(bx1, 430, SM.find(m2 => m2.id === st.s3x).label, { anchor: 'end', fill: 'var(--blue-700)', size: 10.5, ls: '.16em', tt: 'uppercase', key: 'xl' })]
+        .concat([0, 1, 2, 3, 4].map((g, i) => this.T(bx0 - 12, by0 + (by1 - by0) * g / 4 + 4,
+          (yhi - (yhi - ylo) * g / 4).toFixed(1), { anchor: 'end', fill: 'var(--text-subtle)', key: 'yt' + i })))
+        .concat([0, 1, 2, 3, 4].map((g, i) => this.T(bx0 + (bx1 - bx0) * g / 4, 414,
+          (xlo + (xhi - xlo) * g / 4).toFixed(1), { anchor: 'middle', fill: 'var(--text-subtle)', key: 'xt' + i })))
+        .concat(bPts.map((p, i) => this.T((p.x + 11).toFixed(1), (p.y - 9).toFixed(1), p.q.date, { size: 9, key: 'pl' + i })))
+    };
+
+    // ── Análise comparativa (duas sessões sobrepostas, alpha baixo)
+    const CM = [
+      { id: 'dist', label: 'Distância' }, { id: 'ondas', label: 'Ondas' },
+      { id: 'aero', label: 'BPM' }, { id: 'esforco', label: 'Retorno' },
+      { id: 'vel', label: 'Velocidade' }, { id: 'cobertura', label: 'GPS' },
+      { id: 'remada', label: 'Cadência' }
+    ];
+    // hover partilhado: alpha um pouco mais alto no elemento sob o rato
+    const HOV = st.hov;
+    const hOn = k => HOV === k;
+    const hIn = k => () => { if (this.state.hov !== k) this.setState({ hov: k }); };
+    const hOut = () => { if (this.state.hov !== null) this.setState({ hov: null }); };
+    const hh = k => ({ he: hIn(k), hl: hOut });
+    const ao = (base, k) => (hOn(k) ? Math.min(1, base + 0.18) : base).toFixed(2);
+
+    const iA = Math.min(st.cmpA, d.sessions.length - 1), iB = Math.min(st.cmpB, d.sessions.length - 1);
+    const sA = d.sessions[iA], sB = d.sessions[iB];
+    const COL = [{ fill: 'var(--blue-500)', stroke: 'var(--blue-700)' }, { fill: 'var(--amber-500)', stroke: 'var(--amber-700)' }];
+    const CX0 = 86, CX1 = 1140, CY0 = 30, CY1 = 330;
+    const cGrid = [0, 1, 2, 3, 4].map(g => ({ y: (CY0 + (CY1 - CY0) * g / 4).toFixed(1) }));
+    const serie = (q, n, fn) => { const r = this.rng(q.date.length * 977 + Math.round(q.dur * 13) + n); return Array.from({ length: n }, (_, i) => fn(i, r())); };
+    const cmpBars = [], cmpDots = [], cmpLines = [], cmpAreas = [], cmpBoxes = [], cmpZones = [];
+    // camada revelada no hover (linha /heat): move-se e desvanece como um grupo
+    const ovLines = [], ovDots = []; let ovText = [], ovOn = false;
+    let cText = [], cTitle = '', cSub = '', cLegend = [], yFmt = v => v.toFixed(1), yTitle = '';
+    const YS = (v, lo, hi) => CY1 - (v - lo) / Math.max(1e-6, hi - lo) * (CY1 - CY0);
+    const YA = (v, lo, hi) => CY1 - ((v - lo) / Math.max(1e-6, hi - lo)) * (CY1 - CY0) * A;   // cresce do zero
+    const catAxis = (labels) => labels.map((t, i) => this.T(CX0 + (CX1 - CX0) * (i + 0.5) / labels.length, 352, t,
+      { anchor: 'middle', fill: 'var(--text-muted)', size: 10, key: 'cx' + i }));
+    const yAxis = (lo, hi) => [0, 1, 2, 3, 4].map((g, i) => this.T(CX0 - 12, CY0 + (CY1 - CY0) * g / 4 + 4, yFmt(hi - (hi - lo) * g / 4),
+      { anchor: 'end', fill: 'var(--text-subtle)', key: 'cy' + i }))
+      .concat([this.T(CX0, 18, yTitle, { fill: 'var(--text-muted)', size: 10, ls: '.16em', tt: 'uppercase', key: 'cyt' })]);
+    const twoLegend = (extra) => [{ t: sA.date + ' · ' + sA.spot, c: COL[0].fill }, { t: sB.date + ' · ' + sB.spot, c: COL[1].fill }]
+      .concat(extra || []).map(l => ({ t: l.t, sw: 'display:inline-block;width:13px;height:9px;border-radius:2px;background:' + l.c + ';opacity:.55' }));
+
+    const sMean = arr => arr.reduce((a, b) => a + b, 0) / arr.length;
+    const sSlope = arr => { const n = arr.length, mu2 = sMean(arr), mx = (n - 1) / 2;
+      const sxy2 = arr.reduce((a, v, i) => a + (i - mx) * (v - mu2), 0), sxx2 = arr.reduce((a, _, i) => a + Math.pow(i - mx, 2), 0);
+      return sxx2 ? sxy2 / sxx2 : 0; };
+    // leitura por sessão: média + seta com o declive (a subir / a manter / a cair)
+    const readout = (k, mean, sl, unit) => {
+      const on = hOn('s' + k);
+      const dir = sl > 0.03 ? '↑ +' : sl < -0.03 ? '↓ −' : '→ ';
+      const val = Math.abs(sl) <= 0.03 ? 'estável' : Math.abs(sl).toFixed(2);
+      cText.push(this.T(CX1 - 4, CY0 + 16 + k * 21, (mean * A).toFixed(1) + unit + ' méd · ' + dir + val,
+        { anchor: 'end', fill: on ? COL[k].stroke : 'var(--text-subtle)', size: on ? 13 : 11, key: 'ro' + k }));
+    };
+    // série ligada com área: usada no Retorno, no GPS e na Cadência
+    const drawSeries = (arrs, lo, hi, unit) => {
+      arrs.forEach((arr, k) => {
+        const ky = 's' + k, on = hOn(ky);
+        const pts = arr.map((v, i) => [CX0 + (CX1 - CX0) * (i + 0.5) / arr.length, YA(v - lo, 0, hi - lo)]);
+        const dd = 'M' + pts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L ');
+        cmpAreas.push(Object.assign({ d: dd + ' L' + pts[pts.length - 1][0].toFixed(1) + ',' + CY1 + ' L' + pts[0][0].toFixed(1) + ',' + CY1 + ' Z',
+          fill: COL[k].fill, op: ao(0.14, ky) }, hh(ky)));
+        cmpLines.push(Object.assign({ d: dd, stroke: COL[k].stroke, op: ao(0.72, ky), sw: on ? 3.2 : 2.2, dash: '' }, hh(ky)));
+        pts.forEach((p, i) => {
+          cmpDots.push(Object.assign({ x: p[0].toFixed(1), y: p[1].toFixed(1), r: on ? 5.4 : 4,
+            fill: COL[k].fill, op: ao(0.78, ky), stroke: COL[k].stroke }, hh(ky)));
+          cText.push(this.T(p[0], p[1] - 13, (arr[i] * A).toFixed(1) + unit,
+            { anchor: 'middle', fill: COL[k].stroke, size: 11, show: on, key: 'pv' + k + '_' + i,
+              extra: { paintOrder: 'stroke', stroke: 'var(--warm-50)', strokeWidth: '3.5px' } }));
+        });
+        readout(k, sMean(arr), sSlope(arr), unit);
+      });
+    };
+
+    const M = st.cmpMetric;
+    if (M === 'dist') {
+      cTitle = 'Distância — remada vs onda'; yTitle = 'metros'; yFmt = v => v.toFixed(0);
+      cSub = 'Barra empilhada por sessão: a base é a distância remada, o topo a distância surfada. Passa o rato num bloco para o destacar.';
+      const hi = Math.max(sA.dist, sB.dist) * 1.16;
+      [[sA, 0], [sB, 1]].forEach(([q, k]) => {
+        const rem = q.dist * 0.82, ride = q.dist * 0.18, w = 160, cx = CX0 + (CX1 - CX0) * (k + 0.5) / 2;
+        const yR = YA(rem, 0, hi), yT = YA(rem + ride, 0, hi), kr = 'r' + k, ko = 'o' + k;
+        cmpBars.push(Object.assign({ x: (cx - w / 2).toFixed(1), y: yR.toFixed(1), w: w, h: Math.max(1, CY1 - yR).toFixed(1),
+          fill: COL[k].fill, op: ao(0.4, kr), stroke: COL[k].stroke }, hh(kr)));
+        cmpBars.push(Object.assign({ x: (cx - w / 2).toFixed(1), y: yT.toFixed(1), w: w, h: Math.max(1, yR - yT).toFixed(1),
+          fill: COL[k].fill, op: ao(0.78, ko), stroke: COL[k].stroke }, hh(ko)));
+        cText.push(this.T(cx, yT - 12, (q.dist * A).toFixed(0) + ' m', { anchor: 'middle', fill: COL[k].stroke, size: 12, key: 'dt' + k }));
+        cText.push(this.T(cx, (yR + CY1) / 2 + 4, 'remada ' + (rem * A).toFixed(0) + ' m',
+          { anchor: 'middle', fill: 'var(--ink-800)', size: 12.5, show: hOn(kr), key: 'dr' + k }));
+        cText.push(this.T(cx, (yT + yR) / 2 + 4, 'onda ' + (ride * A).toFixed(0) + ' m',
+          { anchor: 'middle', fill: 'var(--warm-50)', size: 12.5, show: hOn(ko), key: 'do' + k }));
+      });
+      cText = cText.concat(catAxis([sA.date, sB.date]), yAxis(0, hi));
+      cLegend = twoLegend([{ t: 'topo sólido = distância surfada', c: 'var(--ink-500)' }]);
+    } else if (M === 'ondas') {
+      cTitle = 'Ondas'; yTitle = 'ondas'; yFmt = v => v.toFixed(0);
+      cSub = 'Total de ondas por sessão; a linha tracejada é o rácio por heat de 20 min.';
+      const hi = Math.max(sA.ondas, sB.ondas) * 1.25;
+      const hMax = Math.max(sA.perHeat, sB.perHeat);
+      const heatY = q => Math.max(CY0 + 30, YA(q.perHeat / hMax * hi * 0.6, 0, hi) - 26);
+      cmpZones.push(Object.assign({ x: CX0, y: CY0, w: CX1 - CX0, h: CY1 - CY0 }, hh('plot')));
+      ovOn = HOV !== null;
+      [[sA, 0], [sB, 1]].forEach(([q, k]) => {
+        const w = 160, cx = CX0 + (CX1 - CX0) * (k + 0.5) / 2, kb = 'b' + k;
+        const y = YA(q.ondas, 0, hi);
+        cmpBars.push(Object.assign({ x: (cx - w / 2).toFixed(1), y: y.toFixed(1), w: w, h: Math.max(1, CY1 - y).toFixed(1),
+          fill: COL[k].fill, op: ao(0.58, kb), stroke: COL[k].stroke }, hh(kb)));
+        cText.push(this.T(cx, y - 12, (q.ondas * A).toFixed(0), { anchor: 'middle', fill: COL[k].stroke, size: 15, disp: true, key: 'on' + k }));
+        ovDots.push({ x: cx.toFixed(1), y: heatY(q).toFixed(1), r: 7, fill: COL[k].fill, op: '.95', stroke: COL[k].stroke });
+        ovText.push(this.T(cx + 16, heatY(q) - 9, (q.perHeat * A).toFixed(1) + ' /heat', { fill: COL[k].stroke, size: 10.5, key: 'oh' + k }));
+      });
+      ovLines.push({ d: 'M' + [[sA, 0], [sB, 1]].map(([q, k]) => (CX0 + (CX1 - CX0) * (k + 0.5) / 2).toFixed(1) + ',' + heatY(q).toFixed(1)).join(' L '),
+        stroke: 'var(--ink-500)', op: '.55', sw: 1.6, dash: '5 4' });
+      cText = cText.concat(catAxis([sA.date, sB.date]), yAxis(0, hi));
+      cLegend = twoLegend([{ t: 'ponto = rácio por heat', c: 'var(--ink-600)' }]);
+    } else if (M === 'aero') {
+      cTitle = 'BPM'; yTitle = 'bpm'; yFmt = v => v.toFixed(0);
+      cSub = 'Caixa por sessão: mínimo, Q1, média, Q3 e máximo. Deriva = quanto os bpm sobem do início para o fim com o mesmo esforço — positivo é sinal de fadiga.';
+      const stat = q => ({ min: q.hr - 34, med: q.hr, max: q.hr + 36, q1: q.hr - 13, q3: q.hr + 14, drift: (q.cov - 0.42) * 26 });
+      const all = [stat(sA), stat(sB)];
+      const lo = Math.min(...all.map(x => x.min)) - 8, hi = Math.max(...all.map(x => x.max)) + 10;
+      all.forEach((x, k) => {
+        const cx = CX0 + (CX1 - CX0) * (k + 0.5) / 2, w = 160, kx = 'x' + k, on = hOn(kx);
+        const med = YS(x.med, lo, hi), gy = v => med + (YS(v, lo, hi) - med) * A;   // nasce do Q2
+        cmpBoxes.push(Object.assign({ cx: cx.toFixed(1), min: gy(x.min).toFixed(1), max: gy(x.max).toFixed(1),
+          x: (cx - w / 2).toFixed(1), x2: (cx + w / 2).toFixed(1), y: gy(x.q3).toFixed(1), w: w,
+          h: Math.max(1, gy(x.q1) - gy(x.q3)).toFixed(1), med: med.toFixed(1),
+          fill: COL[k].fill, op: ao(0.44, kx), stroke: COL[k].stroke }, hh(kx)));
+        cText.push(this.T(cx, med - 8, 'média ' + (x.med * A).toFixed(0), { anchor: 'middle', fill: COL[k].stroke, size: on ? 13 : 11, key: 'am' + k }));
+        cText.push(this.T(cx, gy(x.max) - 9, 'máx ' + (x.max * A).toFixed(0), { anchor: 'middle', fill: 'var(--text-muted)', size: 10, key: 'ax' + k }));
+        cText.push(this.T(cx, gy(x.min) + 17, 'mín ' + (x.min * A).toFixed(0), { anchor: 'middle', fill: 'var(--text-muted)', size: 10, key: 'an' + k }));
+        cText.push(this.T(cx + w / 2 + 16, med + 4, (x.drift >= 0 ? '↗ deriva +' : '↘ deriva ') + (x.drift * A).toFixed(1) + ' bpm',
+          { fill: x.drift >= 0 ? 'var(--danger)' : 'var(--success)', size: 10.5, key: 'ad' + k }));
+        if (on) {
+          cText.push(this.T(cx - w / 2 - 10, gy(x.q3) + 4, 'Q3 ' + x.q3.toFixed(0), { anchor: 'end', fill: COL[k].stroke, size: 11, key: 'q3' + k }));
+          cText.push(this.T(cx - w / 2 - 10, gy(x.q1) + 4, 'Q1 ' + x.q1.toFixed(0), { anchor: 'end', fill: COL[k].stroke, size: 11, key: 'q1' + k }));
+        }
+      });
+      cText = cText.concat(catAxis([sA.date, sB.date]), yAxis(lo, hi));
+      cLegend = twoLegend([{ t: 'traço grosso = média', c: 'var(--ink-600)' }]);
+    } else if (M === 'esforco') {
+      cTitle = 'Retorno'; yTitle = 'min a remar por onda'; yFmt = v => v.toFixed(1);
+      cSub = 'Cada ponto é um bloco de 10 min: quanto custou cada onda. Passa o rato numa série para a destacar e ler a média e a tendência.';
+      const seriesOf = q => serie(q, 6, (i, r) => 2.4 + (1 - q.cov) * 3.4 + Math.sin(i * 0.9) * 0.5 + r * 0.7);
+      const A1 = seriesOf(sA), B1 = seriesOf(sB);
+      const hi = Math.max(...A1, ...B1) * 1.2;
+      drawSeries([A1, B1], 0, hi, ' min');
+      cText = cText.concat(catAxis(['0–10', '10–20', '20–30', '30–40', '40–50', '50–60']), yAxis(0, hi));
+      cLegend = twoLegend();
+    } else if (M === 'vel') {
+      cTitle = 'Velocidade'; yTitle = 'densidade'; yFmt = v => v.toFixed(2);
+      cSub = 'Distribuições sobrepostas. A vertical é a média de cada sessão; quanto mais largo o sino, menos consistente foi a velocidade.';
+      const par = q => ({ mu: q.avg, sd: 2.6 + (1 - q.cov) * 2.2 });
+      const P2 = [par(sA), par(sB)], vhi = 42;
+      const VX = v => CX0 + (v / vhi) * (CX1 - CX0);
+      P2.forEach((p, k) => {
+        const ky = 's' + k, on = hOn(ky), pts = [];
+        for (let v = 0; v <= vhi; v += 0.5) pts.push([VX(v), CY1 - Math.exp(-Math.pow(v - p.mu, 2) / (2 * p.sd * p.sd)) * (CY1 - CY0) * 0.92 * A]);
+        const dd = 'M' + pts.map(q2 => q2[0].toFixed(1) + ',' + q2[1].toFixed(1)).join(' L ');
+        cmpAreas.push(Object.assign({ d: dd + ' L' + CX1 + ',' + CY1 + ' L' + CX0 + ',' + CY1 + ' Z', fill: COL[k].fill, op: ao(0.2, ky) }, hh(ky)));
+        cmpLines.push(Object.assign({ d: dd, stroke: COL[k].stroke, op: ao(0.78, ky), sw: on ? 3.2 : 2.2, dash: '' }, hh(ky)));
+        cmpLines.push({ d: 'M' + VX(p.mu).toFixed(1) + ',' + CY1 + ' L' + VX(p.mu).toFixed(1) + ',' + (CY1 - (CY1 - CY0) * 0.92 * A).toFixed(1),
+          stroke: COL[k].stroke, op: on ? '.85' : '.55', sw: on ? 2.2 : 1.6, dash: '5 4' });
+        cText.push(this.T(VX(p.mu), CY0 + 4 + k * 18, 'média ' + (p.mu * A).toFixed(1) + ' · σ ' + (p.sd * A).toFixed(1),
+          { anchor: 'middle', fill: on ? COL[k].stroke : 'var(--text-muted)', size: on ? 13 : 10.5, key: 'vm' + k }));
+        if (on) cText.push(this.T(VX(p.mu) + 10, CY1 - 10, (p.mu * A).toFixed(1) + ' km/h', { fill: COL[k].stroke, size: 11.5, key: 'vk' + k }));
+      });
+      cText = cText.concat([0, 7, 14, 21, 28, 35, 42].map((v, i) => this.T(VX(v), 352, String(v), { anchor: 'middle', fill: 'var(--text-muted)', size: 10, key: 'vx' + i })),
+        [this.T(CX1, 376, 'km/h', { anchor: 'end', fill: 'var(--text-subtle)', size: 9.5, ls: '.12em', tt: 'uppercase', key: 'vu' })], yAxis(0, 1));
+      cLegend = twoLegend();
+    } else if (M === 'cobertura') {
+      cTitle = 'GPS'; yTitle = '% de segundos com fix'; yFmt = v => v.toFixed(0);
+      cSub = 'Percentagem de segundos com fix ao longo da sessão, em blocos de 10 min. A área é o que o relógio realmente viu.';
+      const seriesOf = q => serie(q, 6, (i, r) => Math.max(6, Math.min(96, q.cov * 100 + Math.sin(i * 1.3) * 13 + (r - 0.5) * 16)));
+      const A1 = seriesOf(sA), B1 = seriesOf(sB);
+      drawSeries([A1, B1], 0, 100, '%');
+      // linhas de média: se ficarem juntas, afastam-se os rótulos e trocam-se os lados
+      const my = [YA(sA.cov * 100, 0, 100), YA(sB.cov * 100, 0, 100)];
+      const near = Math.abs(my[0] - my[1]) < 18;
+      [[sA, 0], [sB, 1]].forEach(([q, k]) => {
+        const on = hOn('s' + k);
+        cmpLines.push({ d: 'M' + CX0 + ',' + my[k].toFixed(1) + ' L' + CX1 + ',' + my[k].toFixed(1),
+          stroke: COL[k].stroke, op: on ? '.75' : '.4', sw: on ? 2 : 1.4, dash: k === 0 ? '7 5' : '2 6' });
+        cText.push(this.T(k === 0 ? CX0 + 6 : CX1 - 6, my[k] + (near ? (k === 0 ? -8 : 15) : -8), 'média ' + (q.cov * 100 * A).toFixed(0) + '%',
+          { anchor: k === 0 ? 'start' : 'end', fill: COL[k].stroke, size: on ? 12 : 10.5, key: 'cm' + k }));
+      });
+      cText = cText.concat(catAxis(['0–10', '10–20', '20–30', '30–40', '40–50', '50–60']), yAxis(0, 100));
+      cLegend = twoLegend([{ t: 'linha = média da sessão', c: 'var(--ink-500)' }]);
+    } else {
+      cTitle = 'Cadência'; yTitle = 'braçadas / min'; yFmt = v => v.toFixed(0);
+      cSub = 'Ritmo de remada nos segundos que antecedem cada onda. Mais alto significa um arranque mais forte para entrar na onda.';
+      const seriesOf = q => serie(q, 8, (i, r) => 38 + q.cov * 22 + Math.sin(i * 0.8) * 6 + (r - 0.5) * 7);
+      const A1 = seriesOf(sA), B1 = seriesOf(sB);
+      const lo = 20, hi = Math.max(...A1, ...B1) * 1.15;
+      drawSeries([A1, B1], lo, hi, '');
+      cText = cText.concat(catAxis(['1ª', '2ª', '3ª', '4ª', '5ª', '6ª', '7ª', '8ª']), yAxis(lo, hi));
+      cLegend = twoLegend();
+    }
+    const cmp = { title: cTitle, sub: cSub, grid: cGrid, bars: cmpBars, dots: cmpDots, lines: cmpLines,
+      areas: cmpAreas, boxes: cmpBoxes, zones: cmpZones, text: cText, legend: cLegend,
+      ovLines, ovDots, ovText,
+      ovCss: 'opacity:' + (ovOn ? 1 : 0) + ';transform:translateY(' + (ovOn ? 0 : 26) +
+        'px);transition:opacity var(--dur-slow) var(--ease-out), transform var(--dur-slow) var(--ease-out);pointer-events:none',
+      options: d.sessions.map((q, i) => ({ id: String(i), label: q.date + ' · ' + q.spot })),
+      metrics: CM.map(m => ({ label: m.label, pick: () => this.setState({ cmpMetric: m.id }),
+        css: 'font:inherit;font-family:var(--font-mono);font-size:10px;letter-spacing:.1em;text-transform:uppercase;padding:7px 12px;border-radius:var(--radius-full);cursor:pointer;background:' +
+          (M === m.id ? 'var(--ink-800)' : 'transparent') + ';color:' + (M === m.id ? 'var(--warm-50)' : 'var(--text-muted)') +
+          ';border:1px solid ' + (M === m.id ? 'var(--ink-800)' : 'var(--border-strong)') })) };
+
+
+    const listHead = ['Data', 'Spot', 'Duração', 'Ondas', 'Cobertura', 'Mais longa', 'Perfis', 'vs anterior']
+      .map((t, i) => ({ t, css: 'font-family:var(--font-mono);font-size:9.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-muted);text-align:' + (i >= 2 ? 'right' : 'left') }));
+    const sessionRows = sess.slice().reverse().map((s, ri) => {
+      const idx = sess.length - 1 - ri, p = idx > 0 ? sess[idx - 1] : null;
+      const ch = this.chip(p ? ((s.ondas - p.ondas) / p.ondas) * 100 : null);
+      const rr = this.rng(500 + idx);
+      const bars = Array.from({ length: Math.min(14, s.ondas) }, (_, i) => {
+        const h = 5 + rr() * 14, c = rr();
+        return { x: i * 10, y: (19 - h).toFixed(1), w: 6, h: h.toFixed(1), fill: c > 0.3 ? 'var(--blue-600)' : '#3E6B7C', op: (0.35 + c * 0.6).toFixed(2) };
+      });
+      return { date: s.date, spot: s.spot, open: () => { this.setState({ level: 'session' }); window.scrollTo(0, 0); },
+        rowCss: 'display:grid;grid-template-columns:110px 1fr 92px 84px 100px 96px 150px 100px;gap:14px;align-items:center;padding:13px 6px;border-bottom:1px solid var(--border);cursor:pointer;background:' + (s.current ? 'var(--amber-50)' : 'transparent'),
+        tag: s.current ? 'ATUAL' : (s.cov < 0.4 ? 'COBERTURA BAIXA' : ''),
+        tagCss: 'font-family:var(--font-mono);font-size:8.5px;letter-spacing:.12em;padding:2px 7px;border-radius:var(--radius-full);color:' + (s.current ? 'var(--amber-700)' : 'var(--text-subtle)') + ';border:1px solid ' + (s.current ? 'var(--amber-400)' : 'var(--border)') + ';display:' + (s.current || s.cov < 0.4 ? 'inline-block' : 'none'),
+        dur: mmss(s.dur * 60), waves: String(s.ondas),
+        wavesCss: this.numCss(s.cov, 18) + ';text-align:right;display:block',
+        cov: (s.cov * 100).toFixed(0), arc: (s.cov * 2 * Math.PI * 9).toFixed(1) + ' 999',
+        longest: s.longest.toFixed(1) + ' s', bars, chip: ch.t, chipCss: ch.css + ';justify-self:end' };
+    });
+
+    // ── L2 map
+    const lat0 = 37.9107, lon0 = -8.8360;
+    const geo = S.map(q => ({ ...q, lat: lat0 + q.y / 110540, lon: lon0 + q.x / (111320 * Math.cos(lat0 * Math.PI / 180)) }));
+    const MW = 1000, MH = 470;
+    let z = 17, px;
+    for (; z >= 13; z--) {
+      px = geo.map(q => this.merc(q.lat, q.lon, z));
+      const a = px.map(p => p.x), b = px.map(p => p.y);
+      if (Math.max(...a) - Math.min(...a) < MW - 90 && Math.max(...b) - Math.min(...b) < MH - 90) break;
+    }
+    const ax2 = px.map(p => p.x), ay2 = px.map(p => p.y);
+    const ox = (Math.min(...ax2) + Math.max(...ax2)) / 2 - MW / 2, oy = (Math.min(...ay2) + Math.max(...ay2)) / 2 - MH / 2;
+    const P = px.map((p, i) => ({ ...geo[i], px: p.x - ox, py: p.y - oy }));
+    const tiles = [];
+    for (let tx = Math.floor(ox / 256); tx <= Math.floor((ox + MW) / 256); tx++)
+      for (let ty = Math.floor(oy / 256); ty <= Math.floor((oy + MH) / 256); ty++)
+        { const u = 'https://tile.openstreetmap.org/' + z + '/' + tx + '/' + ty + '.png';
+        tiles.push({ url: u,
+          css: 'position:absolute;left:' + (tx * 256 - ox) + 'px;top:' + (ty * 256 - oy) + 'px;width:256px;height:256px;background-image:url(' + u + ');background-size:256px 256px;filter:saturate(.4) contrast(.9)' }); }
+
+    const trackRows = P.filter((_, i) => i % 2 === 0);
+    const tr = this.runs(trackRows, q => q.px, q => q.py);
+    const isolate = st.sel !== null;
+    const waveMarks = WV.filter(w => !isolate || w.id === st.sel).map(w => {
+      const rows = P.slice(w.t0, w.t1 + 1);
+      return { d: 'M' + rows.map(q => q.px.toFixed(1) + ',' + q.py.toFixed(1)).join(' L '),
+        stroke: w.cov === 0 ? '#3E6B7C' : 'var(--amber-500)',
+        sw: isolate ? 5 : 3.4, dash: w.cov < 0.25 ? '5 4' : '', op: (0.3 + w.cov * 0.65).toFixed(2),
+        pick: e => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ sel: w.id }); } };
+    });
+    const waveDots = WV.filter(w => !isolate || w.id === st.sel).map(w => ({
+      x: P[w.t0].px.toFixed(1), y: P[w.t0].py.toFixed(1), r: (3 + w.cov * 3).toFixed(1),
+      fill: w.cov === 0 ? '#3E6B7C' : 'var(--amber-600)', op: (0.4 + w.cov * 0.6).toFixed(2),
+      pick: e => { if (e && e.stopPropagation) e.stopPropagation(); this.setState({ sel: w.id }); } }));
+    const head = P[Math.min(st.now, N - 1)];
+    const lineup = P.filter(q => q.k === 'waiting');
+    const ccx = lineup.reduce((a, q) => a + q.px, 0) / Math.max(1, lineup.length);
+    const ccy = lineup.reduce((a, q) => a + q.py, 0) / Math.max(1, lineup.length);
+    const cones = [
+      { name: 'Ondulação 1', from: 292, spread: 20, rad: 205, h: 1.8, per: 12, col: 'var(--blue-500)', dash: '' },
+      { name: 'Ondulação 2', from: 318, spread: 15, rad: 160, h: 0.9, per: 8, col: 'var(--amber-500)', dash: '' },
+      { name: 'Vento', from: 340, spread: 11, rad: 120, h: null, per: null, col: 'var(--ink-600)', dash: '5 4' }
+    ].map((c, ci) => {
+      const a0 = (c.from - 90 - c.spread) * Math.PI / 180, a1 = (c.from - 90 + c.spread) * Math.PI / 180;
+      const p1 = [ccx + Math.cos(a0) * c.rad, ccy + Math.sin(a0) * c.rad];
+      const p2 = [ccx + Math.cos(a1) * c.rad, ccy + Math.sin(a1) * c.rad];
+      const am = (a0 + a1) / 2, key = 'cone' + ci, on = hOn(key);
+      const base = c.per ? 0.06 + (c.per / 12) * 0.1 : 0.05;
+      return Object.assign({ d: 'M' + ccx.toFixed(1) + ',' + ccy.toFixed(1) + ' L' + p1[0].toFixed(1) + ',' + p1[1].toFixed(1) +
+          ' A' + c.rad + ',' + c.rad + ' 0 0 1 ' + p2[0].toFixed(1) + ',' + p2[1].toFixed(1) + ' Z',
+        fill: c.col, stroke: c.col, dash: c.dash, op: (on ? base + 0.3 : base).toFixed(2),
+        sop: on ? '.95' : '.5', sw: on ? 1.8 : 1, on: on,
+        label: c.from + '° · ' + (c.h ? c.h.toFixed(1) + ' m · ' + c.per + ' s' : '14 km/h'),
+        anchor: Math.cos(am) < 0 ? 'end' : 'start',
+        lx: (ccx + Math.cos(am) * (c.rad + 10)).toFixed(1),
+        ly: (ccy + Math.sin(am) * (c.rad + 10) + (ci - 1) * 13).toFixed(1),
+        sx1: ccx.toFixed(1), sy1: ccy.toFixed(1),
+        sx2: (ccx + Math.cos(am) * c.rad).toFixed(1), sy2: (ccy + Math.sin(am) * c.rad).toFixed(1),
+        skOp: on ? '.85' : '.4', skSw: on ? 2 : 1.2, skR: on ? 4 : 2.6 }, hh(key));
+    });
+    // rosa-dos-ventos de fundo: 16 eixos, mais grossos nos pontos cardeais e intercardeais
+    const RR = 224, CARD = ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE', 'S', 'SSO', 'SO', 'OSO', 'O', 'ONO', 'NO', 'NNO'];
+    const radials = CARD.map((nm, i) => {
+      const a = (i * 22.5 - 90) * Math.PI / 180, main = i % 2 === 0;
+      return { x1: ccx.toFixed(1), y1: ccy.toFixed(1),
+        x2: (ccx + Math.cos(a) * RR).toFixed(1), y2: (ccy + Math.sin(a) * RR).toFixed(1),
+        op: main ? '.16' : '.07', sw: main ? 1.6 : 0.8, name: nm, main: main,
+        lx: ccx + Math.cos(a) * (RR + 13), ly: ccy + Math.sin(a) * (RR + 13) };
+    });
+    const rings = [0.34, 0.67, 1].map(k => ({ cx: ccx.toFixed(1), cy: ccy.toFixed(1), r: (RR * k).toFixed(1) }));
+    const radialsText = radials.filter(r => r.main).map((r, i) => this.T(r.lx, r.ly + 3.5, r.name,
+      { anchor: 'middle', fill: 'var(--text-subtle)', size: 9, ls: '.14em',
+        extra: { paintOrder: 'stroke', stroke: 'var(--warm-50)', strokeWidth: '3px' }, key: 'rad' + i }));
+    const swb = (bg, extra = '') => 'display:inline-block;width:16px;height:3px;background:' + bg + ';' + extra;
+    const legend = [
+      { t: 'posição medida', swatch: swb('var(--blue-600)') },
+      { t: 'estimada (filtro)', swatch: 'display:inline-block;width:16px;height:0;border-top:2px dashed #3E6B7C;opacity:.6' },
+      { t: 'onda proposta', swatch: swb('var(--amber-500)', 'height:4px') },
+      { t: 'ondulação 1 · 1.8 m / 12 s', swatch: swb('var(--blue-500)', 'height:8px;opacity:.5') },
+      { t: 'ondulação 2 · 0.9 m / 8 s', swatch: swb('var(--amber-500)', 'height:8px;opacity:.5') },
+      { t: 'vento 14 km/h de NNO', swatch: 'display:inline-block;width:16px;height:0;border-top:2px dashed var(--ink-600)' }
+    ];
+    const kinds = { riding: ['var(--amber-500)', 'a surfar'], paddling: ['var(--blue-500)', 'a remar'], waiting: ['var(--warm-300)', 'à espera'], out: ['var(--warm-200)', 'fora da água'] };
+    const ribbon = []; let k0 = 0;
+    for (let i = 1; i <= N; i++) {
+      if (i === N || S[i].k !== S[k0].k) {
+        const kk = kinds[S[k0].k];
+        ribbon.push({ title: kk[1], css: 'position:absolute;top:0;bottom:0;left:' + (k0 / N * 100).toFixed(3) + '%;width:' + ((i - k0) / N * 100).toFixed(3) + '%;background:' + kk[0] });
+        k0 = i;
+      }
+    }
+    const ribbonKey = Object.keys(kinds).map(k => ({ t: kinds[k][1], sw: 'display:inline-block;width:9px;height:9px;background:' + kinds[k][0] }));
+    const blindRail = d.wins.map(w => ({ css: 'position:absolute;top:0;bottom:0;left:' + (w.t0 / N * 100).toFixed(3) + '%;width:' + Math.max(0.06, w.dur / N * 100).toFixed(3) + '%;background:var(--ink-500);opacity:' + (0.28 + Math.min(0.5, w.dur / 110)).toFixed(2) }));
+    const nowRow = S[Math.min(st.now, N - 1)];
+    const tick = [
+      { label: 'relógio', value: mmss(st.now), ok: true },
+      { label: 'velocidade', value: (nowRow.v * 3.6).toFixed(1) + ' km/h', ok: nowRow.obs },
+      { label: 'freq. cardíaca', value: nowRow.hr + ' bpm', ok: true },
+      { label: 'estado', value: nowRow.obs ? kinds[nowRow.k][1] : 'cego — sem posição', ok: nowRow.obs }
+    ].map(t => ({ ...t, css: 'font-family:var(--font-display);font-size:20px;font-weight:600;letter-spacing:-.02em;color:' + (t.ok ? 'var(--ink-800)' : 'var(--text-subtle)') + ';font-style:' + (t.ok ? 'normal' : 'italic') }));
+    const lowCov = WV.filter(w => w.cov < 0.25).length;
+    const spotlight = [
+      { label: 'Ondas por heat (20 min)', value: (WV.length / 3.16).toFixed(1), cov: 0.6, note: 'ritmo mantido nos 40 min centrais' },
+      { label: 'Abaixo de 25% de cobertura', value: lowCov + ' de ' + WV.length, cov: 1, note: 'carregam os números mais fracos' },
+      { label: 'Totalmente estimadas', value: String(WV.filter(w => w.cov === 0).length), cov: 1, note: 'sem posição — mantidas, não escondidas' }
+    ].map(s => ({ ...s, valCss: this.numCss(s.cov, 27) }));
+    const swells = [{ name: 'Ondulação 1', h: 1.8, period: 12, dir: '292° ONO', col: 'var(--blue-600)' },
+      { name: 'Ondulação 2', h: 0.9, period: 8, dir: '318° NO', col: 'var(--amber-600)' },
+      { name: 'Ondulação 3', h: 0.4, period: 5, dir: '205° SSO', col: 'var(--warm-500)' }]
+      .map(s => ({ ...s, h: s.h.toFixed(1),
+        css: 'flex:' + (s.h * 10) + ';height:' + Math.round(58 + s.h * 62) + 'px;display:flex;flex-direction:column;justify-content:space-between;padding:11px 12px;border-radius:var(--radius-md);box-shadow:var(--shadow-sm);background:' + s.col + ';color:var(--warm-50)',
+        hCss: 'font-family:var(--font-display);font-size:' + Math.round(18 + s.h * 11) + 'px;font-weight:600;line-height:1' }));
+    const seaFacts = [{ k: 'Vento', v: '14 km/h · 340° NNO' }, { k: 'Temp. do mar', v: '18.4 °C' },
+      { k: 'Hora', v: '17:23 → 18:26' }, { k: 'Energia da ondulação', v: '31.6 kJ/m' }]
+      .map(f => ({ ...f, css: 'font-family:var(--font-display);font-size:18px;font-weight:600;color:var(--ink-800)' }));
+    const hrRows = S.filter((_, i) => i % 8 === 0);
+    const hrPts = hrRows.map((q, i) => ({ obs: true, x: i / (hrRows.length - 1) * 400, y: 84 - (q.hr - 60) / 85 * 78 }));
+    const hrTrace = this.runs(hrPts, q => q.x, q => q.y).meas;
+    const hrArea = hrTrace[0] ? hrTrace[0].d + ' L400,88 L0,88 Z' : '';
+    const hrStats = [{ k: 'média', v: gi(102) }, { k: 'máx', v: gi(139) }, { k: 'mín', v: gi(66) }];
+    const zones = [{ k: 'Z1', p: 0.31 }, { k: 'Z2', p: 0.44 }, { k: 'Z3', p: 0.19 }, { k: 'Z4', p: 0.06 }, { k: 'Z5', p: 0 }]
+      .map(zz => ({ k: zz.k, v: (zz.p * 100).toFixed(0) + '%', barCss: 'height:100%;width:' + (zz.p * 100) + '%;border-radius:3px;background:var(--blue-400)' }));
+    const effort = [
+      { k: 'Retorno', v: '4.1 min / onda', n: 'minutos a remar por onda proposta' },
+      { k: 'Fadiga', v: 'deriva baixa', n: 'FC de recuperação e velocidade de remada mantidas até ao fim' }
+    ];
+    const conf = { arc: (d.cov * 2 * Math.PI * 38).toFixed(1) + ' 999',
+      rows: [{ k: 'janelas cegas', v: String(d.wins.length) }, { k: 'tempo cego', v: (d.blindSec / 60).toFixed(1) + ' min' },
+        { k: 'maior falha', v: d.longest + ' s' }, { k: 'fixes rejeitados', v: '24' }]
+        .map(r => ({ ...r, css: 'font-family:var(--font-display);font-size:16px;font-weight:600;color:var(--ink-800)' })) };
+    conf.text = [this.T(46, 44, (d.cov * 100).toFixed(1) + '%', { anchor: 'middle', fill: 'var(--ink-800)', size: 19, disp: true, ls: '-.02em', key: 'c1' }),
+      this.T(46, 57, 'MEDIDO', { anchor: 'middle', size: 8, ls: '.12em', key: 'c2' })];
+    const splitTotal = Math.max(1, d.swimDist + d.rideDist);
+    const dm = m => m < 1000 ? m.toFixed(0) + ' m' : (m / 1000).toFixed(1) + ' km';
+    const split = {
+      swimCss: 'width:' + (d.swimDist / splitTotal * 100).toFixed(1) + '%;background:var(--blue-500)',
+      rideCss: 'width:' + (d.rideDist / splitTotal * 100).toFixed(1) + '%;background:var(--amber-500)',
+      rows: [{ label: 'a remar + a nadar', value: dm(d.swimDist), c: 'var(--blue-500)' },
+        { label: 'a surfar', value: dm(d.rideDist), c: 'var(--amber-500)' }]
+        .map(x => ({ label: x.label, value: x.value, sw: 'display:inline-block;width:9px;height:9px;background:' + x.c }))
+    };
+    const rideV = S.filter(q => q.obs && q.k === 'riding').map(q => q.v * 3.6);
+    const mu = rideV.reduce((a, b) => a + b, 0) / Math.max(1, rideV.length);
+    const sd = Math.sqrt(rideV.reduce((a, b) => a + Math.pow(b - mu, 2), 0) / Math.max(1, rideV.length)) || 1;
+    const BX = v => (v / 40) * 400, dens = v => Math.exp(-Math.pow(v - mu, 2) / (2 * sd * sd));
+    const curve = [];
+    for (let v = 0; v <= 40.001; v += 0.5) curve.push([BX(v), 118 - dens(v) * 94]);
+    const pathOf = a => 'M' + a.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L ');
+    const inSd = curve.filter(p => p[0] >= BX(mu - sd) && p[0] <= BX(mu + sd));
+    const bell = { line: pathOf(curve), area: pathOf(curve) + ' L400,118 L0,118 Z',
+      sdArea: inSd.length ? pathOf(inSd) + ' L' + inSd[inSd.length - 1][0].toFixed(1) + ',118 L' + inSd[0][0].toFixed(1) + ',118 Z' : '',
+      meanX: BX(mu).toFixed(1), sd1: BX(mu - sd).toFixed(1), sd2: BX(mu + sd).toFixed(1),
+      labels: [0, 10, 20, 30, 40].map((v, i) => this.T(BX(v), 132, String(v), { anchor: 'middle', fill: 'var(--text-subtle)', key: 'bx' + i }))
+        .concat([
+          this.T(200, 150, 'km/h · segundos a surfar', { anchor: 'middle', fill: 'var(--text-subtle)', size: 9, ls: '.12em', tt: 'uppercase', key: 'bu' }),
+          this.T(BX(mu), 11, 'média ' + mu.toFixed(1), { anchor: 'middle', fill: 'var(--amber-700)', size: 10, key: 'bm' }),
+          this.T(BX(mu - sd), 44, '−1σ', { anchor: 'middle', fill: 'var(--text-muted)', size: 9, key: 'bs1' }),
+          this.T(BX(mu + sd), 44, '+1σ', { anchor: 'middle', fill: 'var(--text-muted)', size: 9, key: 'bs2' })]) };
+    const bins = new Array(21).fill(0);
+    for (const q of S) if (q.obs && q.k === 'riding') { const b = Math.min(20, Math.floor(q.v * 3.6 / 2)); bins[b]++; }
+    bins[20] = 6;
+    const hmax = Math.max(...bins);
+    const hist = { bandX: 12.5 / 2 * 19, bandW: 5 * 19,
+      bars: bins.map((c, i) => { const h = c / hmax * 108; return { x: i * 19, y: (118 - h).toFixed(1), w: 17, h: Math.max(0.6, h).toFixed(1),
+        fill: i >= 20 ? 'var(--danger-soft)' : 'var(--blue-600)', op: i >= 20 ? '1' : (0.45 + Math.min(0.5, i / 18)).toFixed(2),
+        stroke: i >= 20 ? 'var(--danger)' : 'none', sw: i >= 20 ? 1 : 0, dash: i >= 20 ? '3 2' : '' }; }),
+      ticks: [0, 10, 20, 30, 40].map(v => ({ x: v / 2 * 19 + 8, t: String(v) })), outX: 20 * 19 - 30 };
+    hist.tickText = hist.ticks.map((t, i) => this.T(t.x, 132, t.t, { anchor: 'middle', fill: 'var(--text-subtle)', key: 'h' + i }))
+      .concat([this.T(hist.outX, 146, '24 fixes >40 rejeitados', { anchor: 'middle', fill: 'var(--danger)', key: 'ho' })]);
+    const score = q => q.top * q.dur * (0.4 + q.cov);
+    const bestId = WV.reduce((b, q) => (score(q) > score(b) ? q : b), WV[0]).id;
+    const trophy = React.createElement('svg', { width: 24, height: 24, viewBox: '0 0 24 24', fill: 'none',
+      stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      React.createElement('path', { key: 'a', d: 'M6 9H4.5a2.5 2.5 0 0 1 0-5H6' }),
+      React.createElement('path', { key: 'b', d: 'M18 9h1.5a2.5 2.5 0 0 0 0-5H18' }),
+      React.createElement('path', { key: 'c', d: 'M4 22h16' }),
+      React.createElement('path', { key: 'd', d: 'M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22' }),
+      React.createElement('path', { key: 'e', d: 'M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22' }),
+      React.createElement('path', { key: 'f', d: 'M18 2H6v7a6 6 0 0 0 12 0V2Z' }));
+    const arrow = React.createElement('svg', { width: 20, height: 20, viewBox: '0 0 24 24', fill: 'none',
+      stroke: 'currentColor', strokeWidth: 1.7, strokeLinecap: 'round', strokeLinejoin: 'round' },
+      React.createElement('path', { key: 'a', d: 'M5 12h14' }), React.createElement('path', { key: 'b', d: 'M13 6l6 6-6 6' }));
+    const small = WV.map(w => {
+      // O perfil é o traçado GPS da onda, não a curva de velocidade.
+      const rows = w.rows;
+      const xr = rows.map(q => q.x), yr = rows.map(q => q.y);
+      const x0 = Math.min(...xr), x1 = Math.max(...xr), y0 = Math.min(...yr), y1 = Math.max(...yr);
+      const sc = Math.min(52 / Math.max(1, x1 - x0), 22 / Math.max(1, y1 - y0));
+      const ox2 = 4 + (52 - (x1 - x0) * sc) / 2, oy2 = 4 + (22 - (y1 - y0) * sc) / 2;
+      const pts = rows.map(q => ({ obs: q.obs, x: ox2 + (q.x - x0) * sc, y: oy2 + (q.y - y0) * sc }));
+      const rr = this.runs(pts, q => q.x, q => q.y);
+      const best = w.id === bestId;
+      return { no: String(w.id + 1).padStart(2, '0'), meas: rr.meas, est: rr.est,
+        headCss: 'display:flex;justify-content:space-between;align-items:center;gap:6px;padding-right:' + (st.unlocked ? 16 : 0) + 'px',
+        covTxt: (w.cov * 100).toFixed(0) + '%',
+        avgTxt: w.cov === 0 ? '—' : w.avg.toFixed(0),
+        durTxt: String(w.dur),
+        signal: React.createElement('svg', { width: 11, height: 11, viewBox: '0 0 12 12', fill: 'none',
+          stroke: 'currentColor', strokeWidth: 1.6, strokeLinecap: 'round',
+          style: { marginRight: '3px', flex: 'none' } },
+          React.createElement('path', { key: 'a', d: 'M1.5 8.5v1.6', opacity: w.cov > 0 ? 1 : 0.28 }),
+          React.createElement('path', { key: 'b', d: 'M4.5 6.6v3.5', opacity: w.cov >= 0.25 ? 1 : 0.28 }),
+          React.createElement('path', { key: 'c', d: 'M7.5 4.4v5.7', opacity: w.cov >= 0.5 ? 1 : 0.28 }),
+          React.createElement('path', { key: 'd', d: 'M10.5 2v8.1', opacity: w.cov >= 0.75 ? 1 : 0.28 })),
+        startX: pts[0].x.toFixed(1), startY: pts[0].y.toFixed(1),
+        open: () => { this.setState({ level: 'wave', wave: w.id, sel: w.id }); window.scrollTo(0, 0); },
+        remove: e => { e.stopPropagation();
+          if (WV.length <= 1) return;
+          this.setState(p => ({ del: p.del.concat([w.id]), sel: p.sel === w.id ? null : p.sel })); },
+        css: 'position:relative;width:100%;height:104px;padding:0;border:0;background:none;cursor:pointer;transform-style:preserve-3d;transition:transform .9s var(--ease-out)',
+        frontCss: 'position:absolute;inset:0;display:flex;flex-direction:column;justify-content:space-between;gap:2px;padding:8px;text-align:left;background:var(--surface);border:1px solid ' +
+          (best ? 'var(--amber-400)' : 'var(--border)') + ';border-radius:var(--radius-md);box-shadow:var(--shadow-xs);backface-visibility:hidden;-webkit-backface-visibility:hidden;transform:rotateY(0deg);opacity:' + (0.55 + w.cov * 0.45).toFixed(2),
+        badgeCss: 'display:inline-flex;align-items:center;font-family:var(--font-mono);font-size:9px;padding:2px 7px;border-radius:var(--radius-full);background:' +
+          (w.cov >= 0.6 ? 'var(--accent-soft)' : w.cov >= 0.25 ? 'var(--primary-soft)' : 'var(--surface-2)') + ';color:' +
+          (w.cov >= 0.6 ? 'var(--blue-700)' : w.cov >= 0.25 ? 'var(--amber-700)' : 'var(--text-muted)'),
+        backCss: 'position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:7px;padding:8px;border-radius:var(--radius-md);backface-visibility:hidden;-webkit-backface-visibility:hidden;transform:rotateY(180deg);border:1px solid ' +
+          (best ? 'var(--amber-600)' : 'var(--border)') + ';background:' + (best ? 'var(--gradient-amber)' : 'var(--surface-2)') +
+          ';color:' + (best ? 'var(--ink-900)' : 'var(--text-muted)'),
+        backIcon: best ? trophy : arrow,
+        backLabel: best ? 'Melhor onda' : 'Abrir onda' };
+    });
+
+    // ── cadências da sessão
+    const gaps = WV.map((q, i) => (i === 0 ? 60 : q.t0 - WV[i - 1].t1));
+    const cadV = WV.map((q, i) => 34 + Math.min(34, 900 / Math.max(18, gaps[i])) + q.cov * 12);
+    const cadHi = Math.max(...cadV) * 1.14, cadLo = 20;
+    const CGY = v => 132 - ((v - cadLo) / (cadHi - cadLo)) * 108 * A;
+    const cadPts = cadV.map((v, i) => [34 + (i + 0.5) / cadV.length * 362, CGY(v)]);
+    const cad = {
+      grid: [0, 1, 2].map(g => ({ y: (24 + g * 54).toFixed(1) })),
+      line: 'M' + cadPts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L '),
+      area: 'M' + cadPts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L ') +
+        ' L' + cadPts[cadPts.length - 1][0].toFixed(1) + ',132 L' + cadPts[0][0].toFixed(1) + ',132 Z',
+      dots: cadPts.map((p, i) => ({ x: p[0].toFixed(1), y: p[1].toFixed(1),
+        fill: WV[i].cov >= 0.25 ? 'var(--blue-600)' : '#3E6B7C' })),
+      text: [this.T(34, 12, 'braçadas / min', { fill: 'var(--text-muted)', size: 9, ls: '.14em', tt: 'uppercase', key: 'cy' }),
+        this.T(34, 148, 'onda 1', { fill: 'var(--text-subtle)', size: 9, key: 'c1' }),
+        this.T(396, 148, 'onda ' + WV.length, { anchor: 'end', fill: 'var(--text-subtle)', size: 9, key: 'c2' }),
+        this.T(396, 12, 'média ' + (cadV.reduce((a, b) => a + b, 0) / cadV.length * A).toFixed(0),
+          { anchor: 'end', fill: 'var(--blue-700)', size: 10, key: 'c3' })] };
+
+    const effV = WV.map((q, i) => gaps[i] / 60);
+    const effHi = Math.max(...effV) * 1.18;
+    const EGY = v => 132 - (v / effHi) * 108 * A;
+    const effPts = effV.map((v, i) => [34 + (i + 0.5) / effV.length * 362, EGY(v)]);
+    const effBw = 362 / effV.length * 0.5;
+    const eff = {
+      grid: [0, 1, 2].map(g => ({ y: (24 + g * 54).toFixed(1) })),
+      bars: effV.map((v, i) => ({ x: (effPts[i][0] - effBw / 2).toFixed(1), y: EGY(v).toFixed(1),
+        w: effBw.toFixed(1), h: (132 - EGY(v)).toFixed(1) })),
+      line: 'M' + effPts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' L '),
+      dots: effPts.map(p => ({ x: p[0].toFixed(1), y: p[1].toFixed(1) })),
+      text: [this.T(34, 12, 'min de espera por onda', { fill: 'var(--text-muted)', size: 9, ls: '.14em', tt: 'uppercase', key: 'e0' }),
+        this.T(34, 148, 'onda 1', { fill: 'var(--text-subtle)', size: 9, key: 'e1' }),
+        this.T(396, 148, 'onda ' + WV.length, { anchor: 'end', fill: 'var(--text-subtle)', size: 9, key: 'e2' }),
+        this.T(396, 12, 'média ' + (effV.reduce((a, b) => a + b, 0) / effV.length * A).toFixed(1) + ' min',
+          { anchor: 'end', fill: 'var(--amber-700)', size: 10, key: 'e3' })] };
+    const WM = [{ id: 'coverage', label: 'cobertura %' }, { id: 'duration', label: 'duração s' },
+      { id: 'topSpeed', label: 'vel. máxima' }, { id: 'avgSpeed', label: 'vel. média' },
+      { id: 'straightness', label: 'retidão' }, { id: 'manoeuvres', label: 'manobras' }, { id: 'hrMax', label: 'bpm máx' }];
+
+    // ── L3
+    const w = WV.find(q => q.id === st.wave) || WV[0];
+    const wrows = w.rows, wmax = Math.max(...wrows.map(q => q.v * 3.6), 10);
+    const wx0 = 40, wxw = 676;
+    const wpts = wrows.map((q, i) => ({ obs: q.obs, x: wx0 + i / Math.max(1, wrows.length - 1) * wxw, y: 170 - (q.v * 3.6 / wmax) * 155 }));
+    const wr = this.runs(wpts, q => q.x, q => q.y);
+    const wBlind = []; let b0 = null;
+    wrows.forEach((q, i) => {
+      if (!q.obs && b0 === null) b0 = i;
+      if ((q.obs || i === wrows.length - 1) && b0 !== null) {
+        const x1 = wx0 + b0 / Math.max(1, wrows.length - 1) * wxw, x2 = wx0 + i / Math.max(1, wrows.length - 1) * wxw;
+        wBlind.push({ x: x1.toFixed(1), w: Math.max(2, x2 - x1).toFixed(1), x2: x2.toFixed(1) }); b0 = null;
+      }
+    });
+    const moves = [];
+    for (let j = 2; j < wrows.length - 2; j++) {
+      if (wrows[j].v < wrows[j - 1].v && wrows[j].v < wrows[j + 1].v) {
+        moves.push({ x: wpts[j].x.toFixed(1), y: wpts[j].y.toFixed(1), ly: (wpts[j].y - 12).toFixed(1),
+          fill: 'var(--amber-600)', t: 'volta' });
+      }
+    }
+    // ── Perfil da onda: mapa GPS da onda. Horizontal = perpendicular à costa (terra à
+    // direita); vertical = ao longo da costa. A crista é uma barra vertical que barre o
+    // gráfico da esquerda para a direita — esse varrimento é o tempo. Entre segundos há
+    // interpolação Catmull-Rom, para o movimento não saltar de ponto em ponto.
+    const PX0 = 64, PX1 = 646, PY0 = 34, PY1 = 246;
+    this._wN = wrows.length - 1;
+    const spd = wrows.map(q => q.v * 3.6);
+    const gxs = wrows.map(q => q.x), gys = wrows.map(q => q.y);
+    const xLo = Math.min(...gxs), xHi = Math.max(...gxs), yLo = Math.min(...gys), yHi = Math.max(...gys);
+    const psc = Math.min((PX1 - PX0) / Math.max(8, (xHi - xLo) * 1.1), (PY1 - PY0) / Math.max(8, (yHi - yLo) * 1.6));
+    const pmx = (PX0 + PX1) / 2 - (xLo + xHi) / 2 * psc, pmy = (PY0 + PY1) / 2 + (yLo + yHi) / 2 * psc;
+    const gp = wrows.map(q => ({ x: pmx + q.x * psc, y: pmy - q.y * psc }));
+    const crPath = pts => {
+      if (pts.length < 2) return '';
+      let d = 'M' + pts[0].x.toFixed(1) + ',' + pts[0].y.toFixed(1);
+      for (let i = 0; i < pts.length - 1; i++) {
+        const p0 = pts[i - 1] || pts[i], p1 = pts[i], p2 = pts[i + 1], p3 = pts[i + 2] || pts[i + 1];
+        d += ' C' + (p1.x + (p2.x - p0.x) / 6).toFixed(1) + ',' + (p1.y + (p2.y - p0.y) / 6).toFixed(1) +
+          ' ' + (p2.x - (p3.x - p1.x) / 6).toFixed(1) + ',' + (p2.y - (p3.y - p1.y) / 6).toFixed(1) +
+          ' ' + p2.x.toFixed(1) + ',' + p2.y.toFixed(1);
+      }
+      return d;
+    };
+    const crAt = t => {
+      const i = Math.max(0, Math.min(gp.length - 2, Math.floor(t))), f = Math.max(0, Math.min(1, t - i));
+      const p0 = gp[i - 1] || gp[i], p1 = gp[i], p2 = gp[i + 1] || gp[i], p3 = gp[i + 2] || p2;
+      const h = (a, b, c, e) => 0.5 * (2 * b + (-a + c) * f + (2 * a - 5 * b + 4 * c - e) * f * f +
+        (-a + 3 * b - 3 * c + e) * f * f * f);
+      return { x: h(p0.x, p1.x, p2.x, p3.x), y: h(p0.y, p1.y, p2.y, p3.y) };
+    };
+    const tNow = Math.max(0, Math.min(st.wNow, wrows.length - 1));
+    const iNow = Math.floor(tNow), fNow = tNow - iNow;
+    const wpCur = crAt(tNow);
+    const vNow = spd[iNow] + (spd[Math.min(iNow + 1, spd.length - 1)] - spd[iNow]) * fNow;
+    const oSegs = []; let oCur = null;
+    gp.forEach((p, i) => {
+      const m = wrows[i].obs !== false;
+      if (!oCur || oCur.m !== m) { if (oCur) oCur.pts.push(p); oCur = { m, pts: [p] }; oSegs.push(oCur); }
+      else oCur.pts.push(p);
+    });
+    const wpMoves = [];
+    for (let j = 2; j < wrows.length - 2; j++) {
+      if (wrows[j].v < wrows[j - 1].v && wrows[j].v < wrows[j + 1].v) {
+        wpMoves.push({ x: gp[j].x.toFixed(1), y: gp[j].y.toFixed(1), ly: (gp[j].y - 12).toFixed(1),
+          fill: 'var(--amber-600)', t: 'manobra' });
+      }
+    }
+    const wp = {
+      meas: oSegs.filter(s => s.m && s.pts.length > 1).map(s => ({ d: crPath(s.pts) })),
+      est: oSegs.filter(s => !s.m && s.pts.length > 1).map(s => ({ d: crPath(s.pts) })),
+      trail: crPath(gp.slice(0, iNow + 1).concat([wpCur])),
+      moves: wpMoves,
+      movesText: wpMoves.map((m, i) => this.T(m.x, m.ly, m.t, { anchor: 'middle', fill: m.fill, size: 9, key: 'wpm' + i })),
+      crestT: 'rotate(-6.6 ' + (wpCur.x - 8).toFixed(1) + ' 140)',
+      crestX: (wpCur.x - 8).toFixed(1), lipX: (wpCur.x - 3).toFixed(1),
+      barX: (wpCur.x - 98.4).toFixed(1),
+      sx: wpCur.x.toFixed(1), sy: wpCur.y.toFixed(1),
+      readout: [this.T(wpCur.x, Math.max(20, wpCur.y - 22), vNow.toFixed(1) + ' km/h',
+        { anchor: 'middle', fill: 'var(--amber-700)', size: 12, key: 'wpr',
+          extra: { paintOrder: 'stroke', stroke: 'var(--warm-50)', strokeWidth: '4px' } })],
+      axisText: [this.T(64, 288, 'PERPENDICULAR À COSTA — SENTIDO DA ONDA →', { fill: 'var(--text-subtle)', size: 9, ls: '.1em', key: 'wa0' }),
+        this.T(0, 0, 'LINHA DE COSTA INFERIDA DO GPS', { fill: 'var(--amber-700)', size: 9, ls: '.1em', transform: 'translate(700,260) rotate(-90)', key: 'wa1' }),
+        this.T(0, 0, 'AO LONGO DA COSTA', { fill: 'var(--text-subtle)', size: 9, ls: '.1em', transform: 'translate(22,246) rotate(-90)', key: 'wa2' })],
+      now: tNow, max: Math.max(1, wrows.length - 1),
+      clock: tNow.toFixed(1) + 's', total: w.dur.toFixed(0) + 's',
+      seek: e => this.setState({ wNow: Number(e.target.value), wPlaying: false }),
+      toggle: () => this.setState(p => ({ wPlaying: !p.wPlaying, wNow: p.wNow >= wrows.length - 1 ? 0 : p.wNow })),
+      label: st.wPlaying ? 'Pausa' : 'Reproduzir',
+      btnCss: 'display:inline-flex;align-items:center;justify-content:center;width:40px;height:34px;padding:0;border:0;border-radius:var(--radius-sm);background:var(--accent);color:var(--text-on-blue,var(--warm-50));cursor:pointer',
+      icon: st.wPlaying
+        ? React.createElement('svg', { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'currentColor' },
+            React.createElement('rect', { key: 'a', x: 2, y: 1.5, width: 3.6, height: 11, rx: 1 }),
+            React.createElement('rect', { key: 'b', x: 8.4, y: 1.5, width: 3.6, height: 11, rx: 1 }))
+        : React.createElement('svg', { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'currentColor' },
+            React.createElement('path', { d: 'M3 1.6 L12.2 7 L3 12.4 Z' }))
+    };
+    const wMetrics = [
+      { label: 'Duração', value: gn(w.dur, 1), unit: 's', cov: 1 },
+      { label: 'Velocidade máxima', value: gn(w.top, 1), unit: 'km/h', cov: w.cov },
+      { label: 'Velocidade média', value: gn(w.avg, 1), unit: 'km/h', cov: w.cov },
+      { label: 'Vel. de take-off', value: gn(w.takeoff, 1), unit: 'km/h', cov: w.cov },
+      { label: 'Distância percorrida', value: w.dist < 1000 ? gn(w.dist, 0) : gn(w.dist / 1000, 1), unit: w.dist < 1000 ? 'm' : 'km', cov: w.cov },
+      { label: 'BPM', value: gi(w.hrAvg) + '/' + gi(w.hrMax), unit: 'méd/máx', cov: 1 }
+    ].map(m => ({ ...m, valCss: this.numCss(m.cov, 30),
+      arc: (m.cov * 2 * Math.PI * 8).toFixed(1) + ' 999',
+      arcColor: m.cov >= 0.6 ? 'var(--blue-600)' : m.cov >= 0.25 ? 'var(--amber-500)' : 'var(--warm-400)',
+      cardCss: 'background:var(--surface);border-right:1px solid var(--border);border-bottom:1px solid var(--border);border-left:1px solid var(--border);border-radius:var(--radius-lg);box-shadow:var(--shadow-sm);border-top:2px solid ' +
+        (m.cov >= 0.6 ? 'var(--blue-500)' : m.cov >= 0.25 ? 'var(--amber-400)' : 'var(--warm-300)') + ';padding:16px 18px' }));
+    const sp = wrows.map((q, i) => ({ x: 10 + i / Math.max(1, wrows.length - 1) * 110, y: 38 - (q.y - wrows[0].y) * 1.9 }));
+
+    const off = this.props.offline === true;
+    const sig = off ? 'indisponível — sem rede, sem chave' : '— llama-3.1-8b-instruct · local · AI Surf Coach';
+    const prose = {
+      sessions: off ? 'Sem rede e sem modelo local disponível: a leitura do treinador fica em falta. As estatísticas acima são todas locais e não dependem disto.'
+        : 'Dez sessões dentro, o que realmente mexeu foi o teu ritmo: 2.4 ondas por dez minutos contra 1.6 há seis semanas, em sessões de duração parecida. A velocidade máxima subiu cerca de 4 km/h, mas metade de cada sessão não é vista pelo relógio — lê isso como tendência, não como número. O teu Intermédio assenta sobretudo em frequência e consistência.',
+      session: off ? '' : 'Apanhaste algo entre quinze e vinte ondas em uma hora e três minutos, e os quarenta minutos centrais foram o teu melhor bloco — uma onda a cada quatro minutos, coração estacionado na zona 2, sem deriva no fim. Duas das propostas vêm de segundos que o relógio nunca viu, por isso ignora as velocidades dessas. O que aqui é de confiança é o quadro aeróbico: está todo medido e diz que trabalhaste de forma constante, e que ainda te sobrava.',
+      wave: off ? '' : 'Uma retidão de ' + w.straight.toFixed(2) + ' com ' + (w.cov * 100).toFixed(0) + '% de cobertura diz que levaste esta onda de forma bastante direta — uma mudança de direção clara e nada depois. Numa onda que o relógio só viu em parte, isto lê-se como uma onda funcional, não trabalhada. Toma como pista, não como veredicto.',
+      sig
+    };
+
+    return {
+      tabs, isSessions: st.level === 'sessions', isSession: st.level === 'session', isWave: st.level === 'wave',
+      banner: st.banner, dismiss: () => this.setState({ banner: false }),
+      why: st.why, toggleWhy: () => this.setState({ why: !st.why }), whyLabel: st.why ? 'Esconder o raciocínio' : 'Como foi decidido?',
+      hasLevel: !poucas, noLevel: poucas, nSessoes: String(sess.length),
+      levelSteps, levelWhy, statTiles, bdOpen: st.stat !== null, bd,
+      toggleOrdem: () => this.setState({ ordem: st.ordem === 'tempo' ? 'spot' : 'tempo' }),
+      toggleReg: () => this.setState(p => (p.ordem === 'tempo' ? { reg: !p.reg } : null)),
+      closeBd: () => this.setState({ stat: null }),
+      sessionMetrics: SM, s3x: st.s3x, s3y: st.s3y,
+      setS3x: e => this.setState({ s3x: e.target.value }), setS3y: e => this.setState({ s3y: e.target.value }),
+      biv, cmp, cmpA: String(iA), cmpB: String(iB),
+      setCmpA: e => this.setState({ cmpA: Number(e.target.value) }),
+      setCmpB: e => this.setState({ cmpB: Number(e.target.value) }),
+      levelName: levelNames[levelIdx], levelColor: levelCols[levelIdx],
+      listHead, sessions: sessionRows, prose,
+
+      stats: { covPct: (d.cov * 100).toFixed(1), waves: WV.length,
+        realWaves: gi(WV.filter(q => q.cov >= 0.25).length),
+        waveRange: Math.round(WV.length * 0.55) + '–' + WV.length, windows: d.wins.length,
+        longest: d.longest, distKm: gn(d.dist / 1000, 1), blindMin: (d.blindSec / 60).toFixed(1),
+        spot: 'Sines · São Torpes', samples: '3 790', rejected: 24 },
+      trackCaption: st.sel !== null ? 'Onda ' + (st.sel + 1) + ' isolada — as restantes propostas estão ocultas' : 'Clique numa proposta âmbar para a isolar. Sem linha de costa: a direção é indeterminável nesta sessão.',
+      swellOn: st.swellOn, toggleSwell: () => this.setState({ swellOn: !st.swellOn }),
+      swellBtnCss: 'font:inherit;font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:8px 12px;border-radius:var(--radius-sm);cursor:pointer;background:' +
+        (st.swellOn ? 'var(--ink-800)' : 'transparent') + ';color:' + (st.swellOn ? 'var(--warm-50)' : 'var(--text-muted)') + ';border:1px solid ' + (st.swellOn ? 'var(--ink-800)' : 'var(--border-strong)'),
+      playLabel: st.playing ? 'Pausa' : 'Reproduzir (250 ms / passo)',
+      playBtnCss: 'display:inline-flex;align-items:center;justify-content:center;width:40px;height:34px;padding:0;border:0;border-radius:var(--radius-sm);background:var(--accent);color:var(--text-on-blue);cursor:pointer;transition:background var(--dur-fast) var(--ease-out)',
+      playIcon: st.playing
+        ? React.createElement('svg', { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'currentColor' },
+            React.createElement('rect', { key: 'a', x: 2, y: 1.5, width: 3.6, height: 11, rx: 1 }),
+            React.createElement('rect', { key: 'b', x: 8.4, y: 1.5, width: 3.6, height: 11, rx: 1 }))
+        : React.createElement('svg', { width: 14, height: 14, viewBox: '0 0 14 14', fill: 'currentColor' },
+            React.createElement('path', { d: 'M3 1.6 L12.2 7 L3 12.4 Z' })),
+      togglePlay: () => this.setState({ playing: !st.playing }),
+      now: st.now, seek: e => this.setState({ now: Number(e.target.value) }), clock: mmss(st.now),
+      map: { tiles, vb: '0 0 ' + MW + ' ' + MH, meas: tr.meas, est: tr.est, waveMarks, waveDots,
+        trackOp: isolate ? '.22' : '.95', basemap: st.mapReady, noBasemap: !st.mapReady,
+        head: { x: head.px.toFixed(1), y: head.py.toFixed(1), fill: head.obs ? 'var(--red-500)' : 'var(--warm-400)' } },
+      cones, conesText: cones.map((c, i) => this.T(c.lx, c.ly, c.label, { fill: c.stroke, anchor: c.anchor, size: c.on ? 12.5 : 11,
+        extra: { paintOrder: 'stroke', stroke: 'var(--warm-50)', strokeWidth: '3.5px' }, key: 'c' + i })),
+      spokes: cones.map(c => ({ x1: c.sx1, y1: c.sy1, x2: c.sx2, y2: c.sy2,
+        stroke: c.stroke, op: c.skOp, sw: c.skSw, r: c.skR })),
+      radials, rings, radialsText,
+      unlocked: st.unlocked,
+      lockHint: WV.length + (st.unlocked ? ' ondas · clique na cruz para eliminar' : ' ondas · desbloqueie para eliminar'),
+      lockIcon: React.createElement('svg', { width: 14, height: 14, viewBox: '0 0 16 16', fill: 'none',
+        stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' },
+        React.createElement('rect', { key: 'b', x: 3, y: 7, width: 10, height: 7, rx: 1.6 }),
+        React.createElement('path', { key: 's', d: st.unlocked ? 'M5.4 7V5.2a2.6 2.6 0 0 1 5-.8' : 'M5.4 7V5.2a2.6 2.6 0 0 1 5.2 0V7' })),
+      lockCss: 'display:flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border-radius:var(--radius-full);cursor:pointer;transition:all var(--dur-fast) var(--ease-out);border:1px solid ' +
+        (st.unlocked ? 'var(--danger)' : 'var(--border)') + ';background:' + (st.unlocked ? 'var(--danger-soft)' : 'var(--surface-2)') +
+        ';color:' + (st.unlocked ? 'var(--danger)' : 'var(--text-muted)'),
+      toggleLock: () => this.setState(p => ({ unlocked: !p.unlocked })),
+      legend, ribbon, ribbonKey, blindRail, playheadCss: 'position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--red-500);left:' + (st.now / N * 100).toFixed(3) + '%',
+      tick, swells, seaFacts, split, hrTrace, hrArea, hrStats, zones, effort, conf, hist, bell, small, cad, eff,
+      selected: selW !== null,
+      sel: selW ? { no: selW.id + 1, durTxt: selW.dur + '.0 s',
+        covTxt: (selW.cov * 100).toFixed(0) + '%', dirTxt: selW.dir } : {},
+      openWave: () => { this.setState({ level: 'wave', wave: st.sel === null ? 0 : st.sel }); window.scrollTo(0, 0); },
+      clearSel: () => this.setState({ sel: null }),
+      waveMetrics: WM,
+      waveOptions: WV.map(q => ({ id: String(q.id), label: 'Onda ' + String(q.id + 1).padStart(2, '0') + ' · ' + q.dur + 's · ' + (q.cov * 100).toFixed(0) + '% medido' })),
+      pickWave: e => this.setState({ wave: Number(e.target.value), sel: Number(e.target.value) }),
+
+      wp,
+      w: { id: String(w.id), no: String(w.id + 1).padStart(2, '0'), at: mmss(w.t0), durTxt: w.dur + '.0 s',
+        covTxt: (w.cov * 100).toFixed(0) + '%',
+        covBadgeCss: 'font-family:var(--font-mono);font-size:10px;letter-spacing:.12em;text-transform:uppercase;padding:6px 11px;border-radius:var(--radius-full);color:' +
+          (w.cov >= 0.6 ? 'var(--blue-700)' : w.cov >= 0.25 ? 'var(--amber-700)' : 'var(--text-muted)') + ';border:1px solid ' +
+          (w.cov >= 0.6 ? 'var(--blue-300)' : w.cov >= 0.25 ? 'var(--amber-400)' : 'var(--border)'),
+        lowCoverage: w.cov < 0.25,
+        lowNote: 'O relógio viu ' + (w.cov * 100).toFixed(0) + '% desta onda. A duração e a frequência cardíaca mantêm-se; todas as velocidades e a direção abaixo são o filtro a preencher — lê-as como forma, não como valor.',
+        grid: [0, 1, 2, 3].map(i => ({ y: 15 + i * 46, ty: 19 + i * 46, t: (wmax * (1 - i / 3)).toFixed(0) })),
+        blindBands: wBlind, meas: wr.meas, est: wr.est, moves,
+        gridText: [0, 1, 2, 3].map(i => this.T(6, 19 + i * 46, (wmax * (1 - i / 3)).toFixed(0), { fill: 'var(--text-subtle)', key: 'wg' + i })),
+        movesText: moves.map((m, i) => this.T(m.x, m.ly, m.t, { anchor: 'middle', fill: m.fill, size: 9, key: 'wm' + i })),
+        xtickText: Array.from({ length: 5 }, (_, i) => this.T((wx0 + i / 4 * wxw).toFixed(0), 192, (i / 4 * w.dur).toFixed(0), { anchor: 'middle', fill: 'var(--text-subtle)', key: 'wx' + i })),
+        xticks: Array.from({ length: 5 }, (_, i) => ({ x: (wx0 + i / 4 * wxw).toFixed(0), t: (i / 4 * w.dur).toFixed(0) })),
+        metrics: wMetrics, man: gi(w.man), falls: gi(w.falls),
+        dirTxt: w.dir.charAt(0).toUpperCase() + w.dir.slice(1),
+        dirCss: 'font-family:var(--font-display);font-size:' + (w.dir === 'indeterminável' ? 27 : 40) + 'px;font-weight:600;letter-spacing:-.03em;line-height:1;color:' +
+          (w.dir === 'indeterminável' ? '#5E7178' : 'var(--warm-50)') + ';font-style:' + (w.dir === 'indeterminável' ? 'italic' : 'normal'),
+        dirBarCss: 'height:100%;width:' + (w.dirConf * 100).toFixed(0) + '%;background:' + (w.dirConf > 0.5 ? 'var(--blue-400)' : 'var(--amber-500)'),
+        dirConf: w.dirConf.toFixed(2),
+        dirWhy: w.dir === 'indeterminável' ? 'eixo da costa irrecuperável (coerência 0.37) e cobertura baixa' : 'do deslocamento ao longo da costa, penalizado pela cobertura',
+        straight: gn(w.straight, 2),
+        pathShape: 'M' + sp.map(q => q.x.toFixed(1) + ',' + Math.max(6, Math.min(70, q.y)).toFixed(1)).join(' L '),
+        chord: { x1: sp[0].x.toFixed(1), y1: Math.max(6, Math.min(70, sp[0].y)).toFixed(1),
+          x2: sp[sp.length - 1].x.toFixed(1), y2: Math.max(6, Math.min(70, sp[sp.length - 1].y)).toFixed(1) },
+        hr: [{ k: 'bpm médio', v: String(w.hrAvg) }, { k: 'bpm máx', v: String(w.hrMax) }] }
+    };
+  }
+}
+</script>
+</body>
+</html>

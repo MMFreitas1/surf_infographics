@@ -54,6 +54,7 @@
 - Every derived number carries a confidence. The UI renders what we do not know.
 - "Detected", "uncertain" and "blind" are three different states and must stay distinguishable end to end.
 - The pipeline consumes ONLY first-party recorded signal. No third-party app's derived values, ever (ADR-0008) — they add that app's errors and no information.
+- **No accuracy claim without a session labelled the day it was surfed (ADR-0013).** Wave counts, speeds and surf levels ship marked *proposed*; the UI says so. Nobody can label a session from memory days later, so the labelling gate is dropped — which makes the three rules above the only thing between a proposal and a claim.
 
 ## Re-boot discipline (every session)
 - Read this file and docs/architecture.md first.

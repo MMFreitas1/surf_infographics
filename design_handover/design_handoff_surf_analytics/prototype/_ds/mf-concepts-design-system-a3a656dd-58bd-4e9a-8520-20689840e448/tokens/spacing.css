@@ -1,0 +1,54 @@
+/* ===========================================================================
+   MF Concepts — Spacing, Radii, Layout
+   ---------------------------------------------------------------------------
+   Spacing is a 4px base grid. Radii are gently rounded — the wordmark has
+   soft squared corners, never sharp, never pill-everything. Containers favor
+   generous horizontal breathing room (the CV uses 8vw gutters).
+   =========================================================================== */
+
+:root {
+  /* Spacing — 4px grid */
+  --space-0:   0;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-16:  64px;
+  --space-20:  80px;
+  --space-24:  96px;
+  --space-32:  128px;
+
+  /* Radii — soft squared, matching the wordmark */
+  --radius-xs:   3px;
+  --radius-sm:   6px;
+  --radius-md:   10px;   /* default for buttons, inputs, tags */
+  --radius-lg:   16px;   /* cards */
+  --radius-xl:   24px;   /* large surfaces, modals */
+  --radius-2xl:  32px;
+  --radius-full: 999px;  /* avatars, switches, status dots */
+
+  /* Border widths */
+  --border-thin: 1px;
+  --border-med:  1.5px;
+  --border-thick:2px;
+
+  /* Layout */
+  --container-sm:  640px;
+  --container-md:  860px;
+  --container-lg:  1100px;
+  --container-xl:  1320px;
+  --gutter:        8vw;     /* page side padding, CV-derived */
+  --gutter-tight:  5vw;
+
+  /* Z-index ladder */
+  --z-base:     1;   /* @kind other */
+  --z-sticky:   100; /* @kind other */
+  --z-overlay:  500; /* @kind other */
+  --z-modal:    600; /* @kind other */
+  --z-toast:    700; /* @kind other */
+}

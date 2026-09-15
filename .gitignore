@@ -38,3 +38,4 @@ models/
 
 # os
 .DS_Store
+design_handover/*.zip

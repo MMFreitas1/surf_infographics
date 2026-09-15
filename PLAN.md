@@ -10,8 +10,11 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **Phase 4 complete** — append-only labels, six endpoints, the scrub UI, and human labels joined to the eval harness |
-| **Next** | Phase 5 — rule detector, the first real precision/recall. **Blocked on one human act:** nobody has labelled a session yet. Run `make api` + `make web`, label the reference session at `/label/<id>`, then `make labels`. Without truth, Phase 5 can build a scorer but cannot report a number |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness |
+| **Next** | **Phase 5 — clean the signal.** 1.3% of fixes are physically impossible (max 74.8 km/h) and they are what draws spikes across the map and would crown a bogus "best wave". Nothing downstream is worth drawing until they are gone. Start at **"Phase 5 · Clean signal"** |
+| **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
+| **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
+| **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
 | **Health** | `make check` → 344 tests green (253 api · 43 web · 48 evals); 12 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
@@ -31,10 +34,9 @@ ls docs/adr/               # why each decision was made
 **Three rules that override convenience** (full list in `CLAUDE.md`):
 1. Never present an imputed wave as measured. Detected / uncertain / blind are three states.
 2. The pipeline consumes only first-party recorded signal (ADR-0008).
-3. No ground truth, no quality claim. Phase 4's tooling exists now, but a *labelled session*
-   still does not — and labels cannot be generated, only made (ADR-0012). A Phase 5 number
-   quoted against zero human labels would be the exact failure this project is built to
-   avoid.
+3. No ground truth, no quality claim — so make **no accuracy claim at all** until a session is
+   labelled the day it is surfed (ADR-0013). Wave counts, speeds and levels ship marked
+   *proposed*. "12 waves" is a reading of the data, never a measured fact, and the UI says so.
 
 ---
 
@@ -45,12 +47,13 @@ ls docs/adr/               # why each decision was made
 - [x] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
 - [x] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
 - [x] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
-- [ ] **5 · Rule detector** — transparent scorer → **first real precision/recall**
-- [ ] **6 · Core infographics** — session map, sawtooth, state ribbon, wave cards
-- [ ] **7 · ML detector** — gradient-boosted trees, calibration, CI regression gate
-- [ ] **8 · LLM adjudicator** — Ollama + lifecycle manager, ambiguous band only
-- [ ] **9 · Context** — Open-Meteo Marine: swell, tide, wind
-- [ ] **10 · Full suite** — remaining infographics + replay animation
+- [ ] **5 · Clean signal** — reject impossible fixes programmatically, then an LLM audit pass over what survives
+- [ ] **6 · Shore & peaks** — where you sat, where the coast runs, and therefore left vs right
+- [ ] **7 · Wave metrics** — transparent scorer, then duration / speeds / manoeuvres / straightness per ride
+- [ ] **8 · Marine context** — swell 1–4, wind, sea temperature, combined energy
+- [ ] **9 · Session view** — the GPS graph with wave selection and playback, cards, radial, aerobic block
+- [ ] **10 · Sessions tab** — progression, % change chips, surf level, correlation plots
+- [ ] **11 · LLM passes** — three prose commentaries, context budget and cleanser
 
 ---
 
@@ -134,14 +137,16 @@ golden exactly, it survives a restart, and `make check` is green.
 
 ---
 
-## Standing hypothesis — settle in Phase 5
+## Standing hypothesis — settle whenever a session is labelled fresh
 
 GPS dropout is caused by wrist submersion. While *riding*, a surfer stands with the wrist clear
 of the water, so GPS should **recover** during a genuine wave. If it holds, position availability
 becomes a strong positive feature.
 
 Deliberately **not** baked into `surf.synthetic` — its dropout is state-independent, so a detector
-cannot score well by learning an assumption we have not confirmed. Needs human labels to settle.
+cannot score well by learning an assumption we have not confirmed. Needs human labels to settle,
+and `make labels` answers it the moment one session is labelled. Not on the critical path any
+more (ADR-0013): the product ships without it, marked *proposed*.
 
 ## Evaluation
 
@@ -165,7 +170,10 @@ Browser errors POST to `/diagnostics/client-error`, so UI and API failures share
 | Item | Why | Unblocks when |
 |---|---|---|
 | Ollama + quantized model | not needed until Phase 8 | Phase 8 |
-| Playwright in CI | needs a browser download in the runner; runs locally today | Phase 6, if warranted |
+| Playwright in CI | needs a browser download in the runner; runs locally today | Phase 9, if warranted |
+| **ML detector** (gradient-boosted trees) | cannot be trained, let alone validated, without labels — and a model fitted to L3's proposals would only learn L3 | a labelled session exists |
+| **LLM adjudicator** on the 0.15–0.85 band (ADR-0005) | distinct from the three prose passes in Phase 11. Adjudicating needs a calibrated score to have a band *of*, which needs labels | a labelled session exists |
+| Tide | Open-Meteo Marine covers swell and wind; tide needs a second source | Phase 8, if the sea-state cards want it |
 | Docker Desktop | install needs a sudo password it cannot prompt for; Colima provides the daemon and compose is verified | only if the GUI is wanted |
 
 ## Decided against
@@ -510,3 +518,348 @@ excluded from truth, and a correction leaving the original row in place.
 > against coverage across the session, and refuses a verdict below 5 rides — three rides can
 > point anywhere. It reports; it does not gate, because the answer is a property of the sport
 > and the watch, not of our code.
+
+---
+
+## Product shape — the drill-down
+
+Specced by Miguel 2026-08-31. Three levels, each narrowing: **Sessions → one Session → one
+Wave**. Full screen-by-screen detail for design work lives in [`DESIGN_BRIEF.md`](./DESIGN_BRIEF.md);
+what follows is what has to be *computed* to fill it.
+
+| Level | Question it answers | Where the intelligence sits |
+|---|---|---|
+| **Sessions** | am I getting better? | % change against previous, surf level, trends, 3D correlation |
+| **Session** | how was that surf? | wave count, sea state, aerobic load, distance, device confidence |
+| **Wave** | how was that ride? | duration, direction, speeds, manoeuvres, straightness, HR |
+
+Every level carries an LLM prose comment (Phase 11) and a correlation plot the user drives.
+Context is kept **per level**; only Sessions may read all three.
+
+---
+
+## Phase 5 · Clean signal — next
+
+**Goal:** no impossible number reaches a chart. Correctness over speed — a five-minute local
+LLM pass is acceptable if it is right.
+
+**What the reference session actually contains**, measured 2026-08-31:
+
+| | |
+|---|---|
+| Raw top speed | **74.8 km/h**. A surfer does 25–35 |
+| Fixes over 40 km/h | 24 (1.30%) · over 50 km/h: 16 (0.87%) |
+| `hr_bpm`, `temp_c`, `distance_m` | **100% coverage** — they survive the blind half |
+| `distance_m` while blind | **frozen**: 0 m across 1,941 blind seconds. The 3.7 km total counts only the 1,848 seconds the watch saw |
+
+- [ ] **Pass 1 — programmatic, deterministic, in the pipeline.** Reject a fix on physics, before
+      L1 smooths it: implied speed from the previous accepted fix over a plausibility ceiling,
+      acceleration over a ceiling, a jump-and-return inside one second. Rejection is a
+      *demotion to blind*, never a deletion — the second becomes `observed=False` and the
+      smoother estimates it like any other gap, so coverage tells the truth.
+- [ ] **Pass 2 — LLM audit over what survives.** Local model, deterministic, offline. It sees
+      *anomaly summaries* — a windowed digest of speed/heading/coverage — never 3,790 raw
+      coordinates, which no model reads reliably and which would cost more than it returns.
+      Its job is the residue rule 1 cannot phrase: a plausible-looking stretch that is not
+      surfing at all (driving home, walking the beach, the watch on a table).
+- [ ] Both passes are **stages** (L0.5), cached and content-addressed like everything else, so
+      a threshold sweep is a cache key and not a re-ingest.
+- [ ] Every rejection is recorded with its reason and is visible in the UI as *device
+      confidence*. A cleaner that silently drops data is indistinguishable from a bug.
+- [ ] `.env`: `SURF_LLM_HOST` (local, exists) and a hosted fallback endpoint for users with no
+      local model. Local is the default; hosted is opt-in and never automatic — activity files
+      are personal location history.
+
+**Done when:** top speed on the reference session is physically plausible, the count and reason
+of every rejection is queryable, `make check` is green, and turning the cleaner off is a
+one-line parameter change that the cache key notices.
+
+---
+
+## Phase 6 · Shore & peaks
+
+**Goal:** left or right, per wave — and a shore axis that works on a session that is mostly
+sitting still.
+
+ADR-0011's velocity-coherence bearing scored 0.51° on the synthetic and **failed on the real
+session** (coherence 0.365, refused). The reason is structural: it weights fast seconds, and a
+real session is mostly slow ones. Miguel's method inverts that and uses the sitting as signal.
+
+- [ ] **Peaks from stationarity.** Where the track stays inside a ~20 m radius for over a
+      minute, that is a peak. Centroid them.
+- [ ] **Coastline by regression.** ~20 points along the shore within ~1 km either way of the
+      peak, least-squares line. Source: a coastline geometry provider (OSM/Overpass or the
+      basemap vendor), cached to disk on first fetch so the app stays offline afterwards.
+- [ ] **Classifier.** Perpendicular to the coast through the peak centroid. Ride heading above
+      it is a left, below is a right, for an east-facing shore — with the handedness derived
+      from which side the sea is on, not hard-coded.
+- [ ] **Fallback, offline or coastline unavailable:** principal axis of the peak cloud plus the
+      seaward direction from where rides *end*. Marked lower confidence; never silently
+      substituted.
+- [ ] ADR-0014 records this as the primary method and demotes ADR-0011's bearing to a fallback,
+      with the 0.365 measurement as the reason.
+- [ ] Tests: a synthetic coastline at a known angle recovers a known left/right split; a session
+      with no stationary period degrades to the fallback rather than guessing.
+
+**Done when:** every candidate on the reference session carries left/right/straight with a
+stated confidence, and the shore line can be drawn on the session map without a caveat.
+
+---
+
+## Phase 7 · Wave metrics
+
+**Goal:** the per-wave card, computed. L3 proposes; this phase scores and measures.
+
+- [ ] **Transparent scorer** over L3's candidates — duration, sustained shoreward run, takeoff
+      acceleration, coverage. Reported as a *proposal strength*, never as a validated
+      probability (ADR-0013), and it must stay readable: a rule a person can argue with.
+- [ ] **Duration**, **top speed**, **average speed**, **distance ridden** (km/h at the edge)
+- [ ] **Take-off speed** — speed at the ride's start. Paired with wave speed below, this is what
+      says whether the paddling needs work
+- [ ] **Approximate wave speed** — from swell period and direction at those coordinates
+      (Phase 8) against the ride's own track. Depends on Phase 8; ships after it
+- [ ] **Manoeuvres** — changes in acceleration and heading. **A change followed by no speed is a
+      fall, not a manoeuvre.** At 1 Hz with half the seconds estimated this is coarse: report a
+      count with a confidence, never a stroke-by-stroke breakdown
+- [ ] **Path straightness ratio** — path length over start-to-end distance, the rail-to-rail
+      proxy
+- [ ] **Bottom turn profile** — needs research; parked as an explicit open question, not a
+      checkbox to quietly drop
+- [ ] **Avg / max BPM per wave**, and recovery afterwards
+- [ ] Every metric carries the wave's `position_coverage`. A metric from a wave the watch did
+      not see is an estimate of an estimate and has to look like one
+
+**Done when:** each candidate on the reference session yields a full card, every number has a
+unit and a coverage, and the ones that cannot be computed say so instead of showing zero.
+
+---
+
+## Phase 8 · Marine context
+
+**Goal:** the sea state that produced the session.
+
+- [ ] Open-Meteo Marine at the session's coordinates and time: **swell components 1..4 where
+      the provider has them** — height, period, direction, plus energy in kJ/m derived from
+      height and period. Free tier is likely to give total wave + wind wave + primary swell;
+      the plan must survive returning **fewer than four**, showing what exists rather than
+      padding
+- [ ] Wind speed and direction · **sea surface temperature** (the device's 21–23 °C is case
+      temperature, not water) · time of day · combined swell energy
+- [ ] Cached to disk per session on first fetch. Historic marine data does not change, and the
+      app must work offline afterwards
+- [ ] Degrades visibly: no network and no cache means the sea-state cards say unavailable, and
+      nothing downstream invents a swell
+- [ ] Feeds Phase 7's wave speed and cross-checks Phase 6's shore direction
+
+**Done when:** the reference session carries its sea state, a second fetch is served from cache,
+and pulling the network out degrades to a stated absence.
+
+---
+
+## Phase 9 · Session view
+
+**Goal:** the screen Miguel asked for on day one. See [`DESIGN_BRIEF.md`](./DESIGN_BRIEF.md).
+
+- [ ] **GPS graph, wave-selectable.** Selecting a wave hides the others and highlights it.
+      **Play at 250 ms per step**, metrics ticking as it goes, interpolated between seconds
+- [ ] **Radial overlay** on the map: swell 1 and swell 2 cones plus wind cone, labelled with
+      wave height and km/h, opposed colours, colour strength carrying period. Legend bottom-right
+- [ ] **Sea-state cards**, swell 1 → 4, **card size proportional to wave height**
+- [ ] **Wave count**, spotlighted — the biggest element on the dashboard
+- [ ] **Waves per 10 min**, with rate
+- [ ] **Distance**, split swimming vs riding — and honest that only measured seconds count
+- [ ] **Aerobic block** — avg BPM, max BPM, zones, effort vs reward, fatigue from HR against
+      recovery time and paddling speed
+- [ ] **Device confidence** — coverage, blind windows, and what Phase 5 rejected
+- [ ] Infographics kept from the earlier list: **1** session map, **3** wave cards, **4** summary
+      tiles, **5** state ribbon, **8** wave-shape small multiples, **9** speed distribution,
+      **10** ride/rest rhythm. **2 (sawtooth) dropped** — the GPS graph already carries it
+- [ ] **Correlation plot**, two metrics of the user's choosing, scatter
+
+**Done when:** a session opens, plays back, and every number on it is traceable to a stage.
+
+---
+
+## Phase 10 · Sessions tab
+
+**Goal:** am I getting better?
+
+- [ ] Session list in the Garmin idiom, below the infographics
+- [ ] **% change against the previous session in the top-right of every metric, card and
+      infographic** — the tab's whole purpose
+- [ ] **Surf level** — Beginner / Intermediate / Intermediate-high / Advanced / Athlete.
+      First assessed after **5 sessions**, revisited every **10**. The rubric is written down
+      and inspectable; a level is a claim about a person and must never be a black box
+- [ ] Trends over time per metric
+- [ ] **3D correlation plot** — user picks two metrics against time, manipulable
+- [ ] Reuses Phase 9's correlation component
+
+**Done when:** five sessions produce a level with its reasoning visible, and every card shows
+its change against the last.
+
+---
+
+## Phase 11 · LLM passes
+
+**Goal:** three short prose commentaries, on a budget that stays honest and cheap.
+
+| Pass | Level | Says |
+|---|---|---|
+| Progression | Sessions | whether improvement is real, and in what |
+| Session quality | Session | how that surf went, to the athlete |
+| Technique | Wave | what the straightness ratio and manoeuvres imply |
+
+- [ ] **100 output tokens each. Deterministic (temperature 0). Prose, no lists.** Reasoning
+      capped at ~1,000 tokens end-to-end, output excluded
+- [ ] **Context per level.** Sessions may read all three; Session and Wave see only their own.
+      Enforced in code, not in the prompt
+- [ ] **Core points as JSON**, scoped to the current surf level. It **empties on level-up**, and
+      the next level opens with a short summary of the one before
+- [ ] **Cleanser at 20k context**: reduce context and JSON back to core points, so the model
+      stays sharp and does not forget. Roughly a refresh every ~20 sessions
+- [ ] Prompts in `prompts/`, versioned, with goldens (CLAUDE.md). A prompt change re-runs evals
+- [ ] `.env`: local endpoint first, hosted fallback for users without one. Never automatic —
+      sending a session means sending location history
+- [ ] The model gets **numbers, not raw tracks**, at every level
+
+**Done when:** each level renders its comment offline against a local model, the same input
+gives the same words, and the context budget is provably bounded by a test.
+
+
+---
+
+## Design handover — v1.0, 2026-09-15
+
+Built in Claude Design over two weeks against `DESIGN_BRIEF.md`, then exported.
+**Location:** `design_handover/design_handoff_surf_analytics/`
+
+| | |
+|---|---|
+| `README.md` | 28 KB. The spec. Read it first |
+| `prototype/Surf Analytics.dc.html` | working prototype — a **reference, not production code**. Open over http |
+| `prototype/_ds/mf-concepts-design-system-*/` | the design system: `_ds_bundle.js`, `styles.css`, and `tokens/{base,colors,elevation,fonts,spacing,typography}.css` |
+| `prototype/assets/` | logo lockup + mark |
+
+**What it decided that the brief did not:**
+
+- ~~**The UI is in Portuguese (pt-PT).**~~ **Overridden 2026-09-15: the UI follows the
+  system language**, and so does the LLM's prose. The design's Portuguese (*Sessões · Sessão ·
+  Onda*) becomes the `pt-PT` catalogue rather than the only one. See "Language" below.
+- **The measured/estimated/blind language changed, for the better.** Solid stroke = measured;
+  dashed translucent (`#3E6B7C`) = estimated; **absence plus a dedicated "blind rail"** = no
+  data. It explicitly replaces the hatch — which this project had already had to lighten
+  twice because a real session has 128 separate blind windows. Never a hatch, never a fake
+  value.
+- **Coverage is expressed typographically** — a number from low-coverage data renders lighter
+  and more transparent, plus a small coverage arc. That answers the open question in
+  `DESIGN_BRIEF.md` §10.2 ("how does 12% coverage look different from 100%, at card size?").
+- **Basemap is OpenStreetMap tiles**, not MapTiler, with a warm-grid fallback that is a
+  *designed state*, not an error. **Amended 2026-09-15: satellite imagery, not street tiles** —
+  see "Basemap" below. `architecture.md` §6 names MapTiler and needs revisiting either way.
+- **It names `llama-3.1-8b-instruct` as the local model.** We installed
+  `qwen2.5:7b-instruct-q4_K_M`. Same size class; pick one deliberately in Phase 11 rather
+  than letting the mismatch decide.
+- The prototype's data is synthetic but shaped to `docs/data-findings.md` — 48.8% coverage,
+  ~127 blind windows, ~3790 samples. Replace with real records; the shapes should line up.
+
+**How to use it:** recreate the designs in `web/` using this codebase's patterns. Do not copy
+the prototype's HTML into production.
+
+---
+
+## Local LLM stack — installed 2026-09-15
+
+Everything lives under `/Users/Shared/llm` so it is reachable by every user on the machine,
+and so no model is ever cached twice. `/Users/Shared/llm/README.md` documents it fully.
+
+| layer | what | where |
+|---|---|---|
+| Engine | Ollama 0.34.0 | `/opt/homebrew/bin/ollama`, serves `:11434` |
+| Model | `qwen2.5:7b-instruct-q4_K_M` (4.4 GB) | `/Users/Shared/llm/models` |
+| Gateway | LiteLLM 1.101.0, OpenAI-compatible | `/Users/Shared/llm/venv`, serves `:4000` |
+| HF cache | moved out of `~/.cache` | `/Users/Shared/llm/huggingface` |
+
+**Measured on this machine** (M1 MacBook Air, 16 GB): **13 tok/s**, ~4.5 GB resident. A
+100-token prose pass ≈ 8 s, so all three Phase 11 commentaries ≈ 25 s. Comfortably inside
+the five-minute budget, with room for Phase 5's audit pass.
+
+**Three env vars make it work** — in `~/.bash_profile` and `~/.zprofile` already; `/etc/zshenv`
+and `/etc/profile` for all users needs sudo:
+
+```bash
+export OLLAMA_MODELS=/Users/Shared/llm/models
+export HF_HOME=/Users/Shared/llm/huggingface
+export TORCH_HOME=/Users/Shared/llm/torch
+```
+
+**Two traps.** Neither service starts at boot — they were launched from a shell. And a
+launchd-started daemon (`brew services start ollama`) reads **no** shell profile, so it would
+fall back to `~/.ollama/models` and appear to have lost the model; the fix is
+`EnvironmentVariables` in the plist.
+
+**Tone finding, relevant to Phase 11.** The first test generation opened with *"You had a
+great session"* — unprompted praise about numbers it cannot verify. In a product where every
+figure is marked *proposed* (ADR-0013), that tone is a defect. The prompts will have to work
+against it.
+
+---
+
+## Open questions — carried, unanswered
+
+Both came out of inspecting the reference FIT on 2026-08-31 and need a decision before the
+phases that depend on them:
+
+- [ ] **Decode the Connect IQ developer fields for comparison only?** The file carries another
+      app's derived values — `wavenum`, `LRtxt1` (# of Lefts), `LRtxt2` (# of Rights),
+      `wavespd`, `wavedist`, plus per-record `waveplot` (kph) and `Height` (m). ADR-0008 keeps
+      them out of the pipeline and that stands. The open question is whether to decode them
+      **for display-only disagreement** — "the app says 14 waves, we propose 22" — which is
+      information about our detector rather than input to it. Blocks nothing; decide before Phase 9.
+- [ ] **Height for manoeuvre detection.** The records carry **no altitude at all** (no field 2
+      or 78). The only height signal in the file is that app's derived `Height`. Phase 7's
+      manoeuvre definition says "changes in acceleration and/or height" — so either accept a
+      third-party derived signal for that half, or drop height and work from acceleration
+      alone. Blocks Phase 7.
+
+
+---
+
+## Decisions taken on the handover — 2026-09-15
+
+### Language — follows the system, never hard-coded
+
+The design ships Portuguese. **The product does not.** UI strings and the LLM's prose both
+follow the user's system locale; `pt-PT` becomes the first catalogue, not the only one.
+
+- [ ] Message catalogues keyed by locale; `pt-PT` transcribed from the design, `en` alongside it
+- [ ] Locale resolved from the browser (`navigator.language`) with an explicit override, since
+      a local-first app has no account to carry a preference
+- [ ] **The LLM answers in the resolved locale too.** The prompt states the target language;
+      the model is asked for prose in that language, not for English later translated
+- [ ] No string literal in a component. A hard-coded label is the bug this decision exists to
+      prevent, and it is cheapest to enforce from the first screen rather than retrofit
+- [ ] Numbers and dates go through `Intl` — km/h, decimal commas and date order are all
+      locale-dependent, and Portuguese formats differ from English
+
+### Basemap — satellite, cached once
+
+Satellite imagery, not street tiles: a surf session is coastline, sandbanks and a peak, none
+of which a street map renders. Miguel's observation shapes the implementation — **the tiles
+are static and load once per session**, so smooth-pan performance is not a requirement and
+caching is trivially correct.
+
+- [ ] **Esri World Imagery** as the source: keyless, free, satellite, and it satisfies the $0
+      stack rule. Attribution is required and goes in the map's corner
+- [ ] **Cache tiles to disk on first fetch**, keyed by z/x/y, exactly as the marine data will
+      be. A session's tiles are fetched once and the app is fully offline afterwards —
+      which is what `architecture.md` §7 requires
+- [ ] The designed warm-grid fallback stays, for a session whose tiles were never fetched
+- [ ] A session covers a few hundred metres of coast, so the tile count per session is small.
+      Bound it anyway, and never fetch tiles for a viewport the user has not opened
+
+### Accepted from the design as-is
+
+- **Measured / estimated / blind**: solid · dashed translucent (`#3E6B7C`) · absence plus a
+  dedicated blind rail. Replaces the hatch.
+- **Coverage expressed typographically**: low-coverage numbers render lighter and more
+  transparent, plus a coverage arc.
