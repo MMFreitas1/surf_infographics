@@ -1,0 +1,145 @@
+/* ===========================================================================
+   MF Concepts — Color System
+   ---------------------------------------------------------------------------
+   The brand is built on a deliberate COMPLEMENTARY pairing:
+
+     · AMBER  (creativity) — yellow → amber. The drive to make, to craft.
+     · BLUE   (future)     — a light, futuristic tech blue. Harmony, outlook.
+
+   Amber sits at ~hue 40°, the tech blue at ~hue 205° — near-opposite on the
+   wheel, so the two colors push against each other and pull the eye. Art
+   fused with technology: warm hand, cool horizon.
+
+   The unifier is INK — a deep teal-navy lifted straight from the wordmark.
+   It is bluish enough to belong to the tech side, dark enough to ground the
+   warmth. Neutrals are warm-tinted (cream paper), never clinical gray.
+   =========================================================================== */
+
+:root {
+  /* ---- Amber — creativity ramp (yellow → amber → ember) ---------------- */
+  --amber-50:  #FDF6E9;
+  --amber-100: #FBE9C4;
+  --amber-200: #F8D89A;   /* soft yellow — creative highlight */
+  --amber-300: #F4C25C;
+  --amber-400: #F2A024;   /* bright amber */
+  --amber-500: #E8951C;   /* ★ brand amber (from the logo) */
+  --amber-600: #C9760F;
+  --amber-700: #A85C0C;
+  --amber-800: #7E4309;
+  --amber-900: #5A2F08;   /* deep ember (beard shadow) */
+
+  /* ---- Tech blue — future ramp (light → sky → lens) -------------------- */
+  --blue-50:  #EAF6FD;
+  --blue-100: #C9E8FA;
+  --blue-200: #9FD7F4;
+  --blue-300: #6BC2EC;
+  --blue-400: #3FAEE4;
+  --blue-500: #2FA8E6;   /* ★ brand tech-blue (light, futuristic) */
+  --blue-600: #1E86C4;
+  --blue-700: #166697;
+  --blue-800: #114E73;
+  --blue-900: #0E3A55;   /* deep lens blue */
+
+  /* ---- Warm neutrals — cream paper, never clinical gray --------------- */
+  --warm-0:   #FFFFFF;
+  --warm-50:  #FBF7F0;   /* default page — warm cream */
+  --warm-100: #F4EDE1;
+  --warm-200: #E9DECC;
+  --warm-300: #D6C7AE;
+  --warm-400: #B3A084;
+  --warm-500: #877A64;   /* muted warm text */
+  --warm-600: #5F5544;
+  --warm-700: #41392D;
+  --warm-800: #29241B;
+  --warm-900: #181410;
+
+  /* ---- Ink — deep teal-navy, the wordmark color (the unifier) --------- */
+  --ink-900: #0E1F26;   /* darkest — dark-mode base */
+  --ink-800: #122832;   /* ★ wordmark ink — primary text */
+  --ink-700: #1B3A46;
+  --ink-600: #2A5160;
+  --ink-500: #3E6B7C;
+
+  /* ---- Signal — borrowed sparingly from Miguel's CV ------------------- */
+  --green-500: #4A7C59;  /* "current / live" green */
+  --green-600: #3C6549;
+  --red-500:   #D2452F;  /* warm danger — never a cold red */
+  --red-600:   #B23522;
+
+  /* =====================================================================
+     SEMANTIC ALIASES — design against these, not the raw ramps
+     ===================================================================== */
+
+  /* Surfaces */
+  --bg:            var(--warm-50);
+  --surface:       var(--warm-0);
+  --surface-2:     var(--warm-100);
+  --surface-sunken:var(--warm-100);
+  --surface-ink:   var(--ink-800);    /* dark panels on a light page */
+
+  /* Text */
+  --text:          var(--ink-800);
+  --text-muted:    var(--warm-500);
+  --text-subtle:   var(--warm-400);
+  --text-on-ink:   var(--warm-50);
+  --text-on-amber: var(--ink-900);
+  --text-on-blue:  var(--warm-0);
+
+  /* Brand roles */
+  --primary:       var(--amber-500);   /* creativity — the doing color */
+  --primary-hover: var(--amber-600);
+  --primary-press: var(--amber-700);
+  --primary-soft:  var(--amber-100);
+  --accent:        var(--blue-500);    /* future — the tech color */
+  --accent-hover:  var(--blue-600);
+  --accent-press:  var(--blue-700);
+  --accent-soft:   var(--blue-100);
+
+  /* Lines & focus */
+  --border:        var(--warm-200);
+  --border-strong: var(--warm-300);
+  --ring:          color-mix(in oklch, var(--blue-500) 55%, transparent);
+
+  /* Signal roles */
+  --success:       var(--green-500);
+  --success-soft:  #E3EEE5;
+  --warning:       var(--amber-500);
+  --warning-soft:  var(--amber-100);
+  --danger:        var(--red-500);
+  --danger-soft:   #FBE3DE;
+  --info:          var(--blue-500);
+  --info-soft:     var(--blue-100);
+
+  /* The art↔tech signature gradient (use deliberately, never as filler) */
+  --gradient-brand: linear-gradient(100deg, var(--amber-500) 0%, var(--amber-400) 38%, var(--blue-500) 100%);
+  --gradient-amber: linear-gradient(160deg, var(--amber-300) 0%, var(--amber-600) 100%);
+  --gradient-ink:   linear-gradient(165deg, var(--ink-700) 0%, var(--ink-900) 100%);
+}
+
+/* ===========================================================================
+   DARK THEME — ink surface, warm text, amber + blue accents.
+   Mirrors the white-letter / Technology logo variants on dark grounds.
+   =========================================================================== */
+[data-theme="dark"] {
+  --bg:            var(--ink-900);
+  --surface:       var(--ink-800);
+  --surface-2:     var(--ink-700);
+  --surface-sunken:#0A171D;
+  --surface-ink:   #0A171D;
+
+  --text:          var(--warm-50);
+  --text-muted:    #93A4AB;
+  --text-subtle:   #5E7178;
+  --text-on-ink:   var(--warm-50);
+
+  --primary-soft:  color-mix(in oklch, var(--amber-500) 22%, var(--ink-900));
+  --accent-soft:   color-mix(in oklch, var(--blue-500) 22%, var(--ink-900));
+
+  --border:        color-mix(in oklch, var(--warm-50) 12%, transparent);
+  --border-strong: color-mix(in oklch, var(--warm-50) 22%, transparent);
+
+  --success-soft:  color-mix(in oklch, var(--green-500) 24%, var(--ink-900));
+  --warning-soft:  color-mix(in oklch, var(--amber-500) 22%, var(--ink-900));
+  --danger-soft:   color-mix(in oklch, var(--red-500) 24%, var(--ink-900));
+  --info-soft:     color-mix(in oklch, var(--blue-500) 22%, var(--ink-900));
+}

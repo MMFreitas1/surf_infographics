@@ -1,0 +1,48 @@
+/* ===========================================================================
+   MF Concepts — Elevation & Motion
+   ---------------------------------------------------------------------------
+   Shadows are warm-tinted (built on the ink/amber hue, never pure black) and
+   soft. The brand also uses two signature glows — an amber "creative" glow
+   and a blue "tech" glow — for focus, active, and hero accents.
+
+   Motion is calm and intentional: short fades and gentle rises (the CV's
+   fadeUp), eased with a smooth cubic-bezier. Nothing bounces. Nothing loops.
+   =========================================================================== */
+
+:root {
+  /* Warm-tinted elevation */
+  --shadow-xs:  0 1px 2px rgba(18, 40, 50, 0.06);
+  --shadow-sm:  0 1px 3px rgba(18, 40, 50, 0.08), 0 1px 2px rgba(18, 40, 50, 0.05);
+  --shadow-md:  0 4px 12px rgba(18, 40, 50, 0.10), 0 2px 4px rgba(18, 40, 50, 0.06);
+  --shadow-lg:  0 12px 28px rgba(18, 40, 50, 0.12), 0 6px 10px rgba(18, 40, 50, 0.07);
+  --shadow-xl:  0 24px 56px rgba(18, 40, 50, 0.16), 0 10px 20px rgba(18, 40, 50, 0.08);
+
+  /* Signature glows — use sparingly, for emphasis */
+  --glow-amber: 0 0 0 1px rgba(232, 149, 28, 0.35), 0 6px 24px rgba(232, 149, 28, 0.22);
+  --glow-blue:  0 0 0 1px rgba(47, 168, 230, 0.35), 0 6px 24px rgba(47, 168, 230, 0.22);
+
+  /* Focus ring */
+  --focus-ring: 0 0 0 3px var(--ring);
+
+  /* Easing */
+  --ease-out:   cubic-bezier(0.22, 1, 0.36, 1); /* @kind other */
+  --ease-in-out:cubic-bezier(0.65, 0, 0.35, 1); /* @kind other */
+  --ease-smooth:cubic-bezier(0.4, 0, 0.2, 1); /* @kind other */
+
+  /* Duration */
+  --dur-fast:   140ms; /* @kind other */
+  --dur-base:   240ms; /* @kind other */
+  --dur-slow:   420ms; /* @kind other */
+  --dur-slower: 800ms; /* @kind other */
+}
+
+/* The CV's signature entrance — fade + rise */
+@keyframes mf-fade-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes mf-fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

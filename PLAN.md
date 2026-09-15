@@ -12,6 +12,8 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Tier** | 2 · approved 2026-08-28 |
 | **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness |
 | **Next** | **Phase 5 — clean the signal.** 1.3% of fixes are physically impossible (max 74.8 km/h) and they are what draws spikes across the map and would crown a bogus "best wave". Nothing downstream is worth drawing until they are gone. Start at **"Phase 5 · Clean signal"** |
+| **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
+| **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
 | **Health** | `make check` → 344 tests green (253 api · 43 web · 48 evals); 12 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
@@ -722,3 +724,98 @@ its change against the last.
 
 **Done when:** each level renders its comment offline against a local model, the same input
 gives the same words, and the context budget is provably bounded by a test.
+
+
+---
+
+## Design handover — v1.0, 2026-09-15
+
+Built in Claude Design over two weeks against `DESIGN_BRIEF.md`, then exported.
+**Location:** `design_handover/design_handoff_surf_analytics/`
+
+| | |
+|---|---|
+| `README.md` | 28 KB. The spec. Read it first |
+| `prototype/Surf Analytics.dc.html` | working prototype — a **reference, not production code**. Open over http |
+| `prototype/_ds/mf-concepts-design-system-*/` | the design system: `_ds_bundle.js`, `styles.css`, and `tokens/{base,colors,elevation,fonts,spacing,typography}.css` |
+| `prototype/assets/` | logo lockup + mark |
+
+**What it decided that the brief did not:**
+
+- **The UI is in Portuguese (pt-PT).** Tabs are *Sessões · Sessão · Onda*. Nothing in
+  `DESIGN_BRIEF.md` specified a language — this is a real product decision arriving with the
+  design, and it reaches every string in the app.
+- **The measured/estimated/blind language changed, for the better.** Solid stroke = measured;
+  dashed translucent (`#3E6B7C`) = estimated; **absence plus a dedicated "blind rail"** = no
+  data. It explicitly replaces the hatch — which this project had already had to lighten
+  twice because a real session has 128 separate blind windows. Never a hatch, never a fake
+  value.
+- **Coverage is expressed typographically** — a number from low-coverage data renders lighter
+  and more transparent, plus a small coverage arc. That answers the open question in
+  `DESIGN_BRIEF.md` §10.2 ("how does 12% coverage look different from 100%, at card size?").
+- **Basemap is OpenStreetMap tiles**, not MapTiler, with a warm-grid fallback that is a
+  *designed state*, not an error. Revisit `architecture.md` §6, which names MapTiler.
+- **It names `llama-3.1-8b-instruct` as the local model.** We installed
+  `qwen2.5:7b-instruct-q4_K_M`. Same size class; pick one deliberately in Phase 11 rather
+  than letting the mismatch decide.
+- The prototype's data is synthetic but shaped to `docs/data-findings.md` — 48.8% coverage,
+  ~127 blind windows, ~3790 samples. Replace with real records; the shapes should line up.
+
+**How to use it:** recreate the designs in `web/` using this codebase's patterns. Do not copy
+the prototype's HTML into production.
+
+---
+
+## Local LLM stack — installed 2026-09-15
+
+Everything lives under `/Users/Shared/llm` so it is reachable by every user on the machine,
+and so no model is ever cached twice. `/Users/Shared/llm/README.md` documents it fully.
+
+| layer | what | where |
+|---|---|---|
+| Engine | Ollama 0.34.0 | `/opt/homebrew/bin/ollama`, serves `:11434` |
+| Model | `qwen2.5:7b-instruct-q4_K_M` (4.4 GB) | `/Users/Shared/llm/models` |
+| Gateway | LiteLLM 1.101.0, OpenAI-compatible | `/Users/Shared/llm/venv`, serves `:4000` |
+| HF cache | moved out of `~/.cache` | `/Users/Shared/llm/huggingface` |
+
+**Measured on this machine** (M1 MacBook Air, 16 GB): **13 tok/s**, ~4.5 GB resident. A
+100-token prose pass ≈ 8 s, so all three Phase 11 commentaries ≈ 25 s. Comfortably inside
+the five-minute budget, with room for Phase 5's audit pass.
+
+**Three env vars make it work** — in `~/.bash_profile` and `~/.zprofile` already; `/etc/zshenv`
+and `/etc/profile` for all users needs sudo:
+
+```bash
+export OLLAMA_MODELS=/Users/Shared/llm/models
+export HF_HOME=/Users/Shared/llm/huggingface
+export TORCH_HOME=/Users/Shared/llm/torch
+```
+
+**Two traps.** Neither service starts at boot — they were launched from a shell. And a
+launchd-started daemon (`brew services start ollama`) reads **no** shell profile, so it would
+fall back to `~/.ollama/models` and appear to have lost the model; the fix is
+`EnvironmentVariables` in the plist.
+
+**Tone finding, relevant to Phase 11.** The first test generation opened with *"You had a
+great session"* — unprompted praise about numbers it cannot verify. In a product where every
+figure is marked *proposed* (ADR-0013), that tone is a defect. The prompts will have to work
+against it.
+
+---
+
+## Open questions — carried, unanswered
+
+Both came out of inspecting the reference FIT on 2026-08-31 and need a decision before the
+phases that depend on them:
+
+- [ ] **Decode the Connect IQ developer fields for comparison only?** The file carries another
+      app's derived values — `wavenum`, `LRtxt1` (# of Lefts), `LRtxt2` (# of Rights),
+      `wavespd`, `wavedist`, plus per-record `waveplot` (kph) and `Height` (m). ADR-0008 keeps
+      them out of the pipeline and that stands. The open question is whether to decode them
+      **for display-only disagreement** — "the app says 14 waves, we propose 22" — which is
+      information about our detector rather than input to it. Blocks nothing; decide before Phase 9.
+- [ ] **Height for manoeuvre detection.** The records carry **no altitude at all** (no field 2
+      or 78). The only height signal in the file is that app's derived `Height`. Phase 7's
+      manoeuvre definition says "changes in acceleration and/or height" — so either accept a
+      third-party derived signal for that half, or drop height and work from acceleration
+      alone. Blocks Phase 7.
