@@ -55,7 +55,7 @@ jobs:
 
       # action inputs are NOT affected by defaults.run.working-directory,
       # so the path to package.json must be given explicitly
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           package_json_file: web/package.json
 
