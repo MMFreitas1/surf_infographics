@@ -5,7 +5,7 @@
     "fixes_before": 64,
     "fixes_after": 61,
     "speeds_before": 64,
-    "speeds_after": 59,
+    "speeds_after": 58,
     "rejections": [
       {
         "t": 18.0,
@@ -48,6 +48,13 @@
         "effect": "speed_dropped",
         "value": 31.0,
         "limit": 25.0
+      },
+      {
+        "t": 104.0,
+        "reason": "speed_vs_odometer_window",
+        "effect": "speed_dropped",
+        "value": 16.5,
+        "limit": 20.7
       }
     ],
     "coverage_before": 0.5333333333333333,
@@ -58,7 +65,8 @@
       "implied_acceleration": 1,
       "speed_vs_odometer": 1,
       "speed_vs_position": 1,
-      "speed_impossible": 1
+      "speed_impossible": 1,
+      "speed_vs_odometer_window": 1
     }
   },
   "disabled": {

@@ -30,6 +30,7 @@ rather than inventing a rule for it is the difference between a cleaner and a fu
 from __future__ import annotations
 
 import math
+from bisect import bisect_left, bisect_right
 from collections.abc import Sequence
 from dataclasses import dataclass
 from itertools import pairwise
@@ -55,8 +56,11 @@ from surf.pipeline.stage import StageMeta
 NAME = "L0.5"
 """Cleaning is stage L0.5: after ingest, before anything that estimates."""
 
-CODE_VERSION = "1"
-"""Bump when the rules change what they reject, so cached sessions are not reused."""
+CODE_VERSION = "2"
+"""Bump when the rules change what they reject, so cached sessions are not reused.
+
+2: added ``speed_vs_odometer_window``, and stopped trusting a dead odometer as a witness.
+"""
 
 _REPORT_KEY = b"surf.l05.report"
 """Parquet key-value metadata entry holding the :class:`CleanReport`."""
@@ -141,6 +145,15 @@ class CleanStage:
     """
     speed_bracket_s: float = 10.0
     """Widest span of bracketing fixes that can still contradict a single second's speed."""
+    odometer_window_s: float = 5.0
+    """Half-width of the window a reading must be contained by, in seconds.
+
+    Kept tight on purpose. The check is arithmetic -- one second of travel cannot exceed the
+    travel of a window containing it -- but widening the window only adds ground the surfer
+    covered at other moments, which weakens it. On the reference session ±3 s, ±5 s and ±8 s
+    all convict exactly the same single reading, so 5.0 sits in the middle of a flat region
+    rather than on a knife-edge.
+    """
 
     @property
     def meta(self) -> StageMeta:
@@ -159,6 +172,7 @@ class CleanStage:
                 "min_checkable_speed_ms": self.min_checkable_speed_ms,
                 "speed_agreement_ratio": self.speed_agreement_ratio,
                 "speed_bracket_s": self.speed_bracket_s,
+                "odometer_window_s": self.odometer_window_s,
             },
         )
 
@@ -276,7 +290,8 @@ class CleanStage:
         Only reads the samples the position channel left alone -- a demoted fix has already
         lost its speed, and convicting it twice would double-count the same second.
         """
-        odometer = _odometer_rates(samples)
+        odometer = _odometer_rates(samples) if _odometer_is_live(samples) else {}
+        trace = _odometer_trace(samples) if odometer else []
         surviving = [s for s in samples if s.t not in demoted]
         bracket = _project(surviving)
         by_time = {fix.t: i for i, fix in enumerate(bracket)}
@@ -300,6 +315,15 @@ class CleanStage:
                 if rate < floor:
                     rejected[sample.t] = _speed_dropped(
                         sample.t, RejectionReason.SPEED_VS_ODOMETER, rate, floor
+                    )
+                    continue
+                # The step agreed -- which is not the end of it, because the odometer can
+                # glitch in the same second the speed field does, and then the two corroborate
+                # each other's error. The window around the second cannot.
+                travelled = _odometer_travel(trace, sample.t, self.odometer_window_s)
+                if travelled is not None and travelled < speed:
+                    rejected[sample.t] = _speed_dropped(
+                        sample.t, RejectionReason.SPEED_VS_ODOMETER_WINDOW, travelled, speed
                     )
                 continue
 
@@ -391,6 +415,38 @@ def _odometer_rates(samples: Sequence[Sample]) -> dict[float, float]:
             continue
         rates[later.t] = (later.distance_m - earlier.distance_m) / dt
     return rates
+
+
+def _odometer_is_live(samples: Sequence[Sample]) -> bool:
+    """True when the device's distance counter actually moved during the session.
+
+    A counter that never advances is not a witness, it is a broken instrument -- and without
+    this check it would testify against every fast second in the session and be believed,
+    because "the odometer says you did not move" is exactly what a dead odometer says.
+    """
+    readings = [s.distance_m for s in samples if s.distance_m is not None]
+    return len(readings) >= 2 and max(readings) > min(readings)
+
+
+def _odometer_trace(samples: Sequence[Sample]) -> list[tuple[float, float]]:
+    """(time, cumulative distance) for every sample carrying the counter, in time order."""
+    return [(s.t, s.distance_m) for s in samples if s.distance_m is not None]
+
+
+def _odometer_travel(
+    trace: Sequence[tuple[float, float]], t: float, half_width: float
+) -> float | None:
+    """Ground the odometer covered within ``half_width`` seconds either side of ``t``.
+
+    None when the window holds fewer than two readings, which is not evidence of standing
+    still -- it is an absence of evidence, and this stage does not convict on one.
+    """
+    times = [row[0] for row in trace]
+    lo = bisect_left(times, t - half_width)
+    hi = bisect_right(times, t + half_width)
+    if hi - lo < 2:
+        return None
+    return trace[hi - 1][1] - trace[lo][1]
 
 
 def _demoted(t: float, reason: RejectionReason, value: float, limit: float) -> RejectedFix:

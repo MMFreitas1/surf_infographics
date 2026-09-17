@@ -296,6 +296,59 @@ def test_a_speed_beyond_anything_a_board_does_needs_no_corroboration():
     assert report.rejections[0].effect is RejectionEffect.SPEED_DROPPED
 
 
+def test_the_window_convicts_a_second_the_odometer_glitched_along_with():
+    """The gap `speed_vs_odometer` alone cannot close.
+
+    The step check asks "did the counter move this second", and here it did -- 10 m, which
+    comfortably clears the ratio. But the counter covered only 19 m across the eleven seconds
+    *containing* that one, and a reading of 20 m/s asserts 20 m inside it. One second cannot
+    cover more ground than the window holding it, whatever the two instruments agree on.
+    """
+    speeds = [1.0] * 11
+    speeds[5] = 20.0
+    distances = [0.0, 1.0, 2.0, 3.0, 4.0, 14.0, 15.0, 16.0, 17.0, 18.0, 19.0]
+    result = CleanStage().run(make_session(line(11), speeds=speeds, distances=distances))
+
+    assert reasons(result.report) == [RejectionReason.SPEED_VS_ODOMETER_WINDOW]
+    rejected = result.report.rejections[0]
+    assert rejected.effect is RejectionEffect.SPEED_DROPPED
+    assert rejected.value == pytest.approx(19.0)
+    assert rejected.limit == pytest.approx(20.0)
+    assert result.activity.samples[5].has_position is True
+
+
+def test_a_burst_the_window_can_account_for_is_kept():
+    """A real ride covers the ground it claims, so the containment check never reaches it."""
+    speeds = [10.0] * 11
+    distances = [float(i * 10) for i in range(11)]
+    activity = make_session(line(11, 10.0), speeds=speeds, distances=distances)
+    assert CleanStage().run(activity).report.rejections == []
+
+
+def test_a_dead_odometer_is_not_a_witness():
+    """A counter that never advances says "you did not move" about every second of the
+    session. Believing it would drop every fast reading in the recording, so the stage
+    checks the instrument before it accepts the testimony -- and asks the positions instead.
+    """
+    speeds = [0.0] * 11
+    speeds[5] = 20.0
+    result = CleanStage().run(make_session([(0.0, 0.0)] * 11, speeds=speeds, distances=[0.0] * 11))
+
+    assert reasons(result.report) == [RejectionReason.SPEED_VS_POSITION]
+
+
+def test_a_window_with_nothing_in_it_convicts_nobody():
+    """Absence of evidence. With readings a hundred seconds apart nothing brackets this
+    second, and the stage says nothing rather than reading the silence as a contradiction."""
+    activity = make_session(
+        [(0.0, 0.0), (1.0, 0.0), (2.0, 0.0)],
+        speeds=[None, 20.0, None],
+        distances=[0.0, 2000.0, 2100.0],
+        times=[0, 100, 200],
+    )
+    assert CleanStage().run(activity).report.rejections == []
+
+
 def test_positions_contradict_a_speed_when_there_is_no_odometer():
     """The fallback for a format that records no distance, GPX among them."""
     speeds = [0.0] * 11
@@ -484,10 +537,11 @@ def test_injected_artefacts_are_each_caught_and_named(synthetic_seeds):
 def test_the_reference_session_is_cleaned_to_known_numbers(sample_fit):
     """Pins what this stage does to real data, so a threshold change has to be deliberate.
 
-    Note the top speed: 74.8 -> 74.5 km/h. Pass 1 removes nine of the twelve readings above
-    54 km/h, but the highest survives because the speed field, the odometer and the
-    positions all agree it was fast. It is one second inside a stretch that is not surfing
-    at all, and removing a stretch is Pass 2's job, not per-fix physics (ADR-0014).
+    Top speed lands at 54.1 km/h, down from 74.8. What remains is not an artefact: it is a
+    genuine ride whose odometer corroborates roughly 9.7 m/s while the speed field reports
+    15.03, so the watch over-reads by about 1.6x across that whole ride. Which channel a
+    wave metric should quote is Phase 7's calibration question, and cleaning has no business
+    answering it -- nothing here contradicts that reading, so nothing here removes it.
     """
     activity = parse_activity(sample_fit.read_bytes(), sample_fit.name)
     result = CleanStage().run(activity)
@@ -497,7 +551,11 @@ def test_the_reference_session_is_cleaned_to_known_numbers(sample_fit):
         "implied_speed": 24,
         "implied_acceleration": 1,
         "speed_vs_odometer": 18,
+        "speed_vs_odometer_window": 1,
     }
+    assert len({r.t for r in report.rejections}) == len(report.rejections), (
+        "a second convicted twice would double-count in the confidence card"
+    )
     assert report.fixes_before == 1849
     assert report.fixes_after == 1824
     assert report.coverage_before == pytest.approx(0.4879, abs=5e-5)
@@ -507,7 +565,13 @@ def test_the_reference_session_is_cleaned_to_known_numbers(sample_fit):
         return sum(1 for s in session.samples if s.speed_ms is not None and s.speed_ms > 15.0)
 
     assert above_54_kmh(activity) == 12
-    assert above_54_kmh(result.activity) == 3
+    assert above_54_kmh(result.activity) == 2
+
+    def top_speed_kmh(session):
+        return max(s.speed_ms for s in session.samples if s.speed_ms is not None) * 3.6
+
+    assert top_speed_kmh(activity) == pytest.approx(74.8, abs=0.1)
+    assert top_speed_kmh(result.activity) == pytest.approx(54.1, abs=0.1)
 
 
 def test_the_reference_sessions_worst_positional_jump_is_gone(sample_fit):

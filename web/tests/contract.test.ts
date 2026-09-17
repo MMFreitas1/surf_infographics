@@ -73,7 +73,7 @@ const cleaning = JSON.parse(readFileSync(cleaningPath, "utf8"));
 describe("cleaning contract", () => {
   it("parses as a CleanReport", () => {
     const report = CleanReport.parse(cleaning.report);
-    expect(report.rejections).toHaveLength(6);
+    expect(report.rejections).toHaveLength(RejectionReason.options.length);
     expect(report.enabled).toBe(true);
   });
 

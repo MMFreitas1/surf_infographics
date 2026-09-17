@@ -167,6 +167,24 @@ personal data, no third-party values. Human labels from Phase 4 join the same ha
 `make verify` reuses whatever already serves :3000, so it works against dev server or container.
 Browser errors POST to `/diagnostics/client-error`, so UI and API failures share one buffer.
 
+### Found by the loop, not yet fixed — 2026-09-17
+
+Both surfaced while verifying Phase 5's odometer fix. Neither is caused by it; both are
+recorded here so they survive a `/clear`, and neither was folded into an unrelated PR.
+
+- [ ] **SQLite reads are not serialised, and the label page trips it.** `store/repo.py` opens
+      one connection with `check_same_thread=False` and shares it across FastAPI's threadpool,
+      but only `save` and `delete` take `self._lock` — `get`, `samples_key`, `summaries`,
+      `id_for_digest` and `_blind_windows` all execute unlocked. Opening `/label/{id}` fires
+      four requests at once and raised `sqlite3.InterfaceError: bad parameter or other API
+      misuse` from `repo.get`, which the browser then reported as `ApiUnreachable`. Structural
+      and present since PR #19. **User-facing: a session page can fail to load its labels.**
+- [ ] **`make verify` flakes on a cold Next dev server.** The scrub spec takes **25.1 s**
+      against a 30 s default timeout when the route has not been compiled yet, and 4.0 s once
+      it has. It failed once, then passed on every rerun. Either raise the per-test timeout in
+      `playwright.config.ts` or warm the route before asserting — a verification harness that
+      cries wolf is worse than none.
+
 ## Deferred, with reasons
 
 | Item | Why | Unblocks when |

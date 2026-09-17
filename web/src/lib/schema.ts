@@ -29,6 +29,7 @@ export const RejectionReason = z.enum([
   "implied_acceleration",
   "jump_and_return",
   "speed_vs_odometer",
+  "speed_vs_odometer_window",
   "speed_vs_position",
   "speed_impossible",
 ]);
