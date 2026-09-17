@@ -45,6 +45,7 @@ may not have.
 | Stage | Name | Output |
 |---|---|---|
 | L0 | ingest | `Activity` — 1 Hz `Sample[]`, `BlindWindow[]`, device/session metadata. Cached as one Parquet payload: samples as columns, session and windows as file metadata. SQLite indexes the same facts so they can be queried |
+| L0.5 | clean | `CleanedSession` — the session with physically impossible fixes demoted to blind and contradicted speed readings cleared, plus a `CleanReport` naming every rejection, its evidence and its effect. Rejection is a demotion, never a deletion, and the blind windows are redrawn so coverage counts only seconds we still believe (ADR-0014) |
 | L1 | kinematics | `SmoothedSample[]` — Kalman + RTS-smoothed position/velocity, posterior sigma and confidence per second, `observed` marking fix from estimate. A parallel track, never an overwrite (ADR-0010) |
 | L2 | frame | `SessionFrame` + `FramedSample[]` — shore bearing from a speed-weighted sum of headings, then position and velocity rotated into cross-shore / alongshore. The frame carries its own reliability: `coherence` and a Kish effective sample size, both of which must clear a threshold before the bearing is trusted (ADR-0011) |
 | L3 | candidates | `CandidateSet` — high-recall `WaveCandidate[]` from sustained shoreward motion, thresholded on a **quantile of the session's own** cross-shore speed rather than an absolute one, plus the `SessionFrame` they were measured against. `position_coverage` per candidate; no `score` and no `direction` — L3 proposes, it does not judge |
@@ -73,6 +74,9 @@ A `Sample` without a position is still a valid sample: it carries HR, time and b
    Likewise the smoothed track is parallel to the measured one, never written over it. (ADR-0010)
 4. **Detector behind an interface** — `Detector.detect(activity) -> list[WaveCandidate]`; rule-based, GBM and LLM-adjudicated variants are judged by one harness. We ship whichever measures best. (ADR-0005)
 5. **Shore-relative feature frame** — features are spot-independent, so a model trained at Sines transfers. (ADR-0003)
+6. **The impossible is refused before anything estimates it** — a demotion to blind, never a
+   deletion, and the speed field is checked against the device's own odometer as well as
+   against the positions. Every rejection is servable with its reason. (ADR-0014)
 6. **First-party signal only** — no third-party app's derived values enter the pipeline. (ADR-0008)
 
 ## 6. Confirmed choices

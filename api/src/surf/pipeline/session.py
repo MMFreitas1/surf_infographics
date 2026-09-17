@@ -1,11 +1,15 @@
-"""Running the L1->L3 chain for one stored session.
+"""Running the L0.5->L3 chain for one stored session.
 
 The chain rule this file exists to hold: **each stage keys on the key of the stage before
-it**, never on the activity id. L1's input hash is L0's key, L2's is L1's, L3's is L2's. So
-a track can never outlive the samples it was computed from, and re-ingesting a session
-under new parse parameters invalidates everything downstream without anyone remembering to
-say so. `tests/test_pipeline_spine.py` pins that property; this module is where the API
-inherits it rather than re-deriving it per endpoint.
+it**, never on the activity id. L0.5's input hash is L0's key, L1's is L0.5's, L2's is L1's,
+L3's is L2's. So a track can never outlive the samples it was computed from, and re-ingesting
+a session under new parse parameters -- or loosening a rejection threshold -- invalidates
+everything downstream without anyone remembering to say so.
+`tests/test_pipeline_spine.py` pins that property; this module is where the API inherits it
+rather than re-deriving it per endpoint.
+
+L0.5 is first in the chain because everything after it estimates, and an estimator handed an
+impossible fix produces a confident wrong answer rather than an error (ADR-0014).
 
 Stage parameters stay at their defaults here. They are part of the cache key, so sweeping
 one later means passing a differently configured stage in -- not clearing a cache.
@@ -15,8 +19,9 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from surf.models import Activity, SessionTrack
+from surf.models import Activity, CleanReport, SessionTrack
 from surf.pipeline.cache import StageCache
+from surf.pipeline.clean import CleanedSession, CleanStage
 from surf.pipeline.l1 import KinematicsStage
 from surf.pipeline.l2 import FramedTrack, FrameStage
 from surf.pipeline.l3 import CandidateSet, CandidateStage
@@ -34,11 +39,24 @@ class ChainResult:
     track: SessionTrack
     frame_key: str
     cached: bool
+    report: CleanReport
+    """What L0.5 refused to believe on the way through. Carried so that a caller drawing
+    the track can say how much of it survived cleaning, without a second trip."""
+
+
+def clean_session(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> StageResult[CleanedSession]:
+    """L0.5 for one stored session: the head of every chain below."""
+    return run_stage(CleanStage(), cache, input_hash=samples_key, data=activity)
 
 
 def run_chain(activity: Activity, cache: StageCache, *, samples_key: str) -> ChainResult:
-    """Smooth the session and rotate it into its shore frame."""
-    smoothed = run_stage(KinematicsStage(), cache, input_hash=samples_key, data=activity)
+    """Clean the session, smooth it, and rotate it into its shore frame."""
+    cleaned = clean_session(activity, cache, samples_key=samples_key)
+    smoothed = run_stage(
+        KinematicsStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity
+    )
     framed: StageResult[FramedTrack] = run_stage(
         FrameStage(), cache, input_hash=smoothed.key, data=smoothed.output
     )
@@ -49,13 +67,27 @@ def run_chain(activity: Activity, cache: StageCache, *, samples_key: str) -> Cha
             framed=framed.output.samples,
         ),
         frame_key=framed.key,
-        cached=smoothed.cached and framed.cached,
+        cached=cleaned.cached and smoothed.cached and framed.cached,
+        report=cleaned.output.report,
     )
 
 
 def track_for(activity: Activity, cache: StageCache, *, samples_key: str) -> ChainResult:
     """The L1 track and its L2 rotation, as one aligned pair the UI can draw."""
     return run_chain(activity, cache, samples_key=samples_key)
+
+
+def cleaning_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[CleanReport, bool]:
+    """What L0.5 rejected on this session, and whether the cache produced it.
+
+    Its own entry point rather than a field read off the track: device confidence is a
+    question about the recording, and answering it must not require smoothing the session
+    first (ADR-0014).
+    """
+    cleaned = clean_session(activity, cache, samples_key=samples_key)
+    return cleaned.output.report, cleaned.cached
 
 
 def candidates_for(

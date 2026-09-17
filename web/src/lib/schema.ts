@@ -24,6 +24,19 @@ export type PassKind = z.infer<typeof PassKind>;
 export const RideDirection = z.enum(["left", "right", "straight", "unknown"]);
 export type RideDirection = z.infer<typeof RideDirection>;
 
+export const RejectionReason = z.enum([
+  "implied_speed",
+  "implied_acceleration",
+  "jump_and_return",
+  "speed_vs_odometer",
+  "speed_vs_position",
+  "speed_impossible",
+]);
+export type RejectionReason = z.infer<typeof RejectionReason>;
+
+export const RejectionEffect = z.enum(["demoted_to_blind", "speed_dropped"]);
+export type RejectionEffect = z.infer<typeof RejectionEffect>;
+
 export const Sample = z.object({
   t: z.number(),
   lat: z.number().min(-90).max(90).nullable().default(null),
@@ -120,6 +133,44 @@ export const SessionCandidates = z.object({
   candidates: z.array(WaveCandidate),
 });
 export type SessionCandidates = z.infer<typeof SessionCandidates>;
+
+/**
+ * One thing L0.5 refused to believe, and the evidence that convicted it.
+ *
+ * Deliberately carries no coordinates: this is device confidence, and `value` against
+ * `limit` is the whole argument. Rendering it, keep `effect` visible — a demotion removed
+ * a second from coverage, a dropped speed did not.
+ */
+export const RejectedFix = z.object({
+  t: z.number(),
+  reason: RejectionReason,
+  effect: RejectionEffect,
+  value: z.number(),
+  limit: z.number(),
+});
+export type RejectedFix = z.infer<typeof RejectedFix>;
+
+/**
+ * What the cleaner did to one session, as `GET /activities/{id}/cleaning` returns it.
+ *
+ * The before/after pairs are the honest part and the UI should show both: a cleaner that
+ * reports only its rejections lets nobody judge whether it took too much. `coverage_after`
+ * is the number every other panel should be quoting, because it counts only the seconds we
+ * still believe the watch saw.
+ */
+export const CleanReport = z.object({
+  enabled: z.boolean().default(true),
+  sample_count: z.number().int().min(0),
+  fixes_before: z.number().int().min(0),
+  fixes_after: z.number().int().min(0),
+  speeds_before: z.number().int().min(0),
+  speeds_after: z.number().int().min(0),
+  rejections: z.array(RejectedFix).default([]),
+  coverage_before: z.number().min(0).max(1),
+  coverage_after: z.number().min(0).max(1),
+  counts_by_reason: z.record(z.string(), z.number().int()).default({}),
+});
+export type CleanReport = z.infer<typeof CleanReport>;
 
 /**
  * A label as the store holds it. Append-only: a correction is a new row naming the one it

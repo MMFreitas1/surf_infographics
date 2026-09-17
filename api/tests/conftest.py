@@ -9,6 +9,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from surf.config import Settings
+from surf.geo import M_PER_DEG_LAT
 from surf.ingest.stage import IngestStage
 from surf.llm.lifecycle import ModelBackend
 from surf.main import create_app
@@ -52,6 +53,43 @@ def stored_synthetic(client: TestClient) -> str:
         session.activity, source_sha256=digest, samples_key=key, ingested_at=0.0
     )
     return session.activity.activity_id
+
+
+@pytest.fixture
+def stored_dirty(client: TestClient) -> str:
+    """The synthetic session with one physically impossible fix injected, stored as above.
+
+    ``stored_synthetic`` is clean -- the generator produces no artefacts -- so it can never
+    show what the cleaner does at the API boundary. This one can: one fix is moved 25 m in a
+    second, which is the artefact class that made Phase 5 necessary.
+
+    25 m rather than something spectacular, and between two fixes a second either side, so
+    that the damage is exactly one second. A larger displacement is rejected too, but the
+    fixes after it are then measured against a fix a long way back and fall until enough
+    time passes to explain the distance -- true to life, and useless for a test that wants
+    to say "one rejection" and mean it.
+    """
+    session = make_synthetic_session()
+    samples = list(session.activity.samples)
+    victim = next(
+        i
+        for i, s in enumerate(samples)
+        if i > 20 and s.has_position and samples[i - 1].has_position and samples[i + 1].has_position
+    )
+    samples[victim] = samples[victim].model_copy(
+        update={"lat": (samples[victim].lat or 0.0) + 25.0 / M_PER_DEG_LAT}
+    )
+    activity = session.activity.model_copy(
+        update={"activity_id": "synthetic-dirty", "samples": samples}
+    )
+
+    app = client.app
+    stage = IngestStage()
+    digest = "6" * 64
+    key = stage_key(stage, app.state.cache, digest)
+    app.state.cache.put(stage.meta.name, key, stage.encode(activity))
+    app.state.activities.save(activity, source_sha256=digest, samples_key=key, ingested_at=0.0)
+    return activity.activity_id
 
 
 @pytest.fixture

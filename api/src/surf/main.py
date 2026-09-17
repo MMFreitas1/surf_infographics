@@ -21,6 +21,7 @@ from surf.logging import configure_logging, get_logger
 from surf.models import (
     Activity,
     ActivitySummary,
+    CleanReport,
     LabelPass,
     LabelSource,
     PassKind,
@@ -30,7 +31,7 @@ from surf.models import (
     WaveLabel,
 )
 from surf.pipeline import StageCache, run_stage
-from surf.pipeline.session import candidates_for, track_for
+from surf.pipeline.session import candidates_for, cleaning_for, track_for
 from surf.store import ActivityRepository, LabelRepository, StoreError
 
 log = get_logger(__name__)
@@ -243,6 +244,34 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from_cache=chain.cached,
         )
         return chain.track
+
+    @app.get("/activities/{activity_id}/cleaning")
+    def read_cleaning(request: Request, activity_id: str) -> CleanReport:
+        """What L0.5 refused to believe on this session, and why.
+
+        A cleaner that silently drops data is indistinguishable from a bug, so every
+        rejection is served with the evidence that convicted it and the before/after counts
+        needed to judge whether it took too much (ADR-0014).
+
+        The rejections carry no coordinates, deliberately: this is device confidence, and
+        the timestamp and the two magnitudes are the whole argument.
+        """
+        activity = _stored_or_404(request, activity_id)
+        report, cached = cleaning_for(
+            activity,
+            request.app.state.cache,
+            samples_key=_samples_key_or_404(request, activity_id),
+        )
+        log.info(
+            "cleaning.served",
+            activity_id=activity_id,
+            rejections=len(report.rejections),
+            by_reason=report.counts_by_reason,
+            coverage_before=round(report.coverage_before, 4),
+            coverage_after=round(report.coverage_after, 4),
+            from_cache=cached,
+        )
+        return report
 
     @app.get("/activities/{activity_id}/candidates")
     def read_candidates(request: Request, activity_id: str) -> SessionCandidates:

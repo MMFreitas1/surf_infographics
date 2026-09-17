@@ -69,6 +69,51 @@ class RideDirection(StrEnum):
     UNKNOWN = "unknown"
 
 
+class RejectionReason(StrEnum):
+    """Why L0.5 refused to believe something the device recorded.
+
+    Two channels, because a session carries two independent recordings of how fast the
+    surfer was going and they can fail separately. The first three read the *positions*;
+    the last three read the *speed field* and check it against something else that measured
+    the same thing.
+    """
+
+    IMPLIED_SPEED = "implied_speed"
+    """Reaching this fix from the last accepted one needs more speed than a surfer has."""
+    IMPLIED_ACCELERATION = "implied_acceleration"
+    """The implied speed changed faster than a body in water can change it."""
+    JUMP_AND_RETURN = "jump_and_return"
+    """The track left and came back inside a couple of seconds: a reacquisition, not a ride."""
+    SPEED_VS_ODOMETER = "speed_vs_odometer"
+    """The device's own distance counter did not move far enough for the speed it reported.
+
+    The strongest of the six: ``distance_m`` survives the blind half at 100% coverage, so
+    this is two first-party recordings of one quantity disagreeing, not a threshold guess.
+    """
+    SPEED_VS_POSITION = "speed_vs_position"
+    """The fixes bracketing this second contradict the speed it reported.
+
+    The fallback for a format that carries no odometer, and weaker than it looks: it can
+    only fire where fixes exist close enough on both sides to bracket the second at all.
+    """
+    SPEED_IMPOSSIBLE = "speed_impossible"
+    """The reported speed is beyond anything a surfboard does, with no corroboration needed."""
+
+
+class RejectionEffect(StrEnum):
+    """What a rejection actually did to the sample.
+
+    Two effects, because demoting a whole fix over a bad speed reading would report "we
+    could not see" about a second the watch saw perfectly well. Coverage has to keep
+    meaning what it says, in both directions.
+    """
+
+    DEMOTED_TO_BLIND = "demoted_to_blind"
+    """Position and speed cleared, ``has_position`` now False. Coverage falls by one."""
+    SPEED_DROPPED = "speed_dropped"
+    """Only ``speed_ms`` cleared. The position stood up and coverage is unchanged."""
+
+
 class Sample(BaseModel):
     """One instant of the session, nominally 1 Hz."""
 
@@ -118,6 +163,73 @@ class BlindWindow(BaseModel):
     def could_hide_a_wave(self, min_ride_s: float = 5.0) -> bool:
         """True when this window is long enough to conceal an entire ride."""
         return self.duration_s >= min_ride_s
+
+
+class RejectedFix(BaseModel):
+    """One thing L0.5 refused to believe, and the evidence that convicted it.
+
+    Deliberately carries **no coordinates**. This repo is public and these records reach
+    committed goldens; a lat/lon here would be a GPS trace in git (CLAUDE.md). The
+    timestamp, the reason and the two magnitudes are what make a rejection arguable, and
+    a coordinate adds nothing to that.
+
+    A cleaner that silently drops data is indistinguishable from a bug, so every rejection
+    becomes one of these and they are served, not just logged.
+    """
+
+    t: float
+    """Unix seconds of the sample that was rejected."""
+    reason: RejectionReason
+    effect: RejectionEffect
+    value: float
+    """What was measured -- the implied speed, the odometer's rate, the reported speed."""
+    limit: float
+    """What it had to stay under. ``value`` against ``limit`` is the whole argument."""
+
+
+class CleanReport(BaseModel):
+    """What L0.5 did to one session: device confidence, in a shape the UI can draw.
+
+    The before/after pairs are the honest part. A cleaner that reports only its rejections
+    lets nobody judge whether it took too much, so the counts it started from travel with
+    the counts it left behind.
+    """
+
+    enabled: bool = True
+    """False when the cleaner was switched off. The report still ships, saying so."""
+    sample_count: int = Field(ge=0)
+    fixes_before: int = Field(ge=0)
+    """Samples carrying a position when the cleaner started."""
+    fixes_after: int = Field(ge=0)
+    """Samples still carrying one when it finished."""
+    speeds_before: int = Field(ge=0)
+    speeds_after: int = Field(ge=0)
+    rejections: list[RejectedFix] = Field(default_factory=list)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def coverage_before(self) -> float:
+        """Position coverage as ingested."""
+        return self.fixes_before / self.sample_count if self.sample_count else 0.0
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def coverage_after(self) -> float:
+        """Position coverage once rejected fixes stopped counting as fixes.
+
+        Lower than ``coverage_before`` by exactly the number demoted -- which is the point.
+        A fix we refuse to believe must not go on being counted as a second the watch saw.
+        """
+        return self.fixes_after / self.sample_count if self.sample_count else 0.0
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def counts_by_reason(self) -> dict[str, int]:
+        """How many rejections each rule is responsible for, for the confidence card."""
+        counts: dict[str, int] = {}
+        for rejected in self.rejections:
+            counts[rejected.reason.value] = counts.get(rejected.reason.value, 0) + 1
+        return counts
 
 
 class SmoothedSample(BaseModel):
