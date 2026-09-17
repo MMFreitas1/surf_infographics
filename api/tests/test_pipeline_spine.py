@@ -41,6 +41,7 @@ from surf.ingest.stage import (
 )
 from surf.models import BlindCause, Sample
 from surf.pipeline import Stage, StageCache, StageMeta, run_stage, stage_key
+from surf.pipeline.clean import CleanStage
 from surf.pipeline.l1 import KinematicsStage
 from surf.pipeline.l2 import FrameStage
 from surf.pipeline.l3 import CandidateStage
@@ -262,33 +263,80 @@ def ingest_into(cache, *, gap_tolerance=1.5, data=None):
     return run_stage(stage, cache, input_hash=DIGEST, data=data or small_fit())
 
 
-def test_l1_runs_off_l0s_output_and_the_second_pass_never_smooths_again(tmp_path):
+def clean_into(cache, *, ingested, **params: float):
+    """Run L0.5 off an L0 result and hand back what L1 now takes as its input."""
+    return run_stage(CleanStage(**params), cache, input_hash=ingested.key, data=ingested.output)
+
+
+def test_l05_runs_off_l0s_output_and_the_second_pass_never_cleans_again(tmp_path):
     cache = StageCache(tmp_path)
     ingested = ingest_into(cache)
-    stage = KinematicsStage()
+    stage = CleanStage()
 
     first = run_stage(stage, cache, input_hash=ingested.key, data=ingested.output)
     second = run_stage(stage, cache, input_hash=ingested.key, data=Exploded())
 
     assert first.cached is False
     assert second.cached is True
+    assert second.output.activity == first.output.activity
+    assert second.output.report == first.output.report
+
+
+def test_l1_runs_off_l05s_output_and_the_second_pass_never_smooths_again(tmp_path):
+    cache = StageCache(tmp_path)
+    cleaned = clean_into(cache, ingested=ingest_into(cache))
+    stage = KinematicsStage()
+
+    first = run_stage(stage, cache, input_hash=cleaned.key, data=cleaned.output.activity)
+    second = run_stage(stage, cache, input_hash=cleaned.key, data=Exploded())
+
+    assert first.cached is False
+    assert second.cached is True
     assert [p.model_dump() for p in second.output] == [p.model_dump() for p in first.output]
-    assert len(first.output) == len(ingested.output.samples)
+    assert len(first.output) == len(cleaned.output.activity.samples)
 
 
 def test_an_l1_param_lands_in_a_different_entry(tmp_path):
     cache = StageCache(tmp_path)
-    ingested = ingest_into(cache)
+    cleaned = clean_into(cache, ingested=ingest_into(cache))
 
     tight = run_stage(
-        KinematicsStage(process_noise=0.05), cache, input_hash=ingested.key, data=ingested.output
+        KinematicsStage(process_noise=0.05),
+        cache,
+        input_hash=cleaned.key,
+        data=cleaned.output.activity,
     )
     loose = run_stage(
-        KinematicsStage(process_noise=4.0), cache, input_hash=ingested.key, data=ingested.output
+        KinematicsStage(process_noise=4.0),
+        cache,
+        input_hash=cleaned.key,
+        data=cleaned.output.activity,
     )
 
     assert tight.key != loose.key
     assert loose.cached is False
+
+
+def test_loosening_a_rejection_threshold_invalidates_the_track_beneath_it(tmp_path):
+    """A threshold sweep must be a re-key, not a re-ingest -- and it must travel downward.
+
+    This is the property that lets someone argue with the cleaner. Change what counts as
+    impossible and the smoothed track recomputes itself, so no chart can be drawn from a
+    track built under one rule while the confidence card reports another.
+    """
+    cache = StageCache(tmp_path)
+    ingested = ingest_into(cache)
+
+    strict = clean_into(cache, ingested=ingested, max_implied_speed_ms=12.0)
+    loose = clean_into(cache, ingested=ingested, max_implied_speed_ms=25.0)
+    assert strict.key != loose.key
+
+    stage = KinematicsStage()
+    on_strict = run_stage(stage, cache, input_hash=strict.key, data=strict.output.activity)
+    on_loose = run_stage(stage, cache, input_hash=loose.key, data=loose.output.activity)
+
+    assert on_strict.key != on_loose.key
+    assert on_loose.cached is False, "L1 must not serve a track cleaned under another rule"
 
 
 def test_changing_an_l0_param_invalidates_l1_too(tmp_path):
@@ -315,9 +363,15 @@ def test_changing_an_l0_param_invalidates_l1_too(tmp_path):
 
 
 def smooth_into(cache, *, ingested, **params: float):
-    """Run L1 off an L0 result and hand back what L2 needs: the output and its key."""
+    """Run L1 off an L0 result, through L0.5, and hand back what L2 needs.
+
+    The cleaner is in the middle here rather than skipped, because that is where production
+    puts it (`surf.pipeline.session.run_chain`) -- and a spine test that wired the chain
+    differently from the app would prove the chain works in a shape nobody ships.
+    """
+    cleaned = clean_into(cache, ingested=ingested)
     return run_stage(
-        KinematicsStage(**params), cache, input_hash=ingested.key, data=ingested.output
+        KinematicsStage(**params), cache, input_hash=cleaned.key, data=cleaned.output.activity
     )
 
 

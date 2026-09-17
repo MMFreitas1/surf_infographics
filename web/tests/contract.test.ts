@@ -1,6 +1,14 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { Activity, ActivitySummary, BlindWindow, Sample } from "@/lib/schema";
+import {
+  Activity,
+  ActivitySummary,
+  BlindWindow,
+  CleanReport,
+  RejectedFix,
+  RejectionReason,
+  Sample,
+} from "@/lib/schema";
 
 /**
  * The other half of the contract check. `api/tests/test_contract_parity.py` reads this same
@@ -50,5 +58,59 @@ describe("API contract", () => {
     expect(blind?.lat).toBeNull();
     expect(blind?.speed_ms).toBeNull();
     expect(activity.samples[0]?.distance_m).toBe(0);
+  });
+});
+
+/**
+ * The Phase 5 cleaning contract. Same two-sided check: `api/tests/test_contract_parity.py`
+ * holds this fixture to the Pydantic models, this holds it to the Zod schemas, and a field
+ * added on one side only fails in exactly one of the two files.
+ */
+const cleaningPath = new URL("../../evals/goldens/cleaning_contract_v1.json", import.meta.url)
+  .pathname;
+const cleaning = JSON.parse(readFileSync(cleaningPath, "utf8"));
+
+describe("cleaning contract", () => {
+  it("parses as a CleanReport", () => {
+    const report = CleanReport.parse(cleaning.report);
+    expect(report.rejections).toHaveLength(6);
+    expect(report.enabled).toBe(true);
+  });
+
+  it("carries exactly the fields the CleanReport schema declares", () => {
+    expect(Object.keys(cleaning.report).sort()).toEqual(Object.keys(CleanReport.shape).sort());
+  });
+
+  it("carries exactly the fields the RejectedFix schema declares", () => {
+    const expected = Object.keys(RejectedFix.shape).sort();
+    for (const rejected of cleaning.report.rejections) {
+      expect(Object.keys(rejected).sort()).toEqual(expected);
+    }
+  });
+
+  it("never carries a coordinate, because this repo is public", () => {
+    for (const rejected of cleaning.report.rejections) {
+      expect(rejected).not.toHaveProperty("lat");
+      expect(rejected).not.toHaveProperty("lon");
+    }
+  });
+
+  it("knows every reason the API can send", () => {
+    const sent = new Set(cleaning.report.rejections.map((r: { reason: string }) => r.reason));
+    expect([...sent].sort()).toEqual([...RejectionReason.options].sort());
+  });
+
+  it("only lets a demotion move coverage", () => {
+    const report = CleanReport.parse(cleaning.report);
+    const demoted = report.rejections.filter((r) => r.effect === "demoted_to_blind").length;
+    expect(report.fixes_before - report.fixes_after).toBe(demoted);
+    expect(report.coverage_after).toBeLessThan(report.coverage_before);
+  });
+
+  it("still reports the counts when the cleaner was switched off", () => {
+    const disabled = CleanReport.parse(cleaning.disabled);
+    expect(disabled.enabled).toBe(false);
+    expect(disabled.rejections).toEqual([]);
+    expect(disabled.coverage_after).toBe(disabled.coverage_before);
   });
 });

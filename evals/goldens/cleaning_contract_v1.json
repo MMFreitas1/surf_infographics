@@ -1,0 +1,76 @@
+{
+  "report": {
+    "enabled": true,
+    "sample_count": 120,
+    "fixes_before": 64,
+    "fixes_after": 61,
+    "speeds_before": 64,
+    "speeds_after": 59,
+    "rejections": [
+      {
+        "t": 18.0,
+        "reason": "implied_speed",
+        "effect": "demoted_to_blind",
+        "value": 96.0,
+        "limit": 18.0
+      },
+      {
+        "t": 34.0,
+        "reason": "jump_and_return",
+        "effect": "demoted_to_blind",
+        "value": 1.5,
+        "limit": 21.0
+      },
+      {
+        "t": 57.0,
+        "reason": "implied_acceleration",
+        "effect": "demoted_to_blind",
+        "value": 22.4,
+        "limit": 15.0
+      },
+      {
+        "t": 71.0,
+        "reason": "speed_vs_odometer",
+        "effect": "speed_dropped",
+        "value": 0.9,
+        "limit": 7.0
+      },
+      {
+        "t": 88.0,
+        "reason": "speed_vs_position",
+        "effect": "speed_dropped",
+        "value": 1.2,
+        "limit": 6.3
+      },
+      {
+        "t": 99.0,
+        "reason": "speed_impossible",
+        "effect": "speed_dropped",
+        "value": 31.0,
+        "limit": 25.0
+      }
+    ],
+    "coverage_before": 0.5333333333333333,
+    "coverage_after": 0.5083333333333333,
+    "counts_by_reason": {
+      "implied_speed": 1,
+      "jump_and_return": 1,
+      "implied_acceleration": 1,
+      "speed_vs_odometer": 1,
+      "speed_vs_position": 1,
+      "speed_impossible": 1
+    }
+  },
+  "disabled": {
+    "enabled": false,
+    "sample_count": 120,
+    "fixes_before": 64,
+    "fixes_after": 64,
+    "speeds_before": 64,
+    "speeds_after": 64,
+    "rejections": [],
+    "coverage_before": 0.5333333333333333,
+    "coverage_after": 0.5333333333333333,
+    "counts_by_reason": {}
+  }
+}

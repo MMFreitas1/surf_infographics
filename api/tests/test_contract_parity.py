@@ -12,7 +12,9 @@ from pathlib import Path
 from surf.models import (
     Activity,
     ActivitySummary,
+    CleanReport,
     LabelPass,
+    RejectedFix,
     SessionCandidates,
     SessionTrack,
     StoredLabel,
@@ -22,6 +24,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 GOLDENS = REPO_ROOT / "evals" / "goldens"
 CONTRACT = json.loads((GOLDENS / "activity_contract_v1.json").read_text(encoding="utf-8"))
 LABELING = json.loads((GOLDENS / "labeling_contract_v1.json").read_text(encoding="utf-8"))
+CLEANING = json.loads((GOLDENS / "cleaning_contract_v1.json").read_text(encoding="utf-8"))
 
 
 ACTIVITY = Activity.model_validate(CONTRACT["activity"])
@@ -147,3 +150,61 @@ def test_only_the_unassisted_human_labels_count_as_truth():
 
 def test_the_pass_fixture_covers_both_sweeps():
     assert {row["kind"] for row in LABELING["passes"]} == {"blind", "assisted"}
+
+
+# ------------------------------------------------------- the Phase 5 cleaning contract
+
+REPORT = CleanReport.model_validate(CLEANING["report"])
+DISABLED = CleanReport.model_validate(CLEANING["disabled"])
+
+
+def test_the_cleaning_fixture_serialises_back_to_exactly_itself():
+    assert REPORT.model_dump(mode="json") == CLEANING["report"]
+    assert DISABLED.model_dump(mode="json") == CLEANING["disabled"]
+
+
+def test_cleaning_field_sets_match_the_models():
+    assert set(CLEANING["report"]) == set(REPORT.model_dump())
+    for row in CLEANING["report"]["rejections"]:
+        assert set(row) == set(REPORT.rejections[0].model_dump())
+
+
+def test_a_rejection_carries_no_coordinates():
+    """Pinned in the contract as well as the stage, because this fixture is committed to a
+    public repo and a lat/lon here would be a GPS trace in git (CLAUDE.md)."""
+    assert set(RejectedFix.model_fields) == {"t", "reason", "effect", "value", "limit"}
+    for row in CLEANING["report"]["rejections"]:
+        assert not {"lat", "lon"} & set(row)
+
+
+def test_the_fixture_covers_every_reason_and_both_effects():
+    """Trimmed to one reason it would stop proving the enums are mirrored on the Zod side."""
+    reasons = {row["reason"] for row in CLEANING["report"]["rejections"]}
+    assert reasons == {
+        "implied_speed",
+        "implied_acceleration",
+        "jump_and_return",
+        "speed_vs_odometer",
+        "speed_vs_position",
+        "speed_impossible",
+    }
+    assert {row["effect"] for row in CLEANING["report"]["rejections"]} == {
+        "demoted_to_blind",
+        "speed_dropped",
+    }
+
+
+def test_only_a_demotion_moves_coverage():
+    """The two-effect rule, pinned at the contract boundary: a dropped speed reading must
+    not quietly report that the watch could not see a second it saw perfectly well."""
+    demoted = sum(
+        1 for row in CLEANING["report"]["rejections"] if row["effect"] == "demoted_to_blind"
+    )
+    assert REPORT.fixes_before - REPORT.fixes_after == demoted
+    assert REPORT.coverage_before > REPORT.coverage_after
+    assert DISABLED.coverage_before == DISABLED.coverage_after
+
+
+def test_counts_by_reason_adds_up_to_the_rejections():
+    assert sum(REPORT.counts_by_reason.values()) == len(REPORT.rejections)
+    assert DISABLED.counts_by_reason == {}
