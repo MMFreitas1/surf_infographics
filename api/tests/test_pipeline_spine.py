@@ -41,6 +41,7 @@ from surf.ingest.stage import (
 )
 from surf.models import BlindCause, Sample
 from surf.pipeline import Stage, StageCache, StageMeta, run_stage, stage_key
+from surf.pipeline.audit import AuditStage
 from surf.pipeline.clean import CleanStage
 from surf.pipeline.l1 import KinematicsStage
 from surf.pipeline.l2 import FrameStage
@@ -280,6 +281,67 @@ def test_l05_runs_off_l0s_output_and_the_second_pass_never_cleans_again(tmp_path
     assert second.cached is True
     assert second.output.activity == first.output.activity
     assert second.output.report == first.output.report
+
+
+def test_l06_runs_off_l05s_output_and_the_second_pass_never_re_audits(tmp_path):
+    cache = StageCache(tmp_path)
+    cleaned = clean_into(cache, ingested=ingest_into(cache))
+    stage = AuditStage()
+
+    first = run_stage(stage, cache, input_hash=cleaned.key, data=cleaned.output.activity)
+    second = run_stage(stage, cache, input_hash=cleaned.key, data=Exploded())
+
+    assert first.cached is False
+    assert second.cached is True
+    assert second.output == first.output
+
+
+def test_retuning_the_audit_leaves_the_smoothed_track_alone(tmp_path):
+    """L0.6 hangs off L0.5 *beside* L1, not between them, and this is why (ADR-0015).
+
+    The audit changes no sample -- it decides which seconds count as session. Chaining L1
+    beneath it would mean moving a coverage threshold silently threw away a smoothed track
+    that cannot possibly have changed, and every screen built on that track with it.
+    """
+    cache = StageCache(tmp_path)
+    cleaned = clean_into(cache, ingested=ingest_into(cache))
+
+    track = run_stage(
+        KinematicsStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity
+    )
+    strict = run_stage(
+        AuditStage(wet_coverage_max=0.5),
+        cache,
+        input_hash=cleaned.key,
+        data=cleaned.output.activity,
+    )
+    loose = run_stage(
+        AuditStage(wet_coverage_max=0.95),
+        cache,
+        input_hash=cleaned.key,
+        data=cleaned.output.activity,
+    )
+    assert strict.key != loose.key
+
+    again = run_stage(KinematicsStage(), cache, input_hash=cleaned.key, data=Exploded())
+    assert again.cached is True, "an audit threshold invalidated the track it cannot affect"
+    assert again.key == track.key
+
+
+def test_cleaning_invalidates_the_audit_beneath_it(tmp_path):
+    """The other half: the audit reads coverage, and coverage is what the cleaner changes."""
+    cache = StageCache(tmp_path)
+    ingested = ingest_into(cache)
+    stage = AuditStage()
+
+    strict = clean_into(cache, ingested=ingested, max_implied_speed_ms=12.0)
+    loose = clean_into(cache, ingested=ingested, max_implied_speed_ms=25.0)
+
+    on_strict = run_stage(stage, cache, input_hash=strict.key, data=strict.output.activity)
+    on_loose = run_stage(stage, cache, input_hash=loose.key, data=loose.output.activity)
+
+    assert on_strict.key != on_loose.key
+    assert on_loose.cached is False
 
 
 def test_l1_runs_off_l05s_output_and_the_second_pass_never_smooths_again(tmp_path):

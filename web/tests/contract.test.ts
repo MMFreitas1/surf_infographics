@@ -3,11 +3,16 @@ import { describe, expect, it } from "vitest";
 import {
   Activity,
   ActivitySummary,
+  AuditReport,
+  AuditSource,
   BlindWindow,
   CleanReport,
+  NotSurfingReason,
+  NotSurfingWindow,
   RejectedFix,
   RejectionReason,
   Sample,
+  SessionWindow,
 } from "@/lib/schema";
 
 /**
@@ -112,5 +117,71 @@ describe("cleaning contract", () => {
     expect(disabled.enabled).toBe(false);
     expect(disabled.rejections).toEqual([]);
     expect(disabled.coverage_after).toBe(disabled.coverage_before);
+  });
+});
+
+/**
+ * The Phase 5 audit contract. Same two-sided check as above: adding a field on one side
+ * only fails in exactly one of these two files.
+ */
+const auditPath = new URL("../../evals/goldens/audit_contract_v1.json", import.meta.url).pathname;
+const audit = JSON.parse(readFileSync(auditPath, "utf8"));
+
+describe("audit contract", () => {
+  it("parses as an AuditReport", () => {
+    const report = AuditReport.parse(audit.report);
+    expect(report.not_surfing).toHaveLength(NotSurfingReason.options.length);
+    expect(report.decided).toBe(true);
+  });
+
+  it("carries exactly the fields the AuditReport schema declares", () => {
+    expect(Object.keys(audit.report).sort()).toEqual(Object.keys(AuditReport.shape).sort());
+  });
+
+  it("carries exactly the fields the SessionWindow and NotSurfingWindow schemas declare", () => {
+    const windowFields = Object.keys(SessionWindow.shape).sort();
+    for (const window of audit.report.windows) {
+      expect(Object.keys(window).sort()).toEqual(windowFields);
+    }
+    const excludedFields = Object.keys(NotSurfingWindow.shape).sort();
+    for (const excluded of audit.report.not_surfing) {
+      expect(Object.keys(excluded).sort()).toEqual(excludedFields);
+    }
+  });
+
+  it("never carries a coordinate in the digest", () => {
+    for (const window of audit.report.windows) {
+      expect(window).not.toHaveProperty("lat");
+      expect(window).not.toHaveProperty("lon");
+      expect(window).not.toHaveProperty("bearing");
+    }
+  });
+
+  it("knows every reason and every source the API can send", () => {
+    const reasons = new Set(audit.report.not_surfing.map((w: { reason: string }) => w.reason));
+    const sources = new Set(audit.report.not_surfing.map((w: { source: string }) => w.source));
+    expect([...reasons].sort()).toEqual([...NotSurfingReason.options].sort());
+    expect([...sources].sort()).toEqual([...AuditSource.options].sort());
+  });
+
+  it("keeps a window with no fix null rather than zero", () => {
+    const report = AuditReport.parse(audit.report);
+    const blind = report.windows.find((w) => w.coverage === 0);
+    expect(blind?.speed_max_ms).toBeNull();
+    expect(blind?.odometer_rate_ms).toBeNull();
+  });
+
+  it("separates the recording from the session", () => {
+    const report = AuditReport.parse(audit.report);
+    expect(report.surfing_t_start).toBeGreaterThan(report.t_start);
+    expect(report.surfing_t_end).toBeLessThan(report.t_end);
+    expect(report.surfing_s).toBeLessThan(report.t_end - report.t_start);
+  });
+
+  it("says plainly when it could not tell", () => {
+    const undecided = AuditReport.parse(audit.undecided);
+    expect(undecided.decided).toBe(false);
+    expect(undecided.not_surfing).toEqual([]);
+    expect(undecided.excluded_s).toBe(0);
   });
 });

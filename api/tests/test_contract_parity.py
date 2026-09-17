@@ -12,8 +12,11 @@ from pathlib import Path
 from surf.models import (
     Activity,
     ActivitySummary,
+    AuditReport,
+    AuditSource,
     CleanReport,
     LabelPass,
+    NotSurfingReason,
     RejectedFix,
     RejectionReason,
     SessionCandidates,
@@ -26,6 +29,7 @@ GOLDENS = REPO_ROOT / "evals" / "goldens"
 CONTRACT = json.loads((GOLDENS / "activity_contract_v1.json").read_text(encoding="utf-8"))
 LABELING = json.loads((GOLDENS / "labeling_contract_v1.json").read_text(encoding="utf-8"))
 CLEANING = json.loads((GOLDENS / "cleaning_contract_v1.json").read_text(encoding="utf-8"))
+AUDIT = json.loads((GOLDENS / "audit_contract_v1.json").read_text(encoding="utf-8"))
 
 
 ACTIVITY = Activity.model_validate(CONTRACT["activity"])
@@ -204,3 +208,64 @@ def test_only_a_demotion_moves_coverage():
 def test_counts_by_reason_adds_up_to_the_rejections():
     assert sum(REPORT.counts_by_reason.values()) == len(REPORT.rejections)
     assert DISABLED.counts_by_reason == {}
+
+
+# ---------------------------------------------------------- the Phase 5 audit contract
+
+AUDIT_REPORT = AuditReport.model_validate(AUDIT["report"])
+UNDECIDED = AuditReport.model_validate(AUDIT["undecided"])
+
+
+def test_the_audit_fixture_serialises_back_to_exactly_itself():
+    assert AUDIT_REPORT.model_dump(mode="json") == AUDIT["report"]
+    assert UNDECIDED.model_dump(mode="json") == AUDIT["undecided"]
+
+
+def test_audit_field_sets_match_the_models():
+    assert set(AUDIT["report"]) == set(AUDIT_REPORT.model_dump())
+    for row in AUDIT["report"]["windows"]:
+        assert set(row) == set(AUDIT_REPORT.windows[0].model_dump())
+    for row in AUDIT["report"]["not_surfing"]:
+        assert set(row) == set(AUDIT_REPORT.not_surfing[0].model_dump())
+
+
+def test_the_digest_carries_no_location():
+    """Pinned at the contract boundary as well as in the stage, because this is the property
+    that lets the hosted model path in Pass 2 be opt-in without shipping location history."""
+    for row in AUDIT["report"]["windows"]:
+        assert not {"lat", "lon", "bearing", "heading"} & set(row)
+
+
+def test_the_audit_fixture_exercises_every_reason_and_source():
+    """A contract sample, not a sample of baseline output: it deliberately includes values
+    only the audit pass emits, so the Zod enums cannot drift before that pass exists."""
+    assert {row["reason"] for row in AUDIT["report"]["not_surfing"]} == {
+        reason.value for reason in NotSurfingReason
+    }
+    assert {row["source"] for row in AUDIT["report"]["not_surfing"]} == {
+        source.value for source in AuditSource
+    }
+
+
+def test_the_window_fixture_keeps_an_absent_measurement_null():
+    """A window whose seconds carried no fix reports null, never 0.0 -- zero would read as
+    "the surfer was stationary", which is a different claim about the recording."""
+    blind = next(w for w in AUDIT["report"]["windows"] if w["coverage"] == 0.0)
+    assert blind["speed_mean_ms"] is None
+    assert blind["speed_max_ms"] is None
+    assert blind["odometer_rate_ms"] is None
+    assert any(w["speed_max_ms"] is not None for w in AUDIT["report"]["windows"])
+
+
+def test_the_two_top_speeds_both_ship():
+    """Shipping only the session figure would hide what the exclusion did."""
+    assert AUDIT_REPORT.top_speed_ms_all is not None
+    assert AUDIT_REPORT.top_speed_ms_surfing is not None
+
+
+def test_an_undecided_audit_excludes_nothing_and_says_so():
+    assert UNDECIDED.decided is False
+    assert UNDECIDED.not_surfing == []
+    assert UNDECIDED.surfing_t_start == UNDECIDED.t_start
+    assert UNDECIDED.surfing_t_end == UNDECIDED.t_end
+    assert UNDECIDED.excluded_s == 0.0

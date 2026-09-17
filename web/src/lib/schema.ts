@@ -38,6 +38,12 @@ export type RejectionReason = z.infer<typeof RejectionReason>;
 export const RejectionEffect = z.enum(["demoted_to_blind", "speed_dropped"]);
 export type RejectionEffect = z.infer<typeof RejectionEffect>;
 
+export const NotSurfingReason = z.enum(["before_entry", "after_exit", "interruption"]);
+export type NotSurfingReason = z.infer<typeof NotSurfingReason>;
+
+export const AuditSource = z.enum(["baseline", "llm"]);
+export type AuditSource = z.infer<typeof AuditSource>;
+
 export const Sample = z.object({
   t: z.number(),
   lat: z.number().min(-90).max(90).nullable().default(null),
@@ -172,6 +178,72 @@ export const CleanReport = z.object({
   counts_by_reason: z.record(z.string(), z.number().int()).default({}),
 });
 export type CleanReport = z.infer<typeof CleanReport>;
+
+/**
+ * One slice of the recording, digested into numbers.
+ *
+ * Carries no coordinate and no bearing — every field is a rate, a fraction or a count. That
+ * is deliberate: it is what lets the digest be sent to a hosted model without sending
+ * somebody's location history with it.
+ *
+ * `coverage` is the field that does the work. A wrist underwater reads about 0.4; carry the
+ * watch up the beach and it goes to 1.0. An absent measurement is null, never 0 — zero would
+ * mean "stationary", which is a different claim.
+ */
+export const SessionWindow = z.object({
+  t_start: z.number(),
+  t_end: z.number(),
+  sample_count: z.number().int().min(0),
+  coverage: z.number().min(0).max(1),
+  speed_mean_ms: z.number().nullable().default(null),
+  speed_max_ms: z.number().nullable().default(null),
+  speed_sd_ms: z.number().nullable().default(null),
+  odometer_rate_ms: z.number().nullable().default(null),
+  hr_mean_bpm: z.number().nullable().default(null),
+  duration_s: z.number(),
+});
+export type SessionWindow = z.infer<typeof SessionWindow>;
+
+/**
+ * A stretch of the recording that is not part of the session.
+ *
+ * An exclusion, **never** a demotion (ADR-0015). The samples underneath keep their position,
+ * their speed and `observed: true` — the watch could see perfectly well, the surfer simply
+ * was not surfing. Anything drawing this must not render it as missing data.
+ */
+export const NotSurfingWindow = z.object({
+  t_start: z.number(),
+  t_end: z.number(),
+  reason: NotSurfingReason,
+  source: AuditSource,
+  confidence: z.number().min(0).max(1),
+  duration_s: z.number(),
+});
+export type NotSurfingWindow = z.infer<typeof NotSurfingWindow>;
+
+/**
+ * Which span of the recording was the session, as `GET /activities/{id}/audit` returns it.
+ *
+ * `decided: false` means the audit could not tell, so nothing was excluded and the whole
+ * recording stands — an absent answer, and the UI should say so rather than implying the
+ * whole file was surfing. Session metrics belong on `surfing_*`; `t_start`/`t_end` are the
+ * recording, which is longer.
+ */
+export const AuditReport = z.object({
+  decided: z.boolean().default(true),
+  window_s: z.number().positive(),
+  windows: z.array(SessionWindow).default([]),
+  not_surfing: z.array(NotSurfingWindow).default([]),
+  t_start: z.number(),
+  t_end: z.number(),
+  surfing_t_start: z.number(),
+  surfing_t_end: z.number(),
+  top_speed_ms_all: z.number().nullable().default(null),
+  top_speed_ms_surfing: z.number().nullable().default(null),
+  excluded_s: z.number(),
+  surfing_s: z.number(),
+});
+export type AuditReport = z.infer<typeof AuditReport>;
 
 /**
  * A label as the store holds it. Append-only: a correction is a new row naming the one it

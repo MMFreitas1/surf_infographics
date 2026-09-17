@@ -50,6 +50,17 @@ class SyntheticParams:
     """Per-second chance of losing the fix while holding one."""
     p_regain_fix: float = 0.05
     """Per-second chance of regaining the fix while lost."""
+    walk_out_s: int = 0
+    """Seconds of walking up the beach to append after the last ride. 0 appends nothing.
+
+    Off by default, and that is not timidity: every committed golden and most of the test
+    suite is built on this generator's default output, so a default that produced a
+    different session would move all of them at once.
+    """
+    idle_s: int = 0
+    """Seconds of standing still with the watch running, after the walk."""
+    walk_speed: float = 1.3
+    """Walking pace, m/s. Brisk enough to be motion, far too slow to be a ride."""
 
 
 @dataclass(frozen=True)
@@ -89,6 +100,13 @@ class SyntheticSession:
     truth: list[Interval] = field(default_factory=list)
     true_track: list[TrueState] = field(default_factory=list)
     """The noiseless state per second, index-aligned with ``activity.samples``."""
+    out_of_water: list[Interval] = field(default_factory=list)
+    """Intervals the surfer spent out of the water, exactly known.
+
+    Empty unless the session was asked for one. This is the truth L0.6 is scored against,
+    and it is the only place that truth can come from: nobody can mark from memory which
+    minute they walked out of the sea, which is the same problem ADR-0013 records for waves.
+    """
 
     @property
     def wave_count(self) -> int:
@@ -190,6 +208,22 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
             BlindWindow(t_start=gap_start, t_end=float(len(velocities)), cause=BlindCause.NO_FIX)
         )
 
+    # -- the walk up the beach, if one was asked for ------------------------------
+    # Appended after every draw above, from its own generator, so that switching it on
+    # cannot shift a single sample of the session that precedes it. The committed golden
+    # depends on the RNG sequence, and this is how that promise is kept.
+    out_of_water: list[Interval] = []
+    if p.walk_out_s or p.idle_s:
+        dry = random.Random(p.seed + 1)
+        dry_start = float(len(velocities))
+        for _ in range(p.walk_out_s):
+            x += p.walk_speed
+            y += dry.uniform(-0.1, 0.1)
+            samples.append(_dry_sample(float(len(samples)), x, y, p.walk_speed, dry))
+        for _ in range(p.idle_s):
+            samples.append(_dry_sample(float(len(samples)), x, y, 0.0, dry))
+        out_of_water.append(Interval(dry_start, float(len(samples))))
+
     activity = Activity(
         activity_id=f"synthetic-{p.seed}",
         sport="surfing",
@@ -204,4 +238,24 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
         activity=activity,
         truth=[Interval(float(a), float(b)) for a, b in truth_spans],
         true_track=true_track,
+        out_of_water=out_of_water,
+    )
+
+
+def _dry_sample(t: float, x: float, y: float, speed: float, rng: random.Random) -> Sample:
+    """One second with the watch out of the water.
+
+    Always positioned, and that is the whole signal. Dropout in this generator models a
+    submerged wrist; on land there is nothing between the watch and the sky, so coverage
+    goes to 1.0 exactly where speed goes to nothing. Heart rate stays elevated, because
+    someone who has just surfed for an hour is still breathing hard while they walk.
+    """
+    lat, lon = _to_latlon(x + rng.gauss(0.0, 2.0), y + rng.gauss(0.0, 2.0))
+    return Sample(
+        t=t,
+        lat=lat,
+        lon=lon,
+        speed_ms=max(0.0, speed + rng.gauss(0.0, 0.1)),
+        hr_bpm=int(105 + rng.gauss(0.0, 4.0)),
+        distance_m=None,
     )

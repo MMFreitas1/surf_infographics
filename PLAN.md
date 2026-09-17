@@ -10,14 +10,14 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 deterministic cleaner, two channels, rejections queryable |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Phase 5 Pass 2 — the LLM audit**, then the Session screen. Pass 1 landed and its limit is now measured: per-fix physics cannot reach the last artefact, because at +3195…3262 s the speed field, the odometer *and* the positions all agree the surfer was fast while HR reads 110 and he is walking up the beach. Refusing a **stretch** is what Pass 2 is for. Start at **"Phase 5 · Clean signal"** |
+| **Next** | **The LLM audit** (the last piece of Phase 5), then the Session screen. The deterministic baseline it has to beat now exists, and so does the truth to score both on: a synthetic session with a known out-of-water tail. It ships only if it wins (ADR-0005). Two defects found by the diagnostics loop are queued ahead of it if you want them first — see "Found by the loop". Start at **"Phase 5 · Clean signal"** |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 398 tests green (300 api · 50 web · 48 evals); 14 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 449 tests green (343 api · 58 web · 48 evals); 17 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -49,7 +49,7 @@ ls docs/adr/               # why each decision was made
 - [x] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
 - [x] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
 - [x] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
-- [ ] **5 · Clean signal** — ✅ Pass 1 (L0.5, deterministic) · ⬜ Pass 2 (LLM audit over what survives)
+- [ ] **5 · Clean signal** — ✅ Pass 1 (L0.5, cleaner) · ✅ Pass 2 baseline (L0.6, audit) · ⬜ Pass 2 LLM (must beat the baseline)
 - [ ] **6 · Shore & peaks** — where you sat, where the coast runs, and therefore left vs right
 - [ ] **7 · Wave metrics** — transparent scorer, then duration / speeds / manoeuvres / straightness per ride
 - [ ] **8 · Marine context** — swell 1–4, wind, sea temperature, combined energy
@@ -558,7 +558,7 @@ Context is kept **per level**; only Sessions may read all three.
 
 ---
 
-## Phase 5 · Clean signal — Pass 1 ✅ · Pass 2 next
+## Phase 5 · Clean signal — Pass 1 ✅ · Pass 2 baseline ✅ · LLM next
 
 **Goal:** no impossible number reaches a chart. Correctness over speed — a five-minute local
 LLM pass is acceptable if it is right.
@@ -611,14 +611,53 @@ fast. It is one second inside a minute of someone walking up the beach, and refu
       Ceilings are swept against the synthetic truth, not asserted: 18 m/s rather than L1's 12
       because L1 *softens* a fix and this stage *removes* one, and 12 demotes 3–7 genuine ride
       seconds per session.
-- [ ] **Pass 2 — LLM audit over what survives.** Local model, deterministic, offline. It sees
-      *anomaly summaries* — a windowed digest of speed/heading/coverage — never 3,790 raw
-      coordinates, which no model reads reliably and which would cost more than it returns.
-      Its job is the residue rule 1 cannot phrase: a plausible-looking stretch that is not
-      surfing at all (driving home, walking the beach, the watch on a table).
-- [x] Pass 1 is a **stage** (L0.5), cached and content-addressed like everything else, so a
-      threshold sweep is a cache key and not a re-ingest — and invalidation travels down to
-      L1/L2/L3, pinned in `test_pipeline_spine.py`. Pass 2 joins the chain the same way.
+### What Pass 2's baseline measured — ✅ landed 2026-09-17
+
+The LLM was never going to be what fixed the top speed; a missing arithmetic check was, and
+it landed in Pass 1. What Pass 2 is actually for is the **session inside the recording**. The
+reference file is 63.2 minutes long and its last 7.2 are the watch on the sand — coverage 1.00
+at zero speed. Session duration, distance ridden and waves per ten minutes are all wrong if
+they count the walk back.
+
+**Coverage is the signal, and the inversion is the point.** In-water windows average **0.39**;
+dry ones sit at **1.00**. The hard thing about this data is what makes this easy.
+
+| Reference session | |
+|---|---|
+| Recording | 63.2 min |
+| Session | **55.0 min** (t+60 … t+3360) |
+| Excluded | 60 s before entry · 430 s after exit, at confidence 0.7 |
+| Top speed, all vs session | 54.1 km/h vs **54.1 km/h** — unchanged, and the report says so |
+
+**Two things the first implementation got wrong**, both caught by known truth rather than by
+review: "longest contiguous wet stretch" returned an 11-minute session out of 63, because a
+surfer sitting up with a dry wrist reads exactly like one on the sand; and trimming on
+coverage alone cut a real ride out of **three of five** seeded sessions, because a rider
+standing up has the driest wrist in the file. The rule now trims inward from the ends only,
+and only where a window is **dry *and* slow**. Zero rides lost across all five seeds.
+
+**Truth had to be built.** Nobody can mark from memory which minute they walked out of the
+sea — the same problem ADR-0013 records for waves. `surf.synthetic` gained an opt-in
+out-of-water tail with exactly known bounds, drawing from its own RNG so every committed
+golden stays valid. The baseline recovers it to within one window.
+
+- [x] **Pass 2 baseline — deterministic, the thing the LLM has to beat.** L0.6, hanging off
+      L0.5 *beside* L1 rather than beneath it, because the audit changes no sample and must
+      not invalidate the track. Exclusion, never demotion: the samples keep their position and
+      stay `observed` ([ADR-0015](./docs/adr/0015-not-surfing-is-excluded-not-demoted.md)).
+      `GET /activities/{id}/audit`, Zod mirror, contract golden both sides, 29 tests.
+- [ ] **Pass 2 LLM — audit over what the baseline cannot settle.** Local model, deterministic,
+      offline. It sees the **same digest the baseline reads** — windowed speed/coverage/HR,
+      already built and **coordinate-free by construction**, which is what makes the hosted
+      fallback safe to offer rather than merely policed. Its job is the residue: an interior
+      stretch that is not surfing at all (driving home, the watch on a table).
+      `NotSurfingReason.INTERRUPTION` and `AuditSource.LLM` are already in the contract, so
+      the boundary is fixed before anything crosses it. **It ships only if it beats the
+      baseline on the synthetic truth above** (ADR-0005) — and not shipping is a result.
+- [x] Both passes are **stages** (L0.5 and L0.6), cached and content-addressed like everything
+      else, so a threshold sweep is a cache key and not a re-ingest. L0.5's invalidation
+      travels down to L1/L2/L3; L0.6's deliberately does not, because it changes no sample.
+      Both pinned in `test_pipeline_spine.py`.
 - [x] Every rejection is recorded with its reason, its effect and the two magnitudes that
       convicted it, and served from `GET /activities/{id}/cleaning`. **No coordinates** — this
       repo is public and the records reach committed goldens. Drawing it as a *device
@@ -627,15 +666,17 @@ fast. It is one second inside a minute of someone walking up the beach, and refu
       local model. Local is the default; hosted is opt-in and never automatic — activity files
       are personal location history.
 
-**Done when:** top speed on the reference session is physically plausible ⬜ *(needs Pass 2 —
-Pass 1 took it to 74.5 km/h and cannot defensibly go further)*, the count and reason of every
-rejection is queryable ✅, `make check` is green ✅, and turning the cleaner off is a one-line
-parameter change that the cache key notices ✅ (`CleanStage(enabled=False)`).
+**Done when:** top speed on the reference session is physically plausible ✅ *(74.8 → 54.1 km/h;
+what remains is a real ride whose speed field over-reads ~1.6× against its own odometer — a
+Phase 7 calibration question, not a cleaning one)*, the count and reason of every rejection is
+queryable ✅, `make check` is green ✅, and turning the cleaner off is a one-line parameter
+change that the cache key notices ✅ (`CleanStage(enabled=False)`).
 
-**Where Pass 1 landed:** `api/src/surf/pipeline/clean.py` (the stage) ·
-`api/tests/test_clean.py` + `test_cleaning_api.py` (39 tests) ·
-`evals/goldens/cleaning_contract_v1.json` (contract, both sides) ·
-[ADR-0014](./docs/adr/0014-rejection-is-demotion-not-deletion.md).
+**Where it landed:** `api/src/surf/pipeline/clean.py` and `audit.py` (the two stages) ·
+`api/tests/test_clean.py`, `test_cleaning_api.py`, `test_audit.py`, `test_audit_api.py`
+(72 tests) · `evals/goldens/{cleaning,audit}_contract_v1.json` (contracts, both sides) ·
+[ADR-0014](./docs/adr/0014-rejection-is-demotion-not-deletion.md) and
+[ADR-0015](./docs/adr/0015-not-surfing-is-excluded-not-demoted.md).
 
 ---
 
@@ -659,7 +700,7 @@ real session is mostly slow ones. Miguel's method inverts that and uses the sitt
 - [ ] **Fallback, offline or coastline unavailable:** principal axis of the peak cloud plus the
       seaward direction from where rides *end*. Marked lower confidence; never silently
       substituted.
-- [ ] ADR-0015 records this as the primary method and demotes ADR-0011's bearing to a fallback,
+- [ ] **A new ADR** records this as the primary method and demotes ADR-0011's bearing to a fallback,
       with the 0.365 measurement as the reason.
 - [ ] Tests: a synthetic coastline at a known angle recovers a known left/right split; a session
       with no stationary period degrades to the fallback rather than guessing.

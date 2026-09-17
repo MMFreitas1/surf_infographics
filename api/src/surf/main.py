@@ -21,6 +21,7 @@ from surf.logging import configure_logging, get_logger
 from surf.models import (
     Activity,
     ActivitySummary,
+    AuditReport,
     CleanReport,
     LabelPass,
     LabelSource,
@@ -31,7 +32,7 @@ from surf.models import (
     WaveLabel,
 )
 from surf.pipeline import StageCache, run_stage
-from surf.pipeline.session import candidates_for, cleaning_for, track_for
+from surf.pipeline.session import audit_for, candidates_for, cleaning_for, track_for
 from surf.store import ActivityRepository, LabelRepository, StoreError
 
 log = get_logger(__name__)
@@ -269,6 +270,35 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             by_reason=report.counts_by_reason,
             coverage_before=round(report.coverage_before, 4),
             coverage_after=round(report.coverage_after, 4),
+            from_cache=cached,
+        )
+        return report
+
+    @app.get("/activities/{activity_id}/audit")
+    def read_audit(request: Request, activity_id: str) -> AuditReport:
+        """Which span of this recording is the session, and what was left out of it.
+
+        An exclusion, never a demotion (ADR-0015). The excluded samples keep their position
+        and their speed, and ``GET /activities/{id}`` still serves every one of them; what
+        this says is which seconds a session metric is entitled to count. The walk up the
+        beach is measured perfectly well and is not surfing.
+
+        The digest the verdict was reached from travels with it, so the decision can be
+        argued with rather than merely accepted. It carries no coordinates by construction.
+        """
+        activity = _stored_or_404(request, activity_id)
+        report, cached = audit_for(
+            activity,
+            request.app.state.cache,
+            samples_key=_samples_key_or_404(request, activity_id),
+        )
+        log.info(
+            "audit.served",
+            activity_id=activity_id,
+            decided=report.decided,
+            windows=len(report.windows),
+            excluded_s=report.excluded_s,
+            surfing_s=report.surfing_s,
             from_cache=cached,
         )
         return report
