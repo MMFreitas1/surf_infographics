@@ -72,16 +72,29 @@ def connect(db_path: Path) -> sqlite3.Connection:
 class ActivityRepository:
     """Reads and writes activities. Owns one SQLite connection for the app's lifetime.
 
-    **Every access to that connection is serialised, reads included.** A SQLite connection
-    is a single cursor factory over one C handle, and two threads running statements on it
-    at the same time do not merely race for a row -- they corrupt each other's results.
-    Measured on this repository with eight threads reading concurrently: 17 failures in 960
-    reads, in four flavours. One was a clean ``InterfaceError``; the other three were a
-    blind window whose ``cause`` came back NULL, a summary row whose counts came back NULL,
-    and a `samples_key` from the wrong row, which surfaces as
-    "samples are missing from the stage cache" -- a report of data loss that has not
-    happened. Three of the four are silently wrong data rather than an error, which is why
-    a lock only around the writers was never enough.
+    **Every access to that connection is serialised, reads included.** Measured on this
+    repository with eight threads reading concurrently: 17 failures in 960 reads, in four
+    flavours. One was a clean ``InterfaceError``; the other three were a blind window whose
+    ``cause`` came back NULL, a summary row whose counts came back NULL, and a
+    ``samples_key`` from the wrong row, which surfaces as "samples are missing from the
+    stage cache" -- a report of data loss that has not happened. Three of the four are
+    silently wrong data rather than an error, which is why a lock only around the writers
+    was never enough.
+
+    **Do not remove this lock on the grounds that SQLite is thread-safe.** It is:
+    ``sqlite3.threadsafety`` is 3 here, serialized mode, and the database was never at
+    risk. The corruption comes from a layer above it -- CPython's sqlite3 module keeps a
+    cache of prepared statements per connection, so two threads running the same SQL text
+    are handed the *same* ``sqlite3_stmt`` and overwrite each other's parameter bindings
+    and result rows. Measured directly: eight threads on one connection, 633 wrong rows and
+    293 errors with the cache on, and zero of each with ``cached_statements=0``.
+
+    That makes ``cached_statements=0`` a tempting one-line alternative to this lock. It is
+    not equivalent, for two reasons. It leaves :meth:`get` reading its activity row and its
+    blind windows in two unsynchronised statements, which a concurrent :meth:`save` can
+    still tear. And it makes correctness depend on the SQLite build being serialized, which
+    is a property of how the library was compiled and is not guaranteed on every machine
+    this app might run on. The lock depends on nothing.
 
     It costs nothing here. This is a single-user app on localhost (ADR-0004), so the
     contention is between one person's browser tabs; the one genuinely slow step, decoding

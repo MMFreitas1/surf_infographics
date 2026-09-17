@@ -4,12 +4,17 @@ FastAPI runs sync endpoints on a threadpool and each repository holds a single c
 so concurrent reads are not a hypothetical here -- opening `/label/{id}` fires four requests
 at once, which is how this surfaced.
 
-A SQLite connection is one handle, and two threads running statements on it do not merely
-race for a row, they corrupt each other's results. Before these reads were serialised, eight
-threads reading this repository produced 17 failures in 960 reads in four flavours: a clean
-`InterfaceError`, a blind window whose `cause` came back NULL, a summary whose counts came
-back NULL, and a `samples_key` read from the wrong row -- which surfaces as "samples are
-missing from the stage cache", a report of data loss that has not happened.
+Two threads running statements on one connection do not merely race for a row, they corrupt
+each other's results. Before these reads were serialised, eight threads reading this
+repository produced 17 failures in 960 reads in four flavours: a clean `InterfaceError`, a
+blind window whose `cause` came back NULL, a summary whose counts came back NULL, and a
+`samples_key` read from the wrong row -- which surfaces as "samples are missing from the
+stage cache", a report of data loss that has not happened.
+
+Not SQLite's fault, and worth knowing before anyone decides this lock is redundant: the
+library is in serialized mode here. The damage comes from CPython's per-connection cache of
+prepared statements, which hands two threads running the same SQL the same statement object
+to overwrite. `ActivityRepository`'s docstring has the measurements.
 
 Three of those four are silently wrong data rather than an error, which is the reason these
 tests assert on the *content* of what comes back and not merely that nothing raised.
