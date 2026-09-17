@@ -11,6 +11,11 @@ rather than re-deriving it per endpoint.
 L0.5 is first in the chain because everything after it estimates, and an estimator handed an
 impossible fix produces a confident wrong answer rather than an error (ADR-0014).
 
+L0.6 is the exception to the single-file chain, and deliberately so: it hangs off L0.5
+**beside** L1 rather than between them. The audit changes no sample -- it decides which
+seconds count as session -- so keying L1 on it would mean retuning a coverage threshold
+invalidated a smoothed track that cannot possibly have changed (ADR-0015).
+
 Stage parameters stay at their defaults here. They are part of the cache key, so sweeping
 one later means passing a differently configured stage in -- not clearing a cache.
 """
@@ -19,7 +24,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from surf.models import Activity, CleanReport, SessionTrack
+from surf.models import Activity, AuditReport, CleanReport, SessionTrack
+from surf.pipeline.audit import AuditStage
 from surf.pipeline.cache import StageCache
 from surf.pipeline.clean import CleanedSession, CleanStage
 from surf.pipeline.l1 import KinematicsStage
@@ -75,6 +81,20 @@ def run_chain(activity: Activity, cache: StageCache, *, samples_key: str) -> Cha
 def track_for(activity: Activity, cache: StageCache, *, samples_key: str) -> ChainResult:
     """The L1 track and its L2 rotation, as one aligned pair the UI can draw."""
     return run_chain(activity, cache, samples_key=samples_key)
+
+
+def audit_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[AuditReport, bool]:
+    """Which span of this recording is the session, and whether the cache produced it.
+
+    Runs the cleaner first, because coverage has to mean what we believe rather than what
+    was recorded: a fix L0.5 refused must not go on counting as a second the watch saw, or
+    the very signal this stage reads would be measuring the artefacts too.
+    """
+    cleaned = clean_session(activity, cache, samples_key=samples_key)
+    audited = run_stage(AuditStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity)
+    return audited.output, cleaned.cached and audited.cached
 
 
 def cleaning_for(

@@ -109,6 +109,35 @@ class RejectionReason(StrEnum):
     """The reported speed is beyond anything a surfboard does, with no corroboration needed."""
 
 
+class NotSurfingReason(StrEnum):
+    """Why a stretch of the recording is not part of the session.
+
+    The recording starts when the watch does and stops when the surfer remembers to stop it,
+    so a session file routinely opens on the walk down and closes on the walk back. Those
+    seconds are perfectly measured -- the wrist is dry, so coverage is *better* there than in
+    the water -- they are simply not surfing.
+    """
+
+    BEFORE_ENTRY = "before_entry"
+    """Recorded before the surfer got in the water."""
+    AFTER_EXIT = "after_exit"
+    """Recorded after the surfer came out."""
+    INTERRUPTION = "interruption"
+    """An interior stretch the surfer spent out of the water. Reserved for the audit pass;
+    the deterministic baseline only trims the ends, because an interior lull is far more
+    likely to be someone sitting on a board than someone leaving the beach."""
+
+
+class AuditSource(StrEnum):
+    """What decided a stretch was not surfing."""
+
+    BASELINE = "baseline"
+    """The deterministic rule: coverage, which is high out of the water and poor in it."""
+    LLM = "llm"
+    """The local model, adjudicating what the baseline could not settle. It only ships if it
+    measurably beats the baseline (ADR-0005), so this value means a measured improvement."""
+
+
 class RejectionEffect(StrEnum):
     """What a rejection actually did to the sample.
 
@@ -239,6 +268,102 @@ class CleanReport(BaseModel):
         for rejected in self.rejections:
             counts[rejected.reason.value] = counts.get(rejected.reason.value, 0) + 1
         return counts
+
+
+class SessionWindow(BaseModel):
+    """One slice of the recording, digested into numbers a rule or a model can read.
+
+    **Carries no coordinates and no bearing, deliberately.** Everything here is a rate, a
+    fraction or a count, so the digest describes *what the session did* without describing
+    *where it happened*. That is what makes the opt-in hosted model path safe by
+    construction rather than by policy: there is no location in the payload to leak.
+
+    ``coverage`` is the load-bearing field. A surfer's wrist is underwater about half the
+    time, so an in-water window runs near 0.4; carry the watch up the beach and it jumps to
+    1.0. The thing that makes GPS hard is what makes this easy.
+    """
+
+    t_start: float
+    t_end: float
+    sample_count: int = Field(ge=0)
+    coverage: float = Field(ge=0.0, le=1.0)
+    """Fraction of this window's samples that carried a fix, after cleaning."""
+    speed_mean_ms: float | None = None
+    speed_max_ms: float | None = None
+    speed_sd_ms: float | None = None
+    """Standard deviation of the recorded speed. Surfing is bursty and walking is not."""
+    odometer_rate_ms: float | None = None
+    """Mean ground speed from the device's distance counter, which survives the blind half."""
+    hr_mean_bpm: float | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def duration_s(self) -> float:
+        """Length of the window in seconds."""
+        return self.t_end - self.t_start
+
+
+class NotSurfingWindow(BaseModel):
+    """A stretch of the recording that is not part of the session.
+
+    An **exclusion, never a demotion** (ADR-0015). The samples underneath keep their
+    position, their speed and ``observed=True``, because the watch could see perfectly well
+    -- better than usual, in fact. What changes is only which seconds a session metric is
+    entitled to count.
+    """
+
+    t_start: float
+    t_end: float
+    reason: NotSurfingReason
+    source: AuditSource
+    confidence: float = Field(ge=0.0, le=1.0)
+    """How sure the decision is. The baseline states a real number rather than 1.0: trimming
+    on coverage is a good rule, not a certainty."""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def duration_s(self) -> float:
+        """Length of the excluded stretch in seconds."""
+        return self.t_end - self.t_start
+
+
+class AuditReport(BaseModel):
+    """Which part of the recording was the session, and what was left out.
+
+    Carries the digest it decided from, so the decision can be argued with rather than
+    merely accepted -- the same reason :class:`CleanReport` ships its before-and-after counts.
+
+    ``top_speed_ms_all`` against ``top_speed_ms_surfing`` is the number Phase 5 exists for.
+    It is computed here, where the span is decided, rather than left for a later phase to
+    derive and possibly derive differently.
+    """
+
+    decided: bool = True
+    """False when the audit could not tell -- no window looked like it was in the water, so
+    nothing is excluded and the whole recording stands. An absent answer, stated."""
+    window_s: float = Field(gt=0.0)
+    windows: list[SessionWindow] = Field(default_factory=list)
+    not_surfing: list[NotSurfingWindow] = Field(default_factory=list)
+    t_start: float
+    t_end: float
+    """Bounds of the whole recording."""
+    surfing_t_start: float
+    surfing_t_end: float
+    """Bounds of the part that is the session. Equal to the above when nothing was excluded."""
+    top_speed_ms_all: float | None = None
+    top_speed_ms_surfing: float | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def excluded_s(self) -> float:
+        """Seconds of recording that are not session."""
+        return sum(window.duration_s for window in self.not_surfing)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def surfing_s(self) -> float:
+        """Length of the session proper."""
+        return self.surfing_t_end - self.surfing_t_start
 
 
 class SmoothedSample(BaseModel):

@@ -14,7 +14,7 @@ from surf.ingest.stage import IngestStage
 from surf.llm.lifecycle import ModelBackend
 from surf.main import create_app
 from surf.pipeline import stage_key
-from surf.synthetic import make_synthetic_session
+from surf.synthetic import SyntheticParams, make_synthetic_session
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SAMPLE_DIR = REPO_ROOT / "sample_data"
@@ -86,6 +86,26 @@ def stored_dirty(client: TestClient) -> str:
     app = client.app
     stage = IngestStage()
     digest = "6" * 64
+    key = stage_key(stage, app.state.cache, digest)
+    app.state.cache.put(stage.meta.name, key, stage.encode(activity))
+    app.state.activities.save(activity, source_sha256=digest, samples_key=key, ingested_at=0.0)
+    return activity.activity_id
+
+
+@pytest.fixture
+def stored_walked_out(client: TestClient) -> str:
+    """A synthetic session that ends in a known walk up the beach, stored through the app.
+
+    ``stored_synthetic`` stops the moment the last ride does, so it can never show what the
+    audit does at the API boundary. This one carries 120 s of walking and 180 s of standing
+    still after the surfing, with the bounds known exactly.
+    """
+    session = make_synthetic_session(SyntheticParams(walk_out_s=120, idle_s=180))
+    activity = session.activity.model_copy(update={"activity_id": "synthetic-walked-out"})
+
+    app = client.app
+    stage = IngestStage()
+    digest = "7" * 64
     key = stage_key(stage, app.state.cache, digest)
     app.state.cache.put(stage.meta.name, key, stage.encode(activity))
     app.state.activities.save(activity, source_sha256=digest, samples_key=key, ingested_at=0.0)

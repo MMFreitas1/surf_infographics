@@ -1,0 +1,105 @@
+{
+  "report": {
+    "decided": true,
+    "window_s": 60.0,
+    "windows": [
+      {
+        "t_start": 0.0,
+        "t_end": 60.0,
+        "sample_count": 60,
+        "coverage": 1.0,
+        "speed_mean_ms": 0.31,
+        "speed_max_ms": 1.36,
+        "speed_sd_ms": 0.52,
+        "odometer_rate_ms": 0.58,
+        "hr_mean_bpm": 105.2,
+        "duration_s": 60.0
+      },
+      {
+        "t_start": 60.0,
+        "t_end": 120.0,
+        "sample_count": 60,
+        "coverage": 0.38,
+        "speed_mean_ms": 2.06,
+        "speed_max_ms": 7.94,
+        "speed_sd_ms": 1.93,
+        "odometer_rate_ms": 1.72,
+        "hr_mean_bpm": 118.4,
+        "duration_s": 60.0
+      },
+      {
+        "t_start": 120.0,
+        "t_end": 180.0,
+        "sample_count": 60,
+        "coverage": 0.0,
+        "speed_mean_ms": null,
+        "speed_max_ms": null,
+        "speed_sd_ms": null,
+        "odometer_rate_ms": null,
+        "hr_mean_bpm": null,
+        "duration_s": 60.0
+      }
+    ],
+    "not_surfing": [
+      {
+        "t_start": 0.0,
+        "t_end": 60.0,
+        "reason": "before_entry",
+        "source": "baseline",
+        "confidence": 0.7,
+        "duration_s": 60.0
+      },
+      {
+        "t_start": 900.0,
+        "t_end": 1020.0,
+        "reason": "interruption",
+        "source": "llm",
+        "confidence": 0.62,
+        "duration_s": 120.0
+      },
+      {
+        "t_start": 3360.0,
+        "t_end": 3790.0,
+        "reason": "after_exit",
+        "source": "baseline",
+        "confidence": 0.7,
+        "duration_s": 430.0
+      }
+    ],
+    "t_start": 0.0,
+    "t_end": 3790.0,
+    "surfing_t_start": 60.0,
+    "surfing_t_end": 3360.0,
+    "top_speed_ms_all": 15.03,
+    "top_speed_ms_surfing": 15.03,
+    "excluded_s": 610.0,
+    "surfing_s": 3300.0
+  },
+  "undecided": {
+    "decided": false,
+    "window_s": 60.0,
+    "windows": [
+      {
+        "t_start": 0.0,
+        "t_end": 60.0,
+        "sample_count": 60,
+        "coverage": 1.0,
+        "speed_mean_ms": 0.31,
+        "speed_max_ms": 1.36,
+        "speed_sd_ms": 0.52,
+        "odometer_rate_ms": 0.58,
+        "hr_mean_bpm": 105.2,
+        "duration_s": 60.0
+      }
+    ],
+    "not_surfing": [],
+    "t_start": 0.0,
+    "t_end": 600.0,
+    "surfing_t_start": 0.0,
+    "surfing_t_end": 600.0,
+    "top_speed_ms_all": 1.36,
+    "top_speed_ms_surfing": 1.36,
+    "excluded_s": 0.0,
+    "surfing_s": 600.0
+  }
+}
