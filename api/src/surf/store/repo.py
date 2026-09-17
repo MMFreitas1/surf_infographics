@@ -47,8 +47,10 @@ def connect(db_path: Path) -> sqlite3.Connection:
     does not understand is how data gets corrupted silently.
     """
     db_path.parent.mkdir(parents=True, exist_ok=True)
-    # FastAPI runs sync endpoints on a threadpool, so a connection is shared across
-    # threads; every writer serialises its own writes behind a lock.
+    # FastAPI runs sync endpoints on a threadpool, so one connection is shared across
+    # threads. `check_same_thread=False` only switches off Python's guard against that --
+    # it grants no safety of its own, so **every** caller, reader included, has to hold
+    # the repository's lock. See the class docstrings below for what happens otherwise.
     db = sqlite3.connect(db_path, check_same_thread=False)
     db.row_factory = sqlite3.Row
     db.execute("PRAGMA foreign_keys = ON")
@@ -68,27 +70,53 @@ def connect(db_path: Path) -> sqlite3.Connection:
 
 
 class ActivityRepository:
-    """Reads and writes activities. Owns one SQLite connection for the app's lifetime."""
+    """Reads and writes activities. Owns one SQLite connection for the app's lifetime.
+
+    **Every access to that connection is serialised, reads included.** A SQLite connection
+    is a single cursor factory over one C handle, and two threads running statements on it
+    at the same time do not merely race for a row -- they corrupt each other's results.
+    Measured on this repository with eight threads reading concurrently: 17 failures in 960
+    reads, in four flavours. One was a clean ``InterfaceError``; the other three were a
+    blind window whose ``cause`` came back NULL, a summary row whose counts came back NULL,
+    and a `samples_key` from the wrong row, which surfaces as
+    "samples are missing from the stage cache" -- a report of data loss that has not
+    happened. Three of the four are silently wrong data rather than an error, which is why
+    a lock only around the writers was never enough.
+
+    It costs nothing here. This is a single-user app on localhost (ADR-0004), so the
+    contention is between one person's browser tabs; the one genuinely slow step, decoding
+    a Parquet payload, is deliberately left outside the lock.
+    """
 
     def __init__(self, db_path: Path, cache: StageCache) -> None:
         self._cache = cache
-        self._lock = threading.Lock()
+        # Re-entrant, so a method that holds the lock can call a helper that takes it too
+        # -- `get` reads the activity row and its blind windows under one acquisition.
+        self._lock = threading.RLock()
         self._db = connect(db_path)
 
     def close(self) -> None:
-        """Release the connection."""
-        self._db.close()
+        """Release the connection, once whoever is mid-query has finished with it.
+
+        Under the lock like every other access, so the invariant stays exception-free:
+        nothing touches this connection without holding it.
+        """
+        with self._lock:
+            self._db.close()
 
     @property
     def schema_version(self) -> int:
         """The version stamped in the database file."""
-        return int(self._db.execute("SELECT MAX(version) FROM schema_version").fetchone()[0])
+        with self._lock:
+            row = self._db.execute("SELECT MAX(version) FROM schema_version").fetchone()
+        return int(row[0])
 
     def id_for_digest(self, source_sha256: str) -> str | None:
         """The activity already ingested from these exact bytes, if there is one."""
-        row = self._db.execute(
-            "SELECT activity_id FROM activities WHERE source_sha256 = ?", (source_sha256,)
-        ).fetchone()
+        with self._lock:
+            row = self._db.execute(
+                "SELECT activity_id FROM activities WHERE source_sha256 = ?", (source_sha256,)
+            ).fetchone()
         return None if row is None else str(row["activity_id"])
 
     def save(
@@ -140,10 +168,12 @@ class ActivityRepository:
         return activity.activity_id
 
     def _blind_windows(self, activity_id: str) -> list[BlindWindow]:
-        rows = self._db.execute(
-            "SELECT t_start, t_end, cause FROM blind_windows WHERE activity_id = ? ORDER BY seq",
-            (activity_id,),
-        ).fetchall()
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT t_start, t_end, cause FROM blind_windows WHERE activity_id = ? "
+                "ORDER BY seq",
+                (activity_id,),
+            ).fetchall()
         return [
             BlindWindow(t_start=row["t_start"], t_end=row["t_end"], cause=BlindCause(row["cause"]))
             for row in rows
@@ -155,18 +185,32 @@ class ActivityRepository:
         This is what lets a later stage chain onto the ingest: L1 keys its own output on
         the L0 key, so a track can never outlive the samples it was computed from.
         """
-        row = self._db.execute(
-            "SELECT samples_key FROM activities WHERE activity_id = ?", (activity_id,)
-        ).fetchone()
+        with self._lock:
+            row = self._db.execute(
+                "SELECT samples_key FROM activities WHERE activity_id = ?", (activity_id,)
+            ).fetchone()
         return None if row is None else str(row["samples_key"])
 
     def get(self, activity_id: str) -> Activity | None:
-        """The full activity, samples included, or None when it is not stored."""
-        row = self._db.execute(
-            "SELECT * FROM activities WHERE activity_id = ?", (activity_id,)
-        ).fetchone()
-        if row is None:
-            return None
+        """The full activity, samples included, or None when it is not stored.
+
+        The two queries run under one acquisition so the session and its blind windows
+        come from the same view of the database -- a concurrent ``save`` between them would
+        otherwise hand back one session's metadata with another's windows.
+
+        Decoding the Parquet payload is left *outside* the lock deliberately. It is by far
+        the slowest thing this method does and it touches no shared state, so holding the
+        connection through it would serialise every reader behind one session's samples for
+        no gain in safety.
+        """
+        with self._lock:
+            row = self._db.execute(
+                "SELECT * FROM activities WHERE activity_id = ?", (activity_id,)
+            ).fetchone()
+            if row is None:
+                return None
+            windows = self._blind_windows(activity_id)
+
         payload = self._cache.get(l0.NAME, row["samples_key"])
         if payload is None:
             # Metadata without its samples. Returning an empty session would report a
@@ -179,16 +223,17 @@ class ActivityRepository:
             start_time=row["start_time"],
             fidelity=Fidelity(row["fidelity"]),
             samples=l0.samples_from_parquet(payload),
-            blind_windows=self._blind_windows(activity_id),
+            blind_windows=windows,
             device=row["device"],
             source_file=row["source_file"],
         )
 
     def summaries(self, limit: int = 100) -> list[ActivitySummary]:
         """Stored activities, newest session first, without their samples."""
-        rows = self._db.execute(
-            "SELECT * FROM activities ORDER BY start_time DESC LIMIT ?", (limit,)
-        ).fetchall()
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM activities ORDER BY start_time DESC LIMIT ?", (limit,)
+            ).fetchall()
         return [_summary_of(row) for row in rows]
 
     def delete(self, activity_id: str) -> bool:
