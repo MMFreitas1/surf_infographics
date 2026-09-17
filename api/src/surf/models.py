@@ -90,6 +90,15 @@ class RejectionReason(StrEnum):
     The strongest of the six: ``distance_m`` survives the blind half at 100% coverage, so
     this is two first-party recordings of one quantity disagreeing, not a threshold guess.
     """
+    SPEED_VS_ODOMETER_WINDOW = "speed_vs_odometer_window"
+    """The odometer did not advance far enough *around* this second for it to be true.
+
+    Containment rather than a threshold: a reading of ``v`` m/s asserts ``v`` metres of
+    travel inside one second, and that second sits inside the window, so the window cannot
+    have covered less ground than the second did. This catches what
+    :attr:`SPEED_VS_ODOMETER` cannot -- a second where the odometer glitched *with* the
+    speed field, so the two agreed with each other and were both wrong.
+    """
     SPEED_VS_POSITION = "speed_vs_position"
     """The fixes bracketing this second contradict the speed it reported.
 

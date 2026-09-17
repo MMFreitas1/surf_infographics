@@ -15,6 +15,7 @@ from surf.models import (
     CleanReport,
     LabelPass,
     RejectedFix,
+    RejectionReason,
     SessionCandidates,
     SessionTrack,
     StoredLabel,
@@ -180,14 +181,9 @@ def test_a_rejection_carries_no_coordinates():
 def test_the_fixture_covers_every_reason_and_both_effects():
     """Trimmed to one reason it would stop proving the enums are mirrored on the Zod side."""
     reasons = {row["reason"] for row in CLEANING["report"]["rejections"]}
-    assert reasons == {
-        "implied_speed",
-        "implied_acceleration",
-        "jump_and_return",
-        "speed_vs_odometer",
-        "speed_vs_position",
-        "speed_impossible",
-    }
+    assert reasons == {reason.value for reason in RejectionReason}, (
+        "the fixture must exercise every reason, or the Zod enum can drift unnoticed"
+    )
     assert {row["effect"] for row in CLEANING["report"]["rejections"]} == {
         "demoted_to_blind",
         "speed_dropped",

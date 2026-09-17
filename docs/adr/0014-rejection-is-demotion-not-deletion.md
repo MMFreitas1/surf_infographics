@@ -60,11 +60,9 @@ per session; 18 m/s demotes none on four of the five.
 
 ## Consequences
 
-- **The phase's Done-when is not met by Pass 1 alone.** Top speed falls 74.8 → 74.5 km/h.
-  Readings above 54 km/h fall 12 → 3, and the second-highest falls 74.7 → 54.1, but the
-  single highest survives because all three channels agree it was fast. It is one second
-  inside a stretch that is not surfing at all, and refusing a *stretch* is Pass 2's job. We
-  ship Pass 1 saying that plainly rather than inventing a per-fix rule that would reach it.
+- ~~**The phase's Done-when is not met by Pass 1 alone.** Top speed falls 74.8 → 74.5 km/h…
+  refusing a *stretch* is Pass 2's job.~~ **Superseded 2026-09-17 — see the amendment below.**
+  Top speed now falls **74.8 → 54.1 km/h** and readings above 54 km/h fall **12 → 2**.
 - **`GET /activities/{id}` keeps serving the raw recording.** The store holds what the device
   wrote; the cleaner is a stage. `GET /activities/{id}/cleaning` is what reconciles the two,
   and the track's `observed` is what the rest of the app should believe.
@@ -82,3 +80,35 @@ per session; 18 m/s demotes none on four of the five.
   cleaned under a rule the confidence card no longer reports.
 - Phase 6's shore-and-peaks decision, which PLAN.md reserved this number for, becomes
   **ADR-0015**.
+
+---
+
+## Amendment · 2026-09-17 — `speed_vs_odometer_window`
+
+**What the original decision missed.** `speed_vs_odometer` compares a reading to the odometer
+step for *that one second*. At t+3248 the odometer itself jumped 11.38 m in that second, so
+the two instruments corroborated each other and the 74.5 km/h reading was cleared. Two
+channels agreeing is only evidence when they fail independently, and here they did not.
+
+**The fix is containment, not another threshold.** A reading of *v* m/s asserts *v* metres of
+travel inside one second, and that second lies inside any window containing it — so the
+window cannot have covered less ground than the second claims. Over ±5 s the odometer at
+t+3248 advanced **16.5 m** against the 20.7 m asserted. That is arithmetic; there is no ratio
+to tune, and ±3 s, ±5 s and ±8 s all convict the same single reading.
+
+It is surgical on the one real session we have: **exactly one** new rejection, and every
+second of the genuine ride at t+1792…1798 is spared, where the odometer covers 82.5 m in
+±5 s against 15.03 m/s asserted.
+
+**A dead odometer is no longer treated as a witness.** A counter that never advances says
+"you did not move" about every second of a session, and the original code would have believed
+it and dropped every fast reading. Both odometer rules now require the counter to have moved
+at least once, and fall back to the positions when it has not.
+
+**What is left, and why it stays.** The top speed is now 54.1 km/h — still above a surfer's
+25–35, and still not something cleaning may touch. It is a **real ride** where the odometer
+corroborates ~9.7 m/s while the speed field reports 15.03: the watch over-reads by a
+consistent ~1.6× across that whole ride. Nothing contradicts the reading, so nothing here
+removes it. Which channel a wave metric should quote is a **calibration** question for Phase 7,
+and recording it as such is the honest end of this decision rather than tuning a rule until
+the number looks better.
