@@ -1,0 +1,32 @@
+{
+  "prompt_version": "session_audit.v1",
+  "seeds": [
+    7,
+    11,
+    23,
+    42,
+    101
+  ],
+  "min_iou": 0.3,
+  "table": "contender            F1  interior  rides lost  seconds\nbaseline           0.63      0.00          0s     0.0s\nllm:reasoned       0.07      0.40        181s   304.0s\nllm:ruled          0.45      0.80        110s   363.3s",
+  "summary": {
+    "baseline": {
+      "f1": 0.6333333333333333,
+      "interior_recall": 0.0,
+      "ride_seconds_destroyed": 0.0,
+      "elapsed_s": 0.0
+    },
+    "llm:reasoned": {
+      "f1": 0.06666666666666667,
+      "interior_recall": 0.4,
+      "ride_seconds_destroyed": 181.0,
+      "elapsed_s": 303.965611626
+    },
+    "llm:ruled": {
+      "f1": 0.44761904761904764,
+      "interior_recall": 0.8,
+      "ride_seconds_destroyed": 110.0,
+      "elapsed_s": 363.307303709
+    }
+  }
+}
