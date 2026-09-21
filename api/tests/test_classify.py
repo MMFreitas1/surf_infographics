@@ -112,13 +112,13 @@ def test_a_blind_candidate_is_judged_on_the_odometer_average_not_a_back_fill():
     """
     only = classify(
         candidate(
-            {"blind_run_mean_ms": 8.0, "blind_run_m": 104.0, "blind_run_s": 13.0},
+            {"odometer_peak_ms": 8.0, "odometer_ms": 8.0, "blind_run_m": 104.0},
             coverage=0.0,
         )
     ).verdicts[0]
 
     assert only.is_wave is True
-    assert "odometer average across the blind stretch" in only.reason
+    assert "odometer over its best sustained stretch" in only.reason
     assert only.position_coverage == pytest.approx(0.0), (
         "coverage must survive onto the verdict so the UI can draw this differently"
     )

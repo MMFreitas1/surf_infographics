@@ -107,6 +107,16 @@ class ClassifyStage:
     """
     ride_floor_ms: float = 4.0
     """At or over this, the candidate moved at a speed paddling does not reach."""
+    paddle_average_ms: float = 1.2
+    """The same judgement on an *average* rather than a peak, where the scale is different.
+
+    A candidate's mean speed includes its take-off and its kick-out, so a real ride averages
+    far below its peak. Measured across the five seeded sessions: rides average 1.2-3.8 m/s
+    over their own span and the one covered non-ride averages 0.1. Sharing the peak's
+    thresholds here is what made the first cut of this rule refuse 16 of 37 real rides.
+    """
+    ride_average_ms: float = 2.6
+    """Average speed over a candidate's own span that only a ride reaches."""
     takeoff_floor_ms2: float = 0.5
     """Shoreward acceleration at the onset that says a wave picked the surfer up."""
     hr_drop_bpm: float = 4.0
@@ -116,6 +126,13 @@ class ClassifyStage:
     rather than a measurement -- the trap `prompts/wave_adjudicator` has always warned of."""
     latched_min_s: float = 8.0
     """How long a run has to be before flat speed is suspicious rather than merely short."""
+    latched_min_coverage: float = 0.5
+    """Coverage below which flat speed proves nothing.
+
+    A mostly-blind candidate has few observed seconds and they cluster at its edges, so its
+    measured variance is near zero whatever happened in between. Without this gate the
+    latched-value penalty fires on exactly the rides it was never meant to describe.
+    """
     frozen_fraction: float = 0.5
     """Fraction of a candidate's seconds that may be frozen-blind before it is refused.
 
@@ -137,10 +154,13 @@ class ClassifyStage:
             params={
                 "paddle_ceiling_ms": self.paddle_ceiling_ms,
                 "ride_floor_ms": self.ride_floor_ms,
+                "paddle_average_ms": self.paddle_average_ms,
+                "ride_average_ms": self.ride_average_ms,
                 "takeoff_floor_ms2": self.takeoff_floor_ms2,
                 "hr_drop_bpm": self.hr_drop_bpm,
                 "latched_variance": self.latched_variance,
                 "latched_min_s": self.latched_min_s,
+                "latched_min_coverage": self.latched_min_coverage,
                 "frozen_fraction": self.frozen_fraction,
                 "band": list(self.band),
                 "adjudicator": self.adjudicator.identity if self.adjudicator else {},
@@ -230,13 +250,15 @@ class ClassifyStage:
                 ],
             )
 
-        speed, source = self._claimable_speed(f)
-        if speed is None:
+        evidence = self._evidence(f)
+        if not evidence:
             return _Ruling(strength=0.5, reasons=["no speed this candidate can claim"])
 
-        ruling = _Ruling(
-            strength=0.05 + 0.85 * _ramp(speed, self.paddle_ceiling_ms, self.ride_floor_ms)
-        )
+        # The strongest channel wins. Each is a lower bound on how ride-like this was, and
+        # they fail in opposite directions: a peak is blind to a short ride inside a long
+        # candidate, an average is blind to a ride the watch only caught the slow edges of.
+        strength, source, speed = max(evidence)
+        ruling = _Ruling(strength=strength)
         ruling.note(f"{source} {speed:.1f} m/s")
 
         if f.get("takeoff_accel_ms2", 0.0) >= self.takeoff_floor_ms2:
@@ -252,6 +274,7 @@ class ClassifyStage:
             variance is not None
             and variance <= self.latched_variance
             and duration >= self.latched_min_s
+            and candidate.position_coverage >= self.latched_min_coverage
         ):
             ruling.strength -= 0.25
             ruling.note("speed barely varied, which reads as a latched value")
@@ -259,18 +282,51 @@ class ClassifyStage:
         ruling.strength = min(1.0, max(0.0, ruling.strength))
         return ruling
 
-    def _claimable_speed(self, features: dict[str, float]) -> tuple[float | None, str]:
-        """The fastest speed this candidate is entitled to claim, and where it came from.
+    def _evidence(self, features: dict[str, float]) -> list[tuple[float, str, float]]:
+        """Every channel that can speak to this candidate's speed, each scored on its own scale.
 
-        Measured seconds first: a speed the watch actually saw beats one inferred from a
-        distance total. Failing that, the blind run's **average** -- never a back-fill step
-        read as one second, which L4 is built to make impossible.
+        A **peak** and an **average** are different claims and must not share a threshold.
+        Paddling peaks around 1.5 m/s and a ride peaks at 4 or more; but averaged across a
+        whole candidate, paddling sits near 1.0 and a real ride only reaches 2-4, because a
+        ride's own duration includes its take-off and its kick-out. Measured on the
+        synthetic: rides average 1.2-3.8 m/s across their span, and the covered non-ride
+        averages 0.1.
+
+        Scoring each channel separately and taking the strongest is what stops a ride the
+        watch half-saw from being judged on whichever half it happened to see.
         """
-        if (measured := features.get("measured_speed_max_ms")) is not None:
-            return measured, "measured top speed"
-        if (blind := features.get("blind_run_mean_ms")) is not None:
-            return blind, "odometer average across the blind stretch"
-        return None, ""
+        out: list[tuple[float, str, float]] = []
+
+        if (peak := features.get("measured_speed_max_ms")) is not None:
+            out.append(
+                (
+                    0.05 + 0.85 * _ramp(peak, self.paddle_ceiling_ms, self.ride_floor_ms),
+                    "measured top speed",
+                    peak,
+                )
+            )
+
+        # The odometer attributed to this candidate's own seconds: observed ones at their
+        # own delta, blind ones at their run's average. Absent only when the file carried no
+        # distance field at all, which means "not knowable", never "did not move".
+        # The best sustained stretch, which survives L3 padding a real ride with paddling.
+        if (peak := features.get("odometer_peak_ms")) is not None:
+            out.append(
+                (
+                    0.05 + 0.85 * _ramp(peak, self.paddle_average_ms, self.ride_average_ms),
+                    "odometer over its best sustained stretch, averaging",
+                    peak,
+                )
+            )
+        elif (attributed := features.get("odometer_ms")) is not None:
+            out.append(
+                (
+                    0.05 + 0.85 * _ramp(attributed, self.paddle_average_ms, self.ride_average_ms),
+                    "odometer over its own seconds, averaging",
+                    attributed,
+                )
+            )
+        return out
 
     def encode(self, output: SessionVerdict) -> bytes:
         """JSON, not Parquet: a verdict set is tens of rows and carries prose."""

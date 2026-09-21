@@ -102,7 +102,28 @@ class BlindRun:
 
     @property
     def duration_s(self) -> float:
+        """How long the watch had no fix. What `blind_run_s` reports."""
         return self.t_end - self.t_start
+
+    @property
+    def covered_s(self) -> float:
+        """How many seconds of travel this run's total actually accounts for.
+
+        One more than the run is long, and the difference matters on a short run. The
+        odometer was last correct at the second *before* the run began and is correct again
+        at ``t_end``, so the total spans ``t_end - (t_start - 1)`` seconds -- including the
+        step into the second the fix returned. Dividing by ``duration_s`` instead inflates
+        the rate, and then paying that inflated rate to the catch-up second as well
+        double-counts it.
+        """
+        return self.duration_s + 1.0
+
+    @property
+    def rate_ms(self) -> float | None:
+        """Metres per second across the seconds this run accounts for. An average, always."""
+        if self.metres is None or self.covered_s <= 0.0:
+            return None
+        return self.metres / self.covered_s
 
     @property
     def frozen(self) -> bool:
@@ -163,6 +184,13 @@ class FeatureStage:
     """
     takeoff_s: float = 4.0
     """The onset window the drop is looked for in. The synthetic's take-offs are 3-5 s."""
+    peak_window_s: float = 10.0
+    """The stretch `odometer_peak_ms` averages over.
+
+    Near the length of a ride -- the synthetic's are 6-18 s and the reference session's
+    proposals run 3-48 s -- so the window is long enough not to catch a single noisy second
+    and short enough to survive being buried in an over-long proposal.
+    """
 
     @property
     def meta(self) -> StageMeta:
@@ -170,7 +198,11 @@ class FeatureStage:
         return StageMeta(
             name=NAME,
             code_version=CODE_VERSION,
-            params={"recovery_s": self.recovery_s, "takeoff_s": self.takeoff_s},
+            params={
+                "recovery_s": self.recovery_s,
+                "takeoff_s": self.takeoff_s,
+                "peak_window_s": self.peak_window_s,
+            },
         )
 
     def run(self, data: FeatureInput) -> FeatureSet:
@@ -195,8 +227,97 @@ class FeatureStage:
         }
         features.update(self._kinematics(data.framed, start, end))
         features.update(self._odometer(runs, start, end))
+        features.update(self._attributed_odometer(data.samples, runs, start, end))
         features.update(self._heart_rate(data.samples, start, end))
         return features
+
+    def _attributed_odometer(
+        self, samples: Sequence[Sample], runs: Sequence[BlindRun], start: float, end: float
+    ) -> dict[str, float]:
+        """How far the surfer travelled during *this candidate*, second by second.
+
+        The sharpest odometer signal available, and the one the run-level features cannot
+        give: `blind_run_mean_ms` averages over a whole blind stretch, so a ten-second ride
+        inside a hundred-second stretch comes back at paddling pace.
+
+        Every second of the candidate is attributed exactly once, from one of two places:
+
+        * **an observed second** contributes its own odometer delta, which is a real
+          per-second measurement. Catch-up steps are excluded here by construction -- a step
+          whose previous sample had no fix belongs to the run before it, not to the second it
+          landed on, which is what stops 201 metres from being read as one second of travel.
+        * **a blind second** contributes its run's average, because the run's total is all
+          the device recorded and spreading it evenly is the only assumption that adds
+          nothing. It is an average and is named one; no peak is ever claimed from it.
+
+        Reading the span's endpoints instead would have been simpler and wrong: a ride
+        normally *ends* with the wrist going under, so its trailing run back-fills after
+        `t_end` and an endpoint reading undercounts exactly the candidates that matter most.
+        """
+        duration = end - start
+        if duration <= 0.0:
+            return {}
+
+        per_second = self._per_second_metres(samples, runs, start, end)
+        if not per_second:
+            return {}
+
+        metres = sum(per_second)
+        out = {"odometer_m": metres, "odometer_ms": metres / duration}
+
+        # The best sustained stretch inside the candidate, not the candidate's own mean.
+        # L3 merges bursts separated by less than its gap, so a real 15 s ride routinely
+        # arrives inside a 40 s proposal padded with paddling either side -- and a mean over
+        # the whole proposal reads as paddling, which is what the padding was. Measured on
+        # the five seeded sessions, that dilution was the single largest source of refused
+        # rides. Still an average, over a fixed window, so no peak is ever claimed.
+        window = int(min(self.peak_window_s, len(per_second)))
+        if window > 0:
+            best = max(sum(per_second[i : i + window]) for i in range(len(per_second) - window + 1))
+            out["odometer_peak_ms"] = best / window
+        return out
+
+    def _per_second_metres(
+        self, samples: Sequence[Sample], runs: Sequence[BlindRun], start: float, end: float
+    ) -> list[float]:
+        """Metres travelled in each second of the candidate, attributed exactly once.
+
+        An observed second takes its own odometer delta -- a real per-second measurement. A
+        blind second takes its run's average, because the run's total is all the device
+        recorded and spreading it evenly assumes the least. The second the fix *returns*
+        takes the run's average too: the step landing on it belongs to the run behind it, not
+        to that second, which is what stops 201 metres from becoming 201 m/s.
+        """
+        rates = {
+            (run.t_start, run.t_end): rate for run in runs if (rate := run.rate_ms) is not None
+        }
+
+        def rate_at(t: float) -> float | None:
+            for (run_start, run_end), rate in rates.items():
+                if run_start <= t < run_end:
+                    return rate
+            return None
+
+        metres: list[float] = []
+        known = False
+        for previous, current in pairwise(samples):
+            if not (start <= current.t < end):
+                continue
+            if not current.has_position:
+                rate = rate_at(current.t)
+            elif previous.has_position:
+                rate = (
+                    max(0.0, current.distance_m - previous.distance_m)
+                    if current.distance_m is not None and previous.distance_m is not None
+                    else None
+                )
+            else:
+                # The second the fix came back. Its step carries the whole run behind it.
+                rate = rate_at(previous.t)
+            if rate is not None:
+                known = True
+            metres.append(rate or 0.0)
+        return metres if known else []
 
     def _kinematics(
         self, framed: Sequence[FramedSample], start: float, end: float
@@ -258,11 +379,13 @@ class FeatureStage:
             return out
 
         metres = sum(run.metres or 0.0 for run in measured)
-        seconds = sum(run.duration_s for run in measured)
         out["blind_run_m"] = metres
-        out["blind_run_s"] = seconds
-        if seconds > 0.0:
-            out["blind_run_mean_ms"] = metres / seconds
+        out["blind_run_s"] = sum(run.duration_s for run in measured)
+        covered = sum(run.covered_s for run in measured)
+        if covered > 0.0:
+            # Over the seconds the totals account for, not over the blind span -- see
+            # BlindRun.covered_s. On a short run the two differ materially.
+            out["blind_run_mean_ms"] = metres / covered
         out["frozen_blind_s"] = sum(
             _overlap_s(start, end, r.t_start, r.t_end) for r in measured if r.frozen
         )

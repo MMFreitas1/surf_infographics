@@ -128,9 +128,10 @@ def test_a_session_with_no_odometer_still_yields_runs_with_unknown_distances():
 def test_a_back_fill_step_is_never_read_as_one_second_of_travel():
     """The test that fails if anyone ever divides a catch-up step by one second.
 
-    Two hundred metres arrive in a single sample. Spread across the run that earned them
-    that is 20 m/s -- fast, and arguable. Attributed to the second they landed on it is
-    200 m/s, which is the artefact, not a measurement.
+    Two hundred metres arrive in a single sample. Spread across the eleven seconds the run
+    accounts for -- ten blind ones plus the step into the second the fix returned, see
+    ``BlindRun.covered_s`` -- that is 18.2 m/s: fast, and arguable. Attributed to the second
+    they landed on it is 200 m/s, which is the artefact, not a measurement.
     """
     samples = [sample(0.0, distance=0.0)]
     samples += [sample(float(t), fix=False, distance=0.0) for t in range(1, 11)]
@@ -139,8 +140,8 @@ def test_a_back_fill_step_is_never_read_as_one_second_of_travel():
     features = measure(WaveCandidate(t_start=0.0, t_end=12.0), samples)
 
     assert features["blind_run_m"] == pytest.approx(200.0)
-    assert features["blind_run_s"] == pytest.approx(10.0)
-    assert features["blind_run_mean_ms"] == pytest.approx(20.0)
+    assert features["blind_run_s"] == pytest.approx(10.0), "the watch was blind for ten"
+    assert features["blind_run_mean_ms"] == pytest.approx(200.0 / 11.0)
     assert features["blind_run_mean_ms"] < 25.0, "a back-fill was read as a per-second speed"
 
 
@@ -313,3 +314,79 @@ def test_a_payload_this_stage_did_not_write_is_refused():
 
     with pytest.raises(PayloadError):
         FeatureStage().decode(bytes(sink.getvalue().to_pybytes()))
+
+
+# -- attributing distance to the candidate's own seconds ---------------------------------
+
+
+def test_every_second_is_attributed_exactly_once():
+    """Observed seconds take their own delta; blind ones take their run's average.
+
+    Ten metres in the first observed second, then a four-second blind run that back-filled
+    40 m. The run contributes 10 m/s to each of its own seconds and nothing to anyone else's.
+    """
+    samples = [
+        sample(0.0, distance=0.0),
+        sample(1.0, distance=10.0),
+        sample(2.0, fix=False, distance=10.0),
+        sample(3.0, fix=False, distance=10.0),
+        sample(4.0, fix=False, distance=10.0),
+        sample(5.0, distance=50.0),
+    ]
+    features = measure(WaveCandidate(t_start=0.0, t_end=6.0), samples)
+
+    # 10 m observed + 40 m across the run's own seconds, over five attributed seconds.
+    assert features["odometer_m"] == pytest.approx(50.0)
+
+
+def test_the_catch_up_second_does_not_swallow_the_whole_run():
+    """The step landing on it belongs to the run behind it, not to that one second.
+
+    Without this, a 40 m back-fill reads as 40 m/s on the second the fix returned -- the
+    artefact this whole design exists to refuse.
+    """
+    samples = [
+        sample(0.0, distance=0.0),
+        sample(1.0, fix=False, distance=0.0),
+        sample(2.0, fix=False, distance=0.0),
+        sample(3.0, fix=False, distance=0.0),
+        sample(4.0, distance=40.0),
+    ]
+    features = measure(WaveCandidate(t_start=4.0, t_end=5.0), samples)
+
+    # That second alone is worth the run's average, 10 m/s -- not the entire 40 m.
+    assert features["odometer_ms"] == pytest.approx(10.0)
+
+
+def test_the_peak_window_finds_a_ride_buried_in_an_over_long_candidate():
+    """L3 merges bursts, so a real ride arrives padded with paddling on both sides.
+
+    A mean over the whole proposal reads as paddling, which is what the padding was. The
+    peak window is what survives that, and on the seeded sessions it was the single largest
+    source of refused rides.
+    """
+    slow = [sample(float(t), distance=float(t)) for t in range(15)]  # 1 m/s
+    fast = [sample(float(t), distance=15.0 + (t - 15) * 6.0) for t in range(15, 25)]  # 6 m/s
+    tail = [sample(float(t), distance=75.0 + (t - 25)) for t in range(25, 40)]  # 1 m/s
+
+    features = measure(WaveCandidate(t_start=0.0, t_end=40.0), slow + fast + tail)
+
+    assert features["odometer_ms"] < 2.5, "the whole-span mean is diluted, as expected"
+    assert features["odometer_peak_ms"] == pytest.approx(6.0, abs=0.7)
+
+
+def test_the_peak_window_shrinks_to_fit_a_short_candidate():
+    """A candidate shorter than the window is its own window, not an error."""
+    samples = [sample(float(t), distance=float(t) * 3.0) for t in range(6)]
+    features = measure(WaveCandidate(t_start=0.0, t_end=5.0), samples)
+
+    assert features["odometer_peak_ms"] == pytest.approx(3.0, abs=0.5)
+
+
+def test_a_session_with_no_odometer_attributes_nothing():
+    """Absence again: no distance field means no distance features, never zero ones."""
+    features = measure(WaveCandidate(t_start=0.0, t_end=5.0), [sample(float(t)) for t in range(6)])
+
+    assert "odometer_m" not in features
+    assert "odometer_ms" not in features
+    assert "odometer_peak_ms" not in features
