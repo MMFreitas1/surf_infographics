@@ -31,6 +31,7 @@ from surf.pipeline.clean import CleanedSession, CleanStage
 from surf.pipeline.l1 import KinematicsStage
 from surf.pipeline.l2 import FramedTrack, FrameStage
 from surf.pipeline.l3 import CandidateSet, CandidateStage
+from surf.pipeline.l4 import FeatureInput, FeatureSet, FeatureStage
 from surf.pipeline.runner import StageResult, run_stage
 
 
@@ -110,13 +111,50 @@ def cleaning_for(
     return cleaned.output.report, cleaned.cached
 
 
-def candidates_for(
+def _proposed(
     activity: Activity, cache: StageCache, *, samples_key: str
-) -> tuple[CandidateSet, bool]:
-    """L3's proposals for this session, and whether the whole chain came from cache."""
+) -> tuple[StageResult[CandidateSet], ChainResult]:
+    """L3 for one stored session, with its key and the chain that produced it.
+
+    Private because callers want one or the other: the API wants the proposals, L4 wants the
+    key to hang off. Sharing the body is what keeps the two from drifting into computing
+    candidates two slightly different ways.
+    """
     chain = run_chain(activity, cache, samples_key=samples_key)
     framed = FramedTrack(frame=chain.track.frame, samples=chain.track.framed)
     proposed: StageResult[CandidateSet] = run_stage(
         CandidateStage(), cache, input_hash=chain.frame_key, data=framed
     )
+    return proposed, chain
+
+
+def candidates_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[CandidateSet, bool]:
+    """L3's proposals for this session, and whether the whole chain came from cache."""
+    proposed, chain = _proposed(activity, cache, samples_key=samples_key)
     return proposed.output, chain.cached and proposed.cached
+
+
+def features_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[FeatureSet, bool]:
+    """L4: every proposal measured against every channel, keyed on L3.
+
+    The cleaned samples are passed alongside the track because the track carries neither
+    heart rate nor the odometer, and those are the two channels that survive a blind window
+    -- the whole reason L4 can say anything about a proposal the smoother had to estimate.
+    """
+    cleaned = clean_session(activity, cache, samples_key=samples_key)
+    proposed, chain = _proposed(activity, cache, samples_key=samples_key)
+    measured: StageResult[FeatureSet] = run_stage(
+        FeatureStage(),
+        cache,
+        input_hash=proposed.key,
+        data=FeatureInput(
+            candidates=proposed.output,
+            framed=chain.track.framed,
+            samples=cleaned.output.activity.samples,
+        ),
+    )
+    return measured.output, chain.cached and proposed.cached and measured.cached
