@@ -17,7 +17,7 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 452 tests green (343 api · 58 web · 51 evals); 17 api tests skip without `sample_data/`. The LLM eval needs Ollama and skips unless `SURF_LLM_EVAL=1` |
+| **Health** | `make check` → 459 tests green (347 api · 58 web · 54 evals); 17 api tests skip without `sample_data/`, and the LLM eval needs Ollama and skips unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -167,18 +167,20 @@ personal data, no third-party values. Human labels from Phase 4 join the same ha
 `make verify` reuses whatever already serves :3000, so it works against dev server or container.
 Browser errors POST to `/diagnostics/client-error`, so UI and API failures share one buffer.
 
-### Found by the loop, not yet fixed — 2026-09-17
+### Found by the loop — 2026-09-17
 
-Both surfaced while verifying Phase 5's odometer fix. Neither is caused by it; both are
-recorded here so they survive a `/clear`, and neither was folded into an unrelated PR.
+Both surfaced while verifying Phase 5's odometer fix, neither caused by it, and neither
+folded into an unrelated PR. The first is fixed; the second is still open.
 
-- [ ] **SQLite reads are not serialised, and the label page trips it.** `store/repo.py` opens
-      one connection with `check_same_thread=False` and shares it across FastAPI's threadpool,
-      but only `save` and `delete` take `self._lock` — `get`, `samples_key`, `summaries`,
-      `id_for_digest` and `_blind_windows` all execute unlocked. Opening `/label/{id}` fires
-      four requests at once and raised `sqlite3.InterfaceError: bad parameter or other API
-      misuse` from `repo.get`, which the browser then reported as `ApiUnreachable`. Structural
-      and present since PR #19. **User-facing: a session page can fail to load its labels.**
+- [x] **SQLite reads are not serialised, and the label page trips it.** ✅ Fixed 2026-09-17.
+      Worse than the log showed: reproduced at **17 failures in 960 concurrent reads**, in four
+      flavours, and only one of them was the `InterfaceError` the buffer caught. The other
+      three were *silently wrong data* — a blind window whose `cause` came back NULL, a summary
+      whose counts came back NULL, and a `samples_key` read from the wrong row, which surfaces
+      as "samples are missing from the stage cache": a report of data loss that had not
+      happened. Both repositories now take an `RLock` on **every** access, reads included, with
+      the Parquet decode deliberately left outside it. Four regression tests, each verified to
+      fail against the old code.
 - [ ] **`make verify` flakes on a cold Next dev server.** The scrub spec takes **25.1 s**
       against a 30 s default timeout when the route has not been compiled yet, and 4.0 s once
       it has. It failed once, then passed on every rerun. Either raise the per-test timeout in
