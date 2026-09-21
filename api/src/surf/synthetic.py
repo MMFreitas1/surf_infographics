@@ -61,6 +61,17 @@ class SyntheticParams:
     """Seconds of standing still with the watch running, after the walk."""
     walk_speed: float = 1.3
     """Walking pace, m/s. Brisk enough to be motion, far too slow to be a ride."""
+    break_after_wave: int = 0
+    """Splice a stretch out of the water in after this wave number. 0 splices nothing.
+
+    The surfer comes in, sits on the sand, and paddles back out. This is the case the
+    deterministic baseline cannot catch by construction -- it only trims the ends, because
+    an interior dry spell is far more likely to be someone sitting up on their board
+    (ADR-0015) -- so it is the only truth against which an audit pass can prove it adds
+    anything at all.
+    """
+    break_s: int = 0
+    """How long that interior break lasts, in seconds."""
 
 
 @dataclass(frozen=True)
@@ -106,7 +117,23 @@ class SyntheticSession:
     Empty unless the session was asked for one. This is the truth L0.6 is scored against,
     and it is the only place that truth can come from: nobody can mark from memory which
     minute they walked out of the sea, which is the same problem ADR-0013 records for waves.
+
+    Boundary stretches and interior breaks land in the same list on purpose, so a scorer
+    reads one field and does not have to know which kind of absence it is looking at.
     """
+
+    @property
+    def interior_breaks(self) -> list[Interval]:
+        """The out-of-water stretches that are not at either end of the recording.
+
+        What separates the two contenders: the baseline scores zero recall here by
+        construction, so this is where an audit pass has to earn its keep.
+        """
+        if not self.true_track and not self.activity.samples:
+            return []
+        first = self.activity.samples[0].t
+        last = self.activity.samples[-1].t
+        return [iv for iv in self.out_of_water if iv.t_start > first and iv.t_end < last]
 
     @property
     def wave_count(self) -> int:
@@ -224,6 +251,13 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
             samples.append(_dry_sample(float(len(samples)), x, y, 0.0, dry))
         out_of_water.append(Interval(dry_start, float(len(samples))))
 
+    # -- the interior break, if one was asked for ---------------------------------
+    # Spliced after the fact rather than woven into the loop above, and from its own
+    # generator, for the same reason the tail is: switching it on must not shift a single
+    # random draw of the session it interrupts.
+    if p.break_after_wave and p.break_s:
+        samples, truth_spans, out_of_water = _splice_break(p, samples, truth_spans, out_of_water)
+
     activity = Activity(
         activity_id=f"synthetic-{p.seed}",
         sport="surfing",
@@ -240,6 +274,55 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
         true_track=true_track,
         out_of_water=out_of_water,
     )
+
+
+def _splice_break(
+    p: SyntheticParams,
+    samples: list[Sample],
+    truth_spans: list[tuple[int, int]],
+    out_of_water: list[Interval],
+) -> tuple[list[Sample], list[tuple[int, int]], list[Interval]]:
+    """Insert a stretch on dry land after one wave, sliding everything after it later.
+
+    The surfer rides in, sits on the sand, and paddles back out. Everything downstream of
+    the splice -- samples, ride truth, the tail's own interval -- moves by the length of the
+    break, because a session cannot have two seconds numbered the same.
+    """
+    index = min(p.break_after_wave, len(truth_spans)) - 1
+    if index < 0:
+        return samples, truth_spans, out_of_water
+
+    at = truth_spans[index][1]
+    dry = random.Random(p.seed + 2)
+    origin = samples[at - 1] if at else samples[0]
+    x, y = _to_metres(origin.lat, origin.lon)
+
+    inserted: list[Sample] = []
+    for step in range(p.break_s):
+        # walk up the beach for the first fifth of it, then sit down
+        moving = step < max(1, p.break_s // 5)
+        if moving:
+            x += p.walk_speed
+        inserted.append(_dry_sample(float(at + step), x, y, p.walk_speed if moving else 0.0, dry))
+
+    shifted = [s.model_copy(update={"t": s.t + p.break_s}) for s in samples[at:]]
+    return (
+        samples[:at] + inserted + shifted,
+        [(a, b) if b <= at else (a + p.break_s, b + p.break_s) for a, b in truth_spans],
+        [Interval(float(at), float(at + p.break_s))]
+        + [
+            Interval(iv.t_start + p.break_s, iv.t_end + p.break_s) if iv.t_start >= at else iv
+            for iv in out_of_water
+        ],
+    )
+
+
+def _to_metres(lat: float | None, lon: float | None) -> tuple[float, float]:
+    """Degrees back to the local metres the generator integrates in."""
+    m_per_deg_lon = M_PER_DEG_LAT * math.cos(math.radians(ORIGIN_LAT))
+    return ((lon or ORIGIN_LON) - ORIGIN_LON) * m_per_deg_lon, (
+        (lat or ORIGIN_LAT) - ORIGIN_LAT
+    ) * M_PER_DEG_LAT
 
 
 def _dry_sample(t: float, x: float, y: float, speed: float, rng: random.Random) -> Sample:

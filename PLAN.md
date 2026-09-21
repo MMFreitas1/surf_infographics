@@ -13,11 +13,11 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **The LLM audit** (the last piece of Phase 5), then the Session screen. The deterministic baseline it has to beat now exists, and so does the truth to score both on: a synthetic session with a known out-of-water tail. It ships only if it wins (ADR-0005). Two defects found by the diagnostics loop are queued ahead of it if you want them first — see "Found by the loop". Start at **"Phase 5 · Clean signal"** |
+| **Next** | **The Session screen** (design Level 2). Phase 5 is closed: the signal is clean, the session's real span is known, and the local model was measured and rejected for this job (ADR-0016). This is the screen the design leads with and the one Miguel has been waiting to see — read `design_handover/design_handoff_surf_analytics/README.md` first. One open defect is queued, see "Found by the loop" |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 449 tests green (343 api · 58 web · 48 evals); 17 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 452 tests green (343 api · 58 web · 51 evals); 17 api tests skip without `sample_data/`. The LLM eval needs Ollama and skips unless `SURF_LLM_EVAL=1` |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -49,7 +49,7 @@ ls docs/adr/               # why each decision was made
 - [x] **2 · Kinematics** — Kalman + RTS smoother, blind windows, propagated confidence
 - [x] **3 · Frame** — shore-bearing estimation, cross-shore/alongshore transform, candidate generation
 - [x] **4 · Labeling UI** — scrub a session and mark waves, from raw signal
-- [ ] **5 · Clean signal** — ✅ Pass 1 (L0.5, cleaner) · ✅ Pass 2 baseline (L0.6, audit) · ⬜ Pass 2 LLM (must beat the baseline)
+- [x] **5 · Clean signal** — ✅ Pass 1 (L0.5, cleaner) · ✅ Pass 2 baseline (L0.6, audit) · ✅ Pass 2 LLM measured and rejected (ADR-0016)
 - [ ] **6 · Shore & peaks** — where you sat, where the coast runs, and therefore left vs right
 - [ ] **7 · Wave metrics** — transparent scorer, then duration / speeds / manoeuvres / straightness per ride
 - [ ] **8 · Marine context** — swell 1–4, wind, sea temperature, combined energy
@@ -558,7 +558,7 @@ Context is kept **per level**; only Sessions may read all three.
 
 ---
 
-## Phase 5 · Clean signal — Pass 1 ✅ · Pass 2 baseline ✅ · LLM next
+## Phase 5 · Clean signal — ✅ complete
 
 **Goal:** no impossible number reaches a chart. Correctness over speed — a five-minute local
 LLM pass is acceptable if it is right.
@@ -646,14 +646,38 @@ golden stays valid. The baseline recovers it to within one window.
       not invalidate the track. Exclusion, never demotion: the samples keep their position and
       stay `observed` ([ADR-0015](./docs/adr/0015-not-surfing-is-excluded-not-demoted.md)).
       `GET /activities/{id}/audit`, Zod mirror, contract golden both sides, 29 tests.
-- [ ] **Pass 2 LLM — audit over what the baseline cannot settle.** Local model, deterministic,
-      offline. It sees the **same digest the baseline reads** — windowed speed/coverage/HR,
-      already built and **coordinate-free by construction**, which is what makes the hosted
-      fallback safe to offer rather than merely policed. Its job is the residue: an interior
-      stretch that is not surfing at all (driving home, the watch on a table).
-      `NotSurfingReason.INTERRUPTION` and `AuditSource.LLM` are already in the contract, so
-      the boundary is fixed before anything crosses it. **It ships only if it beats the
-      baseline on the synthetic truth above** (ADR-0005) — and not shipping is a result.
+- [x] **Pass 2 LLM — measured, and it does not ship.** ✅ 2026-09-21,
+      [ADR-0016](./docs/adr/0016-the-local-model-does-not-ship-for-the-session-audit.md).
+
+      | contender | F1 | interior recall | ride seconds destroyed | time |
+      |---|---|---|---|---|
+      | **baseline** | **0.63** | 0.00 | **0** | ~0 s |
+      | `llm:reasoned` | 0.07 | 0.40 | 181 | 304 s |
+      | `llm:ruled` | 0.45 | 0.80 | 110 | 363 s |
+
+      Two independent disqualifications. Neither variant beats the baseline on F1 — the one
+      that matters, the model reasoning from the physics itself, scores **0.07 against 0.63**,
+      closer to anti-correlated with the truth than merely weak. And both **destroy real
+      surfing**: 181 s and 110 s of genuine rides against the baseline's zero. Run twice at
+      temperature 0 with a fixed seed, F1 came back identical to four decimal places while the
+      destroyed seconds moved — the verdicts are stable, the span edges are not, which a
+      content-addressed pipeline cannot hold to its reproducibility promise.
+
+      ADR-0005 scopes the LLM to the *ambiguous band*, and here that band is nearly empty:
+      coverage is 0.39 in the water and 1.00 out of it, with nothing between. The `ruled`
+      control scoring *better* than `reasoned` is the tell — the model is pattern-matching a
+      rule it was handed, not reasoning, and a rule the baseline already runs perfectly in
+      microseconds rather than 50 seconds a session.
+
+      **What it did find, recorded honestly:** `ruled` reached 0.80 interior recall where the
+      baseline scores 0.00. That gap is real. The next attempt on it should be a
+      *deterministic* interior rule — high coverage, low speed, and a **falling** heart rate,
+      which is what separates resting on the sand from sitting on a board — measured against
+      the same harness before anyone reaches for a model again.
+
+      The harness is the durable part: `evals/test_llm_audit.py` holds a `SHIPS` list,
+      currently empty, so a future contender clearing both bars turns the eval red and names
+      what changed rather than shipping quietly.
 - [x] Both passes are **stages** (L0.5 and L0.6), cached and content-addressed like everything
       else, so a threshold sweep is a cache key and not a re-ingest. L0.5's invalidation
       travels down to L1/L2/L3; L0.6's deliberately does not, because it changes no sample.
