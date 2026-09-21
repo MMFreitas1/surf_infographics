@@ -10,10 +10,10 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **The Session screen** (design Level 2). Phase 5 is closed: the signal is clean, the session's real span is known, and the local model was measured and rejected for this job (ADR-0016). This is the screen the design leads with and the one Miguel has been waiting to see — read `design_handover/design_handoff_surf_analytics/README.md` first. One open defect is queued, see "Found by the loop" |
+| **Next** | **The Session screen** (design Level 2), now in three PRs: **shell → map → charts**. The hero has a number to render: `GET /activities/{id}/waves` commits to one. Read `design_handover/design_handoff_surf_analytics/README.md` first. PR 1 also fixes the queued `make verify` flake — it is Playwright's *navigation* timeout, not the test timeout, see "Found by the loop" |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
@@ -182,10 +182,13 @@ folded into an unrelated PR. The first is fixed; the second is still open.
       the Parquet decode deliberately left outside it. Four regression tests, each verified to
       fail against the old code.
 - [ ] **`make verify` flakes on a cold Next dev server.** The scrub spec takes **25.1 s**
-      against a 30 s default timeout when the route has not been compiled yet, and 4.0 s once
-      it has. It failed once, then passed on every rerun. Either raise the per-test timeout in
-      `playwright.config.ts` or warm the route before asserting — a verification harness that
-      cries wolf is worse than none.
+      against a 30 s timeout when the route has not been compiled yet, and 4.0 s once it has.
+      It failed once, then passed on every rerun. **Diagnosed 2026-09-21:** it is *not* the
+      per-test timeout — `ui.spec.ts` has set `test.setTimeout(180_000)` since PR #20. It is
+      Playwright's **navigation** timeout, which defaults to 30 s: `visit()` calls
+      `page.goto(..., waitUntil: "networkidle")` and `navigationTimeout` is unset in
+      `web/playwright.config.ts`. One line. Queued into the first UI PR, which depends on
+      verification being trustworthy.
 
 ## Deferred, with reasons
 
@@ -736,13 +739,27 @@ stated confidence, and the shore line can be drawn on the session map without a 
 
 ---
 
-## Phase 7 · Wave metrics
+## Phase 7 · Wave metrics — resolver landed 2026-09-21, metrics still open
 
 **Goal:** the per-wave card, computed. L3 proposes; this phase scores and measures.
 
-- [ ] **Transparent scorer** over L3's candidates — duration, sustained shoreward run, takeoff
-      acceleration, coverage. Reported as a *proposal strength*, never as a validated
-      probability (ADR-0013), and it must stay readable: a rule a person can argue with.
+> **The resolver half is done** and shipped ahead of the Session screen, because the hero
+> element had no number to render. `L4` (features) + `L5` (verdict) +
+> `GET /activities/{id}/waves`. The reference session: **22 proposals → 11 waves**, 1 left
+> unresolved, every verdict carrying the tier that decided it and the reason in words.
+> The local model was measured against the rule and does not ship (**ADR-0017**).
+>
+> The finding that made it possible: **a blind window is position-blind, not dataless.**
+> Heart rate and the odometer are present for 100% of blind seconds on the reference file.
+> The odometer freezes through a window and back-fills in one step on reacquisition — so it
+> is a window *total*, never a rate — and 59 of its 127 blind runs move ≤ 0.5 m, which
+> settles them outright. Both fully-blind proposals now get decided rather than deferred.
+
+- [x] **Transparent scorer** over L3's candidates — duration, sustained shoreward run, takeoff
+      acceleration, coverage, and the odometer channels above. Reported as a *proposal
+      strength*, never as a validated probability (ADR-0013), and readable: a rule a person
+      can argue with. On five seeded sessions it produces **zero false positives**; its 13
+      refusals are candidates where the true ride fills 1–18 s of a 10–50 s proposal
 - [ ] **Duration**, **top speed**, **average speed**, **distance ridden** (km/h at the edge)
 - [ ] **Take-off speed** — speed at the ride's start. Paired with wave speed below, this is what
       says whether the paddling needs work
@@ -761,6 +778,12 @@ stated confidence, and the shore line can be drawn on the session map without a 
 
 **Done when:** each candidate on the reference session yields a full card, every number has a
 unit and a coverage, and the ones that cannot be computed say so instead of showing zero.
+
+**Known limit of the resolver, recorded rather than tuned away.** The rule's refusals are an
+L3 boundary problem, not a threshold that wants turning: L3 merges bursts, so a real 15 s ride
+arrives inside a 40 s proposal padded with paddling. `odometer_peak_ms` (best sustained 10 s)
+was added for exactly this and recovered most of it. Six of the remaining refusals land in the
+band, which is where a model that earned its place would help — ADR-0017's did not.
 
 ---
 

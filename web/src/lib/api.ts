@@ -14,6 +14,7 @@ import {
   type PassKind,
   SessionCandidates,
   SessionTrack,
+  SessionVerdict,
   StoredLabel,
 } from "@/lib/schema";
 
@@ -71,6 +72,9 @@ export const getTrack = (id: string) => request(`/activities/${id}/track`, Sessi
 
 export const getCandidates = (id: string) =>
   request(`/activities/${id}/candidates`, SessionCandidates);
+
+/** The count, and how every proposal was settled. The one route that answers. */
+export const getWaves = (id: string) => request(`/activities/${id}/waves`, SessionVerdict);
 
 export const getLabels = (id: string, current = false) =>
   request(`/activities/${id}/labels${current ? "?current=true" : ""}`, StoredLabel.array());
