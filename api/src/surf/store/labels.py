@@ -31,15 +31,31 @@ unanchored ``human`` truth; an assisted one sees L3 and is recorded as such (ADR
 
 
 class LabelRepository:
-    """Reads and appends labels. Owns one SQLite connection for the app's lifetime."""
+    """Reads and appends labels. Owns one SQLite connection for the app's lifetime.
+
+    **Every access to that connection is serialised, reads included**, for the reason
+    :class:`~surf.store.repo.ActivityRepository` sets out: two threads running statements
+    on one connection corrupt each other's rows rather than merely racing for them, and
+    most of the damage is silently wrong data instead of an error.
+
+    This repository is where that surfaced. Opening ``/label/{id}`` fires four requests at
+    once -- the activity, its track, its labels and its passes -- so the labelling screen is
+    the one place in the app that reliably reads from several threads at the same moment.
+    """
 
     def __init__(self, db_path: Path) -> None:
-        self._lock = threading.Lock()
+        # Re-entrant, so a method holding the lock can call a helper that takes it too.
+        self._lock = threading.RLock()
         self._db = connect(db_path)
 
     def close(self) -> None:
-        """Release the connection."""
-        self._db.close()
+        """Release the connection, once whoever is mid-query has finished with it.
+
+        Under the lock like every other access, so the invariant stays exception-free:
+        nothing touches this connection without holding it.
+        """
+        with self._lock:
+            self._db.close()
 
     def append(
         self,
@@ -108,7 +124,8 @@ class LabelRepository:
             "     AND activity_id = ?)) "
             "ORDER BY created_at, label_id"
         )
-        rows = self._db.execute(sql, (activity_id, int(current), activity_id)).fetchall()
+        with self._lock:
+            rows = self._db.execute(sql, (activity_id, int(current), activity_id)).fetchall()
         return [_label_of(row) for row in rows]
 
     def complete_pass(self, activity_id: str, kind: PassKind, *, completed_at: float) -> LabelPass:
@@ -149,10 +166,11 @@ class LabelRepository:
 
     def passes_for(self, activity_id: str) -> list[LabelPass]:
         """Every completed sweep of one session, oldest first."""
-        rows = self._db.execute(
-            "SELECT * FROM label_passes WHERE activity_id = ? ORDER BY completed_at",
-            (activity_id,),
-        ).fetchall()
+        with self._lock:
+            rows = self._db.execute(
+                "SELECT * FROM label_passes WHERE activity_id = ? ORDER BY completed_at",
+                (activity_id,),
+            ).fetchall()
         return [
             LabelPass(
                 activity_id=row["activity_id"],
@@ -165,25 +183,28 @@ class LabelRepository:
 
     def count_by_source(self, activity_id: str, source: LabelSource) -> int:
         """How many labels of one provenance this session carries, superseded rows included."""
-        row = self._db.execute(
-            "SELECT COUNT(*) AS n FROM labels WHERE activity_id = ? AND source = ?",
-            (activity_id, source.value),
-        ).fetchone()
+        with self._lock:
+            row = self._db.execute(
+                "SELECT COUNT(*) AS n FROM labels WHERE activity_id = ? AND source = ?",
+                (activity_id, source.value),
+            ).fetchone()
         return int(row["n"])
 
     def has_pass(self, activity_id: str, kind: PassKind) -> bool:
         """Whether a sweep of this kind has been completed on this session."""
-        row = self._db.execute(
-            "SELECT 1 FROM label_passes WHERE activity_id = ? AND kind = ? LIMIT 1",
-            (activity_id, kind.value),
-        ).fetchone()
+        with self._lock:
+            row = self._db.execute(
+                "SELECT 1 FROM label_passes WHERE activity_id = ? AND kind = ? LIMIT 1",
+                (activity_id, kind.value),
+            ).fetchone()
         return row is not None
 
     def _require_own_label(self, activity_id: str, label_id: str) -> None:
         """A correction may only supersede a label on the same session."""
-        row = self._db.execute(
-            "SELECT activity_id FROM labels WHERE label_id = ?", (label_id,)
-        ).fetchone()
+        with self._lock:
+            row = self._db.execute(
+                "SELECT activity_id FROM labels WHERE label_id = ?", (label_id,)
+            ).fetchone()
         if row is None:
             msg = f"cannot supersede {label_id}: no such label"
             raise StoreError(msg)

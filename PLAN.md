@@ -13,11 +13,11 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **The LLM audit** (the last piece of Phase 5), then the Session screen. The deterministic baseline it has to beat now exists, and so does the truth to score both on: a synthetic session with a known out-of-water tail. It ships only if it wins (ADR-0005). Two defects found by the diagnostics loop are queued ahead of it if you want them first — see "Found by the loop". Start at **"Phase 5 · Clean signal"** |
+| **Next** | **The LLM audit** (the last piece of Phase 5), then the Session screen. The deterministic baseline it has to beat now exists, and so does the truth to score both on: a synthetic session with a known out-of-water tail. It ships only if it wins (ADR-0005). Start at **"Phase 5 · Clean signal"** |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 449 tests green (343 api · 58 web · 48 evals); 17 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 453 tests green (347 api · 58 web · 48 evals); 17 api tests skip without `sample_data/`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -167,18 +167,20 @@ personal data, no third-party values. Human labels from Phase 4 join the same ha
 `make verify` reuses whatever already serves :3000, so it works against dev server or container.
 Browser errors POST to `/diagnostics/client-error`, so UI and API failures share one buffer.
 
-### Found by the loop, not yet fixed — 2026-09-17
+### Found by the loop — 2026-09-17
 
-Both surfaced while verifying Phase 5's odometer fix. Neither is caused by it; both are
-recorded here so they survive a `/clear`, and neither was folded into an unrelated PR.
+Both surfaced while verifying Phase 5's odometer fix, neither caused by it, and neither
+folded into an unrelated PR. The first is fixed; the second is still open.
 
-- [ ] **SQLite reads are not serialised, and the label page trips it.** `store/repo.py` opens
-      one connection with `check_same_thread=False` and shares it across FastAPI's threadpool,
-      but only `save` and `delete` take `self._lock` — `get`, `samples_key`, `summaries`,
-      `id_for_digest` and `_blind_windows` all execute unlocked. Opening `/label/{id}` fires
-      four requests at once and raised `sqlite3.InterfaceError: bad parameter or other API
-      misuse` from `repo.get`, which the browser then reported as `ApiUnreachable`. Structural
-      and present since PR #19. **User-facing: a session page can fail to load its labels.**
+- [x] **SQLite reads are not serialised, and the label page trips it.** ✅ Fixed 2026-09-17.
+      Worse than the log showed: reproduced at **17 failures in 960 concurrent reads**, in four
+      flavours, and only one of them was the `InterfaceError` the buffer caught. The other
+      three were *silently wrong data* — a blind window whose `cause` came back NULL, a summary
+      whose counts came back NULL, and a `samples_key` read from the wrong row, which surfaces
+      as "samples are missing from the stage cache": a report of data loss that had not
+      happened. Both repositories now take an `RLock` on **every** access, reads included, with
+      the Parquet decode deliberately left outside it. Four regression tests, each verified to
+      fail against the old code.
 - [ ] **`make verify` flakes on a cold Next dev server.** The scrub spec takes **25.1 s**
       against a 30 s default timeout when the route has not been compiled yet, and 4.0 s once
       it has. It failed once, then passed on every rerun. Either raise the per-test timeout in
