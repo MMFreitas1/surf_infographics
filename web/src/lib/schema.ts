@@ -42,7 +42,18 @@ export const NotSurfingReason = z.enum(["before_entry", "after_exit", "interrupt
 export type NotSurfingReason = z.infer<typeof NotSurfingReason>;
 
 export const AuditSource = z.enum(["baseline", "llm"]);
+
+/**
+ * Which tier settled a candidate. ADR-0005's ladder, visible in the output.
+ *
+ * `unresolved` is not a verdict and is never a wave: the rule was unsure and no model was
+ * available to ask. ADR-0017 measured the local model against the rule and it did not clear
+ * its bar, so today every session's band arrives here.
+ */
+export const DecidedBy = z.enum(["rule", "model", "unresolved"]);
 export type AuditSource = z.infer<typeof AuditSource>;
+
+export type DecidedBy = z.infer<typeof DecidedBy>;
 
 export const Sample = z.object({
   t: z.number(),
@@ -335,3 +346,48 @@ export function certaintyOf(
   if (candidate.score < 0.15) return "detected";
   return "uncertain";
 }
+
+/**
+ * One candidate, decided. L3 owns the boundaries; no tier may move them.
+ *
+ * `strength` is the deterministic rule's own reading on its own scale -- **not** a calibrated
+ * probability, and it must never be rendered as one. There are no labels to calibrate against
+ * (ADR-0013).
+ *
+ * `position_coverage` rides along because a wave the watch never saw and one it watched
+ * throughout are two different claims, and the UI has to draw them differently. A verdict at
+ * coverage 0 was reached from the odometer and heart rate, which keep recording while the
+ * wrist is under water -- it is measured, just not by GPS.
+ */
+export const WaveVerdict = z.object({
+  t_start: z.number(),
+  t_end: z.number(),
+  is_wave: z.boolean(),
+  strength: z.number().min(0).max(1),
+  decided_by: DecidedBy,
+  reason: z.string().default(""),
+  position_coverage: z.number().min(0).max(1).default(0),
+  duration_s: z.number(),
+});
+export type WaveVerdict = z.infer<typeof WaveVerdict>;
+
+/**
+ * What the pipeline commits to for one session, as `GET /activities/{id}/waves` returns it.
+ *
+ * `wave_count` is the product's answer to "how many waves". The pipeline reaches it rather
+ * than handing the ambiguity to the screen, and every candidate is in `verdicts` with the
+ * tier that settled it, so the number can be taken apart.
+ *
+ * It is a reading of the data, not a validated measurement. The session says so **once**
+ * (ADR-0013) -- in the method banner, not on every number.
+ */
+export const SessionVerdict = z.object({
+  verdicts: z.array(WaveVerdict).default([]),
+  adjudicated: z.number().int().min(0).default(0),
+  model: z.string().default(""),
+  prompt_version: z.string().default(""),
+  wave_count: z.number().int().min(0),
+  proposed_count: z.number().int().min(0),
+  unresolved_count: z.number().int().min(0),
+});
+export type SessionVerdict = z.infer<typeof SessionVerdict>;

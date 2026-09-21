@@ -24,7 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from surf.models import Activity, AuditReport, CleanReport, SessionTrack
+from surf.models import Activity, AuditReport, CleanReport, SessionTrack, SessionVerdict
 from surf.pipeline.audit import AuditStage
 from surf.pipeline.cache import StageCache
 from surf.pipeline.clean import CleanedSession, CleanStage
@@ -32,7 +32,8 @@ from surf.pipeline.l1 import KinematicsStage
 from surf.pipeline.l2 import FramedTrack, FrameStage
 from surf.pipeline.l3 import CandidateSet, CandidateStage
 from surf.pipeline.l4 import FeatureInput, FeatureSet, FeatureStage
-from surf.pipeline.runner import StageResult, run_stage
+from surf.pipeline.l5 import ClassifyStage
+from surf.pipeline.runner import StageResult, run_stage, stage_key
 
 
 @dataclass(frozen=True)
@@ -158,3 +159,24 @@ def features_for(
         ),
     )
     return measured.output, chain.cached and proposed.cached and measured.cached
+
+
+def waves_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[SessionVerdict, bool]:
+    """L5: how many waves this session had, and how each candidate was settled.
+
+    The end of the chain, and the only place a verdict exists. Ships with no adjudicator:
+    ADR-0017 measured the local model against this rule and it did not clear the bar, so the
+    band goes unresolved rather than being answered by something unmeasured.
+    """
+    measured, cached = features_for(activity, cache, samples_key=samples_key)
+    proposed, _ = _proposed(activity, cache, samples_key=samples_key)
+    stage = ClassifyStage()
+    decided: StageResult[SessionVerdict] = run_stage(
+        stage,
+        cache,
+        input_hash=stage_key(FeatureStage(), cache, proposed.key),
+        data=measured,
+    )
+    return decided.output, cached and decided.cached

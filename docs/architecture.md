@@ -50,8 +50,8 @@ may not have.
 | L1 | kinematics | `SmoothedSample[]` — Kalman + RTS-smoothed position/velocity, posterior sigma and confidence per second, `observed` marking fix from estimate. A parallel track, never an overwrite (ADR-0010) |
 | L2 | frame | `SessionFrame` + `FramedSample[]` — shore bearing from a speed-weighted sum of headings, then position and velocity rotated into cross-shore / alongshore. The frame carries its own reliability: `coherence` and a Kish effective sample size, both of which must clear a threshold before the bearing is trusted (ADR-0011) |
 | L3 | candidates | `CandidateSet` — high-recall `WaveCandidate[]` from sustained shoreward motion, thresholded on a **quantile of the session's own** cross-shore speed rather than an absolute one, plus the `SessionFrame` they were measured against. `position_coverage` per candidate; no `score` and no `direction` — L3 proposes, it does not judge |
-| L4 | features | ~30 features per candidate |
-| L5 | classify | rules → GBM → LLM adjudicates the 0.15–0.85 band only |
+| L4 | features | `FeatureSet` — every proposal measured against **every channel the watch recorded**, not just position. Heart rate and the odometer are present for 100% of blind seconds, so a candidate the smoother had to estimate is not one about which nothing is known. The odometer is read as a **window total, never a rate**: a blind run's distance back-fills in one step, and dividing that step by one second is how 201 metres becomes 201 m/s (ADR-0014). A channel the file lacks yields an absent key, never a zero |
+| L5 | classify | `SessionVerdict` — **the stage that commits to a number.** A deterministic rule settles what it can and says why in words; only the ambiguous 0.15–0.85 band is offered to a model, and a candidate nobody settles is `unresolved` and is **not** counted. No tier may move a boundary — ADR-0016 found verdicts reproducible and span edges not, so edges stay with L3 and §3's guarantee holds. GBM deferred (needs labels); the local model was measured and does not ship (ADR-0017) |
 | L6 | metrics | session + per-wave aggregates |
 
 ## 4. Data model
@@ -81,7 +81,11 @@ A `Sample` without a position is still a valid sample: it carries HR, time and b
 7. **The recording is longer than the session** — the walk down and the walk back are measured
    perfectly and are not surfing. They are excluded from what metrics may count, never demoted
    as if the watch had been blind. (ADR-0015)
-6. **First-party signal only** — no third-party app's derived values enter the pipeline. (ADR-0008)
+8. **The pipeline commits to the answer, not the screen** — L5 reaches one wave count, with
+   the tier and the reason kept for every candidate. Rendering unjudged proposals would push
+   the pipeline's own work onto the reader. The count is a reading of the data, and the UI
+   says so **once per session** rather than hedging every number (ADR-0013, ADR-0017).
+9. **First-party signal only** — no third-party app's derived values enter the pipeline. (ADR-0008)
 
 ## 6. Confirmed choices
 
