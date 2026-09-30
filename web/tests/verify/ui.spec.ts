@@ -165,3 +165,62 @@ test("the method banner dismisses and stays dismissed", async ({ page }, testInf
   await record(page, diag, testInfo.title);
   clean(diag);
 });
+
+test("the track map draws the session and plays it back", async ({ page }, testInfo) => {
+  // deck.gl is code-split and compiled on first request in dev: slow once, instant after.
+  test.setTimeout(180_000);
+  const SLOW = { timeout: 90_000 };
+
+  const activityId = await firstActivity();
+  test.skip(activityId === null, "no ingested session — start the API and post an activity");
+
+  const diag = await visit(page, `/session/${activityId}`);
+
+  await expect(page.locator(".map-card")).toBeVisible(SLOW);
+  await expect(page.locator(".map-body canvas").first()).toBeVisible(SLOW);
+
+  // The legend names the two states the track draws, and carries the imagery credit the
+  // Esri licence requires. A map without it is a licence breach on screen.
+  await expect(page.locator(".map-legend")).toBeVisible();
+  // The imagery credit is maplibre's own, rendered from the source's attribution field, so
+  // it appears exactly when imagery does. Required by the Esri licence.
+  await expect(page.locator(".maplibregl-ctrl-attrib")).toContainText("Esri");
+
+  // The ribbon and the blind rail are separate rows on purpose: a wave and a blind window
+  // are not alternatives. Both must actually be drawn.
+  expect(await page.locator(".ribbon-wave").count()).toBeGreaterThan(0);
+  expect(await page.locator(".blind-span").count()).toBeGreaterThan(0);
+
+  // Playback moves the clock.
+  const clock = page.locator(".clock");
+  const before = await clock.textContent();
+  await page.locator(".play-button").click();
+  await expect(clock).not.toHaveText(before ?? "", { timeout: 20_000 });
+  await page.locator(".play-button").click();
+
+  await record(page, diag, testInfo.title);
+  clean(diag);
+});
+
+test("selecting a wave isolates it and says how it was decided", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const activityId = await firstActivity();
+  test.skip(activityId === null, "no ingested session — start the API and post an activity");
+
+  const diag = await visit(page, `/session/${activityId}`);
+  await expect(page.locator(".map-card")).toBeVisible({ timeout: 90_000 });
+
+  await page.locator(".ribbon-wave").first().click();
+
+  const callout = page.locator(".selection-callout");
+  await expect(callout).toBeVisible();
+  // The verdict's own reason, carried through unchanged from the pipeline.
+  await expect(page.locator(".selection-reason")).not.toBeEmpty();
+  await expect(page.locator(".selection-meta")).toContainText(/%/);
+
+  await page.locator(".button-ghost").click();
+  await expect(callout).toHaveCount(0);
+
+  await record(page, diag, testInfo.title);
+  clean(diag);
+});

@@ -149,3 +149,90 @@ export function formatClock(t: number, start: number): string {
 export function formatDuration(seconds: number): string {
   return `${seconds.toFixed(1)}s`;
 }
+
+/** One point on the ground, as deck.gl wants it: longitude first. */
+export type LngLat = [number, number];
+
+/** Metres per degree of latitude. Close enough everywhere; the error is under 1%. */
+const M_PER_DEG_LAT = 111_320;
+
+/**
+ * Ground distance between two points, in metres.
+ *
+ * Equirectangular rather than haversine on purpose: a surf session spans a few hundred
+ * metres, where the two agree to far better than the GPS noise, and this one is cheap enough
+ * to run over every second of a 3790-sample track on every render.
+ */
+export function metresBetween(a: LngLat, b: LngLat): number {
+  const midLat = ((a[1] + b[1]) / 2) * (Math.PI / 180);
+  const dx = (b[0] - a[0]) * M_PER_DEG_LAT * Math.cos(midLat);
+  const dy = (b[1] - a[1]) * M_PER_DEG_LAT;
+  return Math.hypot(dx, dy);
+}
+
+/**
+ * Chop a path into dashes, measured on the ground.
+ *
+ * The design's three states are solid / **dashed translucent** / absence, and a dash is the
+ * only one of the three that a stroke colour alone cannot carry — at a glance, a fainter
+ * continuous line still reads as a line someone drew from measurements.
+ *
+ * Done here rather than with `@deck.gl/extensions`' `PathStyleExtension` because that is a
+ * new core dependency and this is twenty lines. Dashes are spaced by **metres travelled**,
+ * not by sample index: an estimated stretch where the surfer sat still would otherwise
+ * bunch every dash into one spot, which is exactly where the uncertainty is largest and the
+ * drawing should be clearest.
+ */
+export function dashPath(path: readonly LngLat[], dashM: number, gapM: number): LngLat[][] {
+  if (path.length < 2 || dashM <= 0 || gapM <= 0) return path.length > 1 ? [[...path]] : [];
+
+  // A micron. Distances here accumulate over thousands of segments, so a boundary that
+  // should land exactly on the final point lands a few femtometres past it instead --
+  // which splits off a zero-length dash and makes 100 m of 10-on-10-off come out as six
+  // dashes rather than five. Comparing with a tolerance is what stops the arithmetic from
+  // inventing a mark that has no length.
+  const EPS = 1e-6;
+
+  const dashes: LngLat[][] = [];
+  let current: LngLat[] = [path[0] as LngLat];
+  let drawing = true;
+  let remaining = dashM;
+
+  for (let i = 1; i < path.length; i += 1) {
+    let from = path[i - 1] as LngLat;
+    const to = path[i] as LngLat;
+    let segment = metresBetween(from, to);
+
+    // A single second can span several dashes when the surfer is moving fast, so this
+    // consumes the segment piece by piece rather than assuming one boundary per step.
+    while (segment > remaining + EPS) {
+      const ratio = remaining / segment;
+      const split: LngLat = [
+        from[0] + (to[0] - from[0]) * ratio,
+        from[1] + (to[1] - from[1]) * ratio,
+      ];
+      if (drawing) {
+        current.push(split);
+        dashes.push(current);
+        current = [];
+      } else {
+        current = [split];
+      }
+      drawing = !drawing;
+      segment -= remaining;
+      remaining = drawing ? dashM : gapM;
+      from = split;
+    }
+
+    remaining -= segment;
+    if (drawing) current.push(to);
+  }
+
+  if (drawing && current.length > 1) dashes.push(current);
+  // A dash with no length draws nothing and costs a layer entry; drop it rather than ship
+  // it. Belt and braces with EPS above, because the two failure modes differ: that one
+  // prevents the split, this one catches a degenerate run however it arose.
+  return dashes.filter(
+    (dash) => dash.length > 1 && metresBetween(dash[0] as LngLat, dash.at(-1) as LngLat) > EPS,
+  );
+}

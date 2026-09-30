@@ -36,7 +36,27 @@ export interface Messages {
   "hero.ofProposals": string;
   "hero.unresolved": string;
 
+  /** The track map, its playback and its legend. */
+  "map.title": string;
+  "map.attribution": string;
+  "playback.play": string;
+  "playback.pause": string;
+  "playback.scrub": string;
+  "playback.step": string;
+  "legend.measured": string;
+  "legend.estimated": string;
+  "legend.wave": string;
+  "legend.blind": string;
+  "legend.excluded": string;
+  "selection.isolated": string;
+  "selection.showAll": string;
+  "selection.coverage": string;
+  "selection.decidedBy.rule": string;
+  "selection.decidedBy.model": string;
+  "selection.decidedBy.unresolved": string;
+
   /** Section headers. */
+  "section.track": string;
   "section.session": string;
   "section.conditions": string;
   "section.confidence": string;
