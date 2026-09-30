@@ -16,6 +16,7 @@ import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import DeckGL from "@deck.gl/react";
 import { useMemo } from "react";
 import BaseMap from "react-map-gl/maplibre";
+import { rasterStyle } from "@/lib/basemap";
 import type { BasemapInfo, SmoothedSample, WaveVerdict } from "@/lib/schema";
 import { dashPath, type LngLat, type Span, withRuns } from "@/lib/trace";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -42,30 +43,6 @@ interface Props {
   /** Stretches the audit says were not surfing -- the walk down and the walk back. */
   excluded: Span[];
   height?: number;
-}
-
-/**
- * A maplibre style with one raster source: our own tile route.
- *
- * Built here rather than fetched from a vendor because there is no vendor — the API serves
- * the tiles and the style is four lines. `attribution` is not decoration: the Esri imagery
- * licence requires it, and maplibre renders it in the corner from this field.
- */
-function rasterStyle(basemap: BasemapInfo, apiBase: string) {
-  return {
-    version: 8 as const,
-    sources: {
-      satellite: {
-        type: "raster" as const,
-        tiles: [`${apiBase}${basemap.tile_url}`],
-        tileSize: 256,
-        minzoom: basemap.min_zoom,
-        maxzoom: basemap.max_zoom,
-        attribution: basemap.attribution,
-      },
-    },
-    layers: [{ id: "satellite", type: "raster" as const, source: "satellite" }],
-  };
 }
 
 export function TrackMap({

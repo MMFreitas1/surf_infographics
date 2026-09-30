@@ -45,6 +45,10 @@ one thing the map exists to show.
 - **Esri's path order is `{z}/{y}/{x}`**, not `{z}/{x}/{y}`. Swapping them returns a valid
   tile of the wrong piece of the planet, which renders as a plausible coastline somewhere
   else entirely. There is a test for it by name.
-- **MapTiler is dropped**, along with `NEXT_PUBLIC_MAPTILER_KEY`. Nothing needs a key now.
-- The labeling UI (Phase 4) keeps its own map and is untouched by this; it draws no basemap
-  and never did, which was the right call there and stays one.
+- **MapTiler is dropped everywhere**, along with `NEXT_PUBLIC_MAPTILER_KEY` in
+  `.env.example` and `docker-compose.yml`. Nothing in the product needs a key now.
+- **The labeling UI moved to the same tiles.** It had its own MapTiler basemap behind that
+  key, which would have left two basemap systems, two credits and one stale config knob.
+  Both maps now build their style from one helper, so they cannot drift into crediting the
+  imagery differently. Its "no basemap — track only" state stays: that map has never
+  depended on one (ADR-0012) and still does not.
