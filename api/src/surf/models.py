@@ -480,6 +480,91 @@ class WaveCandidate(BaseModel):
         return self.t_end - self.t_start
 
 
+class DecidedBy(StrEnum):
+    """Which tier settled a candidate. ADR-0005's ladder, visible in the output.
+
+    Recorded per verdict rather than per session because the two tiers are not equally
+    trustworthy and a reader is entitled to know which one answered. It is also what makes
+    "the model changed nothing on this session" an observation rather than a guess.
+    """
+
+    RULE = "rule"
+    """The deterministic rule was confident enough to settle it alone."""
+    MODEL = "model"
+    """The rule landed in the ambiguous band and a model was asked."""
+    UNRESOLVED = "unresolved"
+    """The rule was unsure and no model was available. The band is not a verdict, so this
+    candidate is **not** counted as a wave -- and says so, rather than defaulting quietly."""
+
+
+class WaveVerdict(BaseModel):
+    """One candidate, decided. L3 owns the boundaries; this owns only the answer.
+
+    ``t_start`` and ``t_end`` are copied through untouched and no tier may move them.
+    ADR-0016 measured this model's verdicts as reproducible across identical runs and its
+    *span edges* as not, so the boundaries stay with the deterministic stage that produced
+    them and the content-addressed guarantee in architecture.md section 3 survives.
+    """
+
+    t_start: float
+    t_end: float
+    is_wave: bool
+    strength: float = Field(ge=0.0, le=1.0)
+    """The deterministic rule's proposal strength, kept even when a model overrode it.
+
+    Not a calibrated probability and must never be rendered as one: there are no labels to
+    calibrate against (ADR-0013). It is the rule's own reading, on the rule's own scale.
+    """
+    decided_by: DecidedBy
+    reason: str = ""
+    """Why, in one line, in words a person can disagree with."""
+    position_coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def duration_s(self) -> float:
+        return self.t_end - self.t_start
+
+
+class SessionVerdict(BaseModel):
+    """What the pipeline commits to for one session: a count, and its reasoning.
+
+    The count is the product's answer to "how many waves", and the pipeline reaches it
+    rather than handing the ambiguity to the screen. Every candidate L3 proposed appears in
+    ``verdicts`` with the tier that settled it, so the number can be taken apart.
+
+    It is a *reading of the data*, not a validated measurement. No accuracy figure may be
+    published beside it until a session is labelled the day it was surfed (ADR-0013); the UI
+    states that once, for the session, rather than hedging every number on the screen.
+    """
+
+    verdicts: list[WaveVerdict] = Field(default_factory=list)
+    adjudicated: int = Field(default=0, ge=0)
+    """How many candidates the rule could not settle and a model was asked about."""
+    model: str = ""
+    """Which model answered, empty when none did. A verdict is only interpretable next to
+    the thing that reached it."""
+    prompt_version: str = ""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def wave_count(self) -> int:
+        """The number. One integer, reached here so nothing downstream has to decide."""
+        return sum(1 for v in self.verdicts if v.is_wave)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def proposed_count(self) -> int:
+        """How many candidates L3 offered, so the rejection rate stays visible."""
+        return len(self.verdicts)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def unresolved_count(self) -> int:
+        """Candidates no tier settled. Not counted as waves, and not hidden either."""
+        return sum(1 for v in self.verdicts if v.decided_by is DecidedBy.UNRESOLVED)
+
+
 class WaveLabel(BaseModel):
     """Human ground truth. Append-only: corrections are new rows (ADR-0006)."""
 

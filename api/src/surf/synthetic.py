@@ -72,6 +72,21 @@ class SyntheticParams:
     """
     break_s: int = 0
     """How long that interior break lasts, in seconds."""
+    odometer: bool = False
+    """Record a ``distance_m`` that behaves like the device's own, gaps included.
+
+    Off by default for the same reason ``walk_out_s`` is: every committed golden is built on
+    this generator's default output, and a default that produced a different session would
+    move all of them at once.
+
+    What it models is not a clean integral. Measured on the reference FIT, the watch's
+    odometer **freezes** for the length of a blind window and then back-fills the whole
+    distance in a single step on the second it regains a fix -- every intra-window delta is
+    0.00 m, and one window lands 201.5 m in one second. That single step is where Phase 5's
+    impossible speeds come from, so any stage reading this field has to read it as a window
+    total and never as a per-second speed. A resolver tested against a smoothly integrated
+    odometer would be tested against a signal that does not exist.
+    """
 
 
 @dataclass(frozen=True)
@@ -183,6 +198,12 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
 
     # -- integrate to positions, apply dropout and noise ---------------------------
     samples: list[Sample] = []
+    steps: list[float] = []
+    """Ground distance covered in each second, index-aligned with ``samples``.
+
+    Carried separately because the odometer has to know how far the surfer moved during a
+    blind window, and the sample recorded for that second deliberately does not.
+    """
     blind: list[BlindWindow] = []
     true_track: list[TrueState] = []
     x = y = 0.0
@@ -229,6 +250,7 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
                 distance_m=None,
             )
         )
+        steps.append(math.hypot(vx, vy))
 
     if gap_start is not None:
         blind.append(
@@ -247,8 +269,10 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
             x += p.walk_speed
             y += dry.uniform(-0.1, 0.1)
             samples.append(_dry_sample(float(len(samples)), x, y, p.walk_speed, dry))
+            steps.append(p.walk_speed)
         for _ in range(p.idle_s):
             samples.append(_dry_sample(float(len(samples)), x, y, 0.0, dry))
+            steps.append(0.0)
         out_of_water.append(Interval(dry_start, float(len(samples))))
 
     # -- the interior break, if one was asked for ---------------------------------
@@ -256,7 +280,16 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
     # generator, for the same reason the tail is: switching it on must not shift a single
     # random draw of the session it interrupts.
     if p.break_after_wave and p.break_s:
-        samples, truth_spans, out_of_water = _splice_break(p, samples, truth_spans, out_of_water)
+        samples, steps, truth_spans, out_of_water = _splice_break(
+            p, samples, steps, truth_spans, out_of_water
+        )
+
+    # -- the odometer, if one was asked for ---------------------------------------
+    # Last, so that it sees the spliced session rather than the one before the splice, and
+    # deterministic: it draws no random numbers at all, so switching it on cannot move a
+    # single sample of a session generated without it.
+    if p.odometer:
+        samples = _apply_odometer(samples, steps)
 
     activity = Activity(
         activity_id=f"synthetic-{p.seed}",
@@ -279,18 +312,19 @@ def make_synthetic_session(params: SyntheticParams | None = None) -> SyntheticSe
 def _splice_break(
     p: SyntheticParams,
     samples: list[Sample],
+    steps: list[float],
     truth_spans: list[tuple[int, int]],
     out_of_water: list[Interval],
-) -> tuple[list[Sample], list[tuple[int, int]], list[Interval]]:
+) -> tuple[list[Sample], list[float], list[tuple[int, int]], list[Interval]]:
     """Insert a stretch on dry land after one wave, sliding everything after it later.
 
     The surfer rides in, sits on the sand, and paddles back out. Everything downstream of
-    the splice -- samples, ride truth, the tail's own interval -- moves by the length of the
-    break, because a session cannot have two seconds numbered the same.
+    the splice -- samples, per-second distances, ride truth, the tail's own interval -- moves
+    by the length of the break, because a session cannot have two seconds numbered the same.
     """
     index = min(p.break_after_wave, len(truth_spans)) - 1
     if index < 0:
-        return samples, truth_spans, out_of_water
+        return samples, steps, truth_spans, out_of_water
 
     at = truth_spans[index][1]
     dry = random.Random(p.seed + 2)
@@ -298,16 +332,19 @@ def _splice_break(
     x, y = _to_metres(origin.lat, origin.lon)
 
     inserted: list[Sample] = []
+    inserted_steps: list[float] = []
     for step in range(p.break_s):
         # walk up the beach for the first fifth of it, then sit down
         moving = step < max(1, p.break_s // 5)
         if moving:
             x += p.walk_speed
         inserted.append(_dry_sample(float(at + step), x, y, p.walk_speed if moving else 0.0, dry))
+        inserted_steps.append(p.walk_speed if moving else 0.0)
 
     shifted = [s.model_copy(update={"t": s.t + p.break_s}) for s in samples[at:]]
     return (
         samples[:at] + inserted + shifted,
+        steps[:at] + inserted_steps + steps[at:],
         [(a, b) if b <= at else (a + p.break_s, b + p.break_s) for a, b in truth_spans],
         [Interval(float(at), float(at + p.break_s))]
         + [
@@ -315,6 +352,34 @@ def _splice_break(
             for iv in out_of_water
         ],
     )
+
+
+def _apply_odometer(samples: list[Sample], steps: list[float]) -> list[Sample]:
+    """Write a ``distance_m`` that gaps the way the real device's does.
+
+    The watch reports a cumulative distance every second, including seconds it has no fix
+    for -- but while the fix is gone the number does not move. It catches up in one step on
+    the second the fix returns, carrying the whole blind window's distance with it.
+
+    So the odometer is a **window total, not a rate**. Reading the catch-up step as one
+    second of travel yields 201 m/s; that artefact is real, it is in the reference file, and
+    a resolver has to survive it rather than be handed a signal that never gaps.
+
+    Deliberately consumes no randomness: the golden sessions depend on the RNG sequence.
+    """
+    out: list[Sample] = []
+    cumulative = 0.0
+    pending = 0.0
+    for sample, step in zip(samples, steps, strict=True):
+        if sample.has_position:
+            cumulative += pending + step
+            pending = 0.0
+        else:
+            # The fix is gone. Distance still accrues in the world; the watch just is not
+            # writing it down yet, so it rides along in ``pending`` until the fix returns.
+            pending += step
+        out.append(sample.model_copy(update={"distance_m": cumulative}))
+    return out
 
 
 def _to_metres(lat: float | None, lon: float | None) -> tuple[float, float]:

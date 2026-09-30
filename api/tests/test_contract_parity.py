@@ -21,6 +21,7 @@ from surf.models import (
     RejectionReason,
     SessionCandidates,
     SessionTrack,
+    SessionVerdict,
     StoredLabel,
 )
 
@@ -269,3 +270,48 @@ def test_an_undecided_audit_excludes_nothing_and_says_so():
     assert UNDECIDED.surfing_t_start == UNDECIDED.t_start
     assert UNDECIDED.surfing_t_end == UNDECIDED.t_end
     assert UNDECIDED.excluded_s == 0.0
+
+
+# -- the wave verdict, the one route that answers rather than proposes -------------------
+
+WAVES_PATH = GOLDENS / "waves_contract_v1.json"
+WAVES_RAW = json.loads(WAVES_PATH.read_text())
+WAVES = SessionVerdict.model_validate(WAVES_RAW)
+
+
+def test_the_waves_fixture_serialises_back_to_exactly_itself():
+    assert json.loads(WAVES.model_dump_json()) == WAVES_RAW
+
+
+def test_waves_field_sets_match_the_models():
+    assert set(WAVES_RAW) == set(WAVES.model_dump())
+    for row in WAVES_RAW["verdicts"]:
+        assert set(row) == set(WAVES.verdicts[0].model_dump())
+
+
+def test_the_waves_fixture_covers_every_tier_that_can_decide():
+    """A fixture showing only confident rule verdicts would prove nothing about the ladder."""
+    assert {row["decided_by"] for row in WAVES_RAW["verdicts"]} >= {"rule", "unresolved"}
+
+
+def test_the_waves_fixture_covers_a_wave_the_watch_never_saw():
+    """The case the odometer exists for, and the one the UI must draw differently."""
+    blind = [r for r in WAVES_RAW["verdicts"] if r["position_coverage"] == 0.0]
+    assert blind, "no zero-coverage verdict, so the honest-rendering case is untested"
+    assert any(r["is_wave"] for r in blind)
+
+
+def test_an_unresolved_verdict_is_never_counted_as_a_wave():
+    """The rule the count depends on, pinned at the contract boundary too."""
+    for row in WAVES_RAW["verdicts"]:
+        if row["decided_by"] == "unresolved":
+            assert row["is_wave"] is False
+    assert WAVES.wave_count == sum(1 for r in WAVES_RAW["verdicts"] if r["is_wave"])
+
+
+def test_the_counts_are_derived_and_cannot_disagree_with_the_verdicts():
+    """They are computed fields, so a hand-edited fixture cannot claim a different total."""
+    assert WAVES.proposed_count == len(WAVES_RAW["verdicts"])
+    assert WAVES.unresolved_count == sum(
+        1 for r in WAVES_RAW["verdicts"] if r["decided_by"] == "unresolved"
+    )

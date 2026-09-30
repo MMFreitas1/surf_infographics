@@ -1,0 +1,32 @@
+{
+  "prompt_version": "wave_adjudicator.v2",
+  "seeds": [
+    7,
+    11,
+    23,
+    42,
+    101
+  ],
+  "min_iou": 0.3,
+  "table": "contender            F1  count err  refused  seconds\nbaseline           0.77        2.6       13     0.0s\nllm:reasoned       0.76        1.8        9    24.1s\nllm:ruled          0.79        2.4       12    18.1s",
+  "summary": {
+    "baseline": {
+      "f1": 0.7706959706959706,
+      "count_error": 2.6,
+      "rides_refused": 13,
+      "elapsed_s": 0.00077671161852777
+    },
+    "llm:reasoned": {
+      "f1": 0.7595604395604395,
+      "count_error": 1.8,
+      "rides_refused": 9,
+      "elapsed_s": 24.080942042171955
+    },
+    "llm:ruled": {
+      "f1": 0.7912087912087913,
+      "count_error": 2.4,
+      "rides_refused": 12,
+      "elapsed_s": 18.13955195923336
+    }
+  }
+}

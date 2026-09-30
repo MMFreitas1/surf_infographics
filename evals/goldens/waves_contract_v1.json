@@ -1,0 +1,50 @@
+{
+  "verdicts": [
+    {
+      "t_start": 120.0,
+      "t_end": 139.0,
+      "is_wave": true,
+      "strength": 0.98,
+      "decided_by": "rule",
+      "reason": "measured top speed 7.0 m/s; accelerated shoreward at the onset",
+      "position_coverage": 0.88,
+      "duration_s": 19.0
+    },
+    {
+      "t_start": 300.0,
+      "t_end": 309.0,
+      "is_wave": true,
+      "strength": 0.93,
+      "decided_by": "rule",
+      "reason": "odometer over its best sustained stretch, averaging 8.6 m/s; heart rate fell afterwards",
+      "position_coverage": 0.0,
+      "duration_s": 9.0
+    },
+    {
+      "t_start": 480.0,
+      "t_end": 528.0,
+      "is_wave": false,
+      "strength": 0.02,
+      "decided_by": "rule",
+      "reason": "the odometer recorded no movement through 39 of 48 s",
+      "position_coverage": 0.19,
+      "duration_s": 48.0
+    },
+    {
+      "t_start": 700.0,
+      "t_end": 717.0,
+      "is_wave": false,
+      "strength": 0.36,
+      "decided_by": "unresolved",
+      "reason": "measured top speed 2.6 m/s; no adjudicator, so not counted",
+      "position_coverage": 0.35,
+      "duration_s": 17.0
+    }
+  ],
+  "adjudicated": 0,
+  "model": "",
+  "prompt_version": "",
+  "wave_count": 2,
+  "proposed_count": 4,
+  "unresolved_count": 1
+}

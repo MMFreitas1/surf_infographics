@@ -28,11 +28,18 @@ from surf.models import (
     PassKind,
     SessionCandidates,
     SessionTrack,
+    SessionVerdict,
     StoredLabel,
     WaveLabel,
 )
 from surf.pipeline import StageCache, run_stage
-from surf.pipeline.session import audit_for, candidates_for, cleaning_for, track_for
+from surf.pipeline.session import (
+    audit_for,
+    candidates_for,
+    cleaning_for,
+    track_for,
+    waves_for,
+)
 from surf.store import ActivityRepository, LabelRepository, StoreError
 
 log = get_logger(__name__)
@@ -324,6 +331,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from_cache=cached,
         )
         return SessionCandidates(frame=proposed.frame, candidates=proposed.candidates)
+
+    @app.get("/activities/{activity_id}/waves")
+    def read_waves(request: Request, activity_id: str) -> SessionVerdict:
+        """How many waves this session had, and how each proposal was settled.
+
+        The one route that answers rather than proposes. `/candidates` hands back L3's
+        generous, unjudged intervals; this hands back a count, with every candidate carrying
+        the tier that decided it and the reason in words.
+
+        It is a reading of the data, not a validated measurement. No accuracy figure may be
+        published beside it until a session is labelled the day it was surfed (ADR-0013),
+        and no model stands behind it either: ADR-0017 measured the local one against this
+        rule and it did not clear the bar, so the ambiguous band is served as unresolved.
+        """
+        activity = _stored_or_404(request, activity_id)
+        verdict, cached = waves_for(
+            activity,
+            request.app.state.cache,
+            samples_key=_samples_key_or_404(request, activity_id),
+        )
+        log.info(
+            "waves.served",
+            activity_id=activity_id,
+            wave_count=verdict.wave_count,
+            proposed=verdict.proposed_count,
+            unresolved=verdict.unresolved_count,
+            adjudicated=verdict.adjudicated,
+            from_cache=cached,
+        )
+        return verdict
 
     @app.post("/activities/{activity_id}/labels", status_code=201)
     def append_label(request: Request, activity_id: str, payload: LabelCreate) -> StoredLabel:
