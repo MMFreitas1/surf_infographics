@@ -34,7 +34,7 @@ const TABS: { level: Level; key: keyof Messages; href: string }[] = [
   { level: "wave", key: "tab.wave", href: "" },
 ];
 
-function Masthead({ spot }: { spot: string }) {
+function Masthead({ spot }: { spot: string | null }) {
   const t = useT();
   return (
     <header className="masthead">
@@ -53,7 +53,9 @@ function Masthead({ spot }: { spot: string }) {
         <p className="eyebrow">{t("app.eyebrow")}</p>
         <h1 className="masthead-title">{t("app.title")}</h1>
       </div>
-      <p className="masthead-provenance">{t("app.provenance", { spot })}</p>
+      <p className="masthead-provenance">
+        {spot === null ? t("app.provenanceNoSpot") : t("app.provenance", { spot })}
+      </p>
     </header>
   );
 }
@@ -108,7 +110,8 @@ export function Shell({
   children,
 }: {
   active: Level;
-  spot: string;
+  /** The break this session was surfed at, or null until Phase 6 can name it. */
+  spot: string | null;
   samples: string;
   sessionHref?: string | null;
   children: ReactNode;
@@ -121,7 +124,9 @@ export function Shell({
       <div className="masthead-rule" aria-hidden="true" />
       <TabBar active={active} sessionHref={sessionHref} />
       <main>{children}</main>
-      <footer className="app-footer">{t("app.footer", { spot, samples })}</footer>
+      <footer className="app-footer">
+        {spot === null ? t("app.footerNoSpot", { samples }) : t("app.footer", { spot, samples })}
+      </footer>
     </div>
   );
 }

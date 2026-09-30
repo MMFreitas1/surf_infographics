@@ -15,6 +15,10 @@ export interface Messages {
   "app.title": string;
   "app.provenance": string;
   "app.footer": string;
+  /** Used until Phase 6 names the break from the coastline lookup. The device id is not a
+   *  place, and "Session at garmin:3291" reads like one. */
+  "app.provenanceNoSpot": string;
+  "app.footerNoSpot": string;
 
   /** The three levels of the drill-down. */
   "tab.sessions": string;

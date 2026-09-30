@@ -60,7 +60,7 @@ export function AerobicPanel({
   const t = useT();
   const { locale } = useLocale();
   if (meanBpm === null || maxBpm === null) {
-    return <Unavailable title="aerobic.title" message="seaState.unavailable" />;
+    return <Unavailable title="aerobic.title" message="quality.unavailable" />;
   }
   return (
     <section className="panel panel-ink">
@@ -71,7 +71,12 @@ export function AerobicPanel({
       <div className="stat-row">
         <Stat value={integer(locale, meanBpm)} label={t("aerobic.meanBpm")} onInk />
         <Stat value={integer(locale, maxBpm)} label={t("aerobic.maxBpm")} onInk />
-        <Stat value={minutes(locale, durationS)} label={t("aerobic.duration")} onInk />
+        <Stat
+          value={minutes(locale, durationS)}
+          unit={t("unit.minutes")}
+          label={t("aerobic.duration")}
+          onInk
+        />
       </div>
       <p className="panel-note">{t("aerobic.note")}</p>
     </section>
@@ -126,27 +131,45 @@ export function DeviceConfidence({
   );
 }
 
-/** A panel whose data source does not exist yet. A designed state, never an error. */
+/**
+ * A panel whose data source does not exist yet. A designed state, never an error.
+ *
+ * `title` is optional because a band holding one panel is already named by its section
+ * header, and repeating it there reads as a mistake rather than as structure.
+ */
 export function Unavailable({
   title,
   message,
 }: {
-  title: keyof Messages;
+  title?: keyof Messages;
   message: keyof Messages;
 }) {
   const t = useT();
   return (
     <section className="panel panel-absent">
-      <p className="panel-eyebrow">{t(title)}</p>
+      {title ? <p className="panel-eyebrow">{t(title)}</p> : null}
       <p className="absent-message">{t(message)}</p>
     </section>
   );
 }
 
-function Stat({ value, label, onInk }: { value: string; label: string; onInk?: boolean }) {
+function Stat({
+  value,
+  unit,
+  label,
+  onInk,
+}: {
+  value: string;
+  unit?: string;
+  label: string;
+  onInk?: boolean;
+}) {
   return (
     <div className={onInk ? "stat stat-ink" : "stat"}>
-      <p className="stat-value">{value}</p>
+      <p className="stat-value">
+        {value}
+        {unit ? <span className="stat-unit">{unit}</span> : null}
+      </p>
       <p className="stat-label">{label}</p>
     </div>
   );

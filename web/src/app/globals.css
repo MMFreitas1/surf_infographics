@@ -861,3 +861,15 @@ select {
     --dur-slow: 0.01ms;
   }
 }
+
+/* A figure without its unit is not a figure. Mono, small, and never the same weight
+   as the number it qualifies. */
+.stat-unit {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  font-weight: 400;
+  margin-left: 3px;
+  color: var(--on-ink-subtle);
+}

@@ -64,10 +64,11 @@ export function SessionScreen({ activityId }: { activityId: string }) {
     };
   }, [activityId]);
 
-  // The spot is not derived from coordinates: this repo is public and the session's position
-  // is exactly what must not leak into a committed string. Phase 6 will name it from the
-  // coastline lookup; until then the device stands in for it.
-  const spot = data?.activity.device || "—";
+  // Null until Phase 6 names the break from the coastline lookup. Deliberately not derived
+  // from coordinates -- this repo is public and the session's position is exactly what must
+  // not leak into a committed string -- and deliberately not the device id either, because
+  // "Session at garmin:3291" reads like a place and is not one.
+  const spot = null;
   const samples = data ? String(data.activity.samples.length) : "—";
 
   if (error !== null) {
@@ -102,7 +103,7 @@ export function SessionScreen({ activityId }: { activityId: string }) {
 
       <SectionHeader label="section.conditions" />
       <div className="panel-grid">
-        <Unavailable title="seaState.title" message="seaState.unavailable" />
+        <Unavailable message="seaState.unavailable" />
       </div>
 
       <SectionHeader label="section.confidence" />

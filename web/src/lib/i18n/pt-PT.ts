@@ -15,6 +15,8 @@ export const ptPT: Messages = {
   "app.title": "Surf Analytics",
   "app.provenance": "Local-first · FIT · {spot}",
   "app.footer": "Sessão em {spot} · {samples} amostras a 1 Hz",
+  "app.provenanceNoSpot": "Local-first · FIT",
+  "app.footerNoSpot": "{samples} amostras a 1 Hz · pico por identificar",
 
   "tab.sessions": "Sessões",
   "tab.session": "Sessão",

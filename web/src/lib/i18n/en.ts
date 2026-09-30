@@ -11,6 +11,8 @@ export const en: Messages = {
   "app.title": "Surf Analytics",
   "app.provenance": "Local-first · FIT · {spot}",
   "app.footer": "Session at {spot} · {samples} samples at 1 Hz",
+  "app.provenanceNoSpot": "Local-first · FIT",
+  "app.footerNoSpot": "{samples} samples at 1 Hz · break not yet identified",
 
   "tab.sessions": "Sessions",
   "tab.session": "Session",
