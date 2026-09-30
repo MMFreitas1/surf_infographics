@@ -391,3 +391,18 @@ export const SessionVerdict = z.object({
   unresolved_count: z.number().int().min(0),
 });
 export type SessionVerdict = z.infer<typeof SessionVerdict>;
+
+/**
+ * How to draw the basemap, as `GET /basemap` returns it.
+ *
+ * `attribution` is not optional and the map must render it: the Esri imagery licence
+ * requires it. It is served rather than hard-coded here so the licence text travels with the
+ * process that serves the tiles, instead of going stale in a second repository.
+ */
+export const BasemapInfo = z.object({
+  tile_url: z.string(),
+  attribution: z.string().min(1),
+  min_zoom: z.number().int().min(0).max(24),
+  max_zoom: z.number().int().min(0).max(24),
+});
+export type BasemapInfo = z.infer<typeof BasemapInfo>;

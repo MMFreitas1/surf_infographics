@@ -13,9 +13,26 @@
  * the slowest: a panel whose request failed says so and the rest of the screen stands.
  */
 import { useEffect, useState } from "react";
-import { ApiError, getActivity, getAudit, getCleaning, getWaves } from "@/lib/api";
+import {
+  ApiError,
+  apiBase,
+  getActivity,
+  getAudit,
+  getBasemap,
+  getCleaning,
+  getTrack,
+  getWaves,
+} from "@/lib/api";
 import { useT } from "@/lib/i18n";
-import type { Activity, AuditReport, CleanReport, SessionVerdict } from "@/lib/schema";
+import type {
+  Activity,
+  AuditReport,
+  BasemapInfo,
+  CleanReport,
+  SessionTrack,
+  SessionVerdict,
+} from "@/lib/schema";
+import { MapCard } from "../../_ui/map-card";
 import { MethodBanner } from "../../_ui/method-banner";
 import { AerobicPanel, DeviceConfidence, HeroCount, Unavailable } from "../../_ui/panels";
 import { SectionHeader, Shell } from "../../_ui/shell";
@@ -25,6 +42,9 @@ interface Loaded {
   waves: SessionVerdict;
   cleaning: CleanReport;
   audit: AuditReport;
+  track: SessionTrack;
+  /** Null when the API cannot describe a basemap. The track never depends on it (ADR-0012). */
+  basemap: BasemapInfo | null;
 }
 
 /** Mean and max heart rate over the seconds the audit calls session. */
@@ -52,9 +72,13 @@ export function SessionScreen({ activityId }: { activityId: string }) {
       getWaves(activityId),
       getCleaning(activityId),
       getAudit(activityId),
+      getTrack(activityId),
+      // The basemap is the one request allowed to fail without taking the screen with it:
+      // a session with no imagery still draws its track over the designed warm grid.
+      getBasemap().catch(() => null),
     ])
-      .then(([activity, waves, cleaning, audit]) => {
-        if (live) setData({ activity, waves, cleaning, audit });
+      .then(([activity, waves, cleaning, audit, track, basemap]) => {
+        if (live) setData({ activity, waves, cleaning, audit, track, basemap });
       })
       .catch((cause) => {
         if (live) setError(cause instanceof ApiError ? cause.message : String(cause));
@@ -94,6 +118,15 @@ export function SessionScreen({ activityId }: { activityId: string }) {
     <Shell active="session" spot={spot} samples={samples} sessionHref={`/session/${activityId}`}>
       <MethodBanner />
       <HeroCount verdict={data.waves} />
+
+      <SectionHeader label="section.track" />
+      <MapCard
+        samples={data.track.smoothed}
+        waves={data.waves.verdicts}
+        basemap={data.basemap}
+        apiBase={apiBase()}
+        excluded={data.audit.not_surfing}
+      />
 
       <SectionHeader label="section.session" />
       <div className="panel-grid">

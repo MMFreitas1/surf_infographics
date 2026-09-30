@@ -3,7 +3,9 @@ import {
   cadence,
   clampSpan,
   coverageOf,
+  dashPath,
   formatClock,
+  metresBetween,
   orderSpan,
   overlaps,
   spansWhere,
@@ -134,5 +136,82 @@ describe("formatClock", () => {
 
   it("never shows negative time", () => {
     expect(formatClock(0, 100)).toBe("0:00");
+  });
+});
+
+describe("metresBetween", () => {
+  it("measures a degree of latitude at roughly 111 km", () => {
+    expect(metresBetween([-9, 38], [-9, 39])).toBeCloseTo(111_320, -3);
+  });
+
+  it("shrinks a degree of longitude by the cosine of the latitude", () => {
+    // At 38°N a degree of longitude is about 88 km, not 111.
+    expect(metresBetween([-9, 38], [-8, 38])).toBeCloseTo(
+      111_320 * Math.cos((38 * Math.PI) / 180),
+      -3,
+    );
+  });
+
+  it("is zero for a point against itself", () => {
+    expect(metresBetween([-9, 38], [-9, 38])).toBe(0);
+  });
+});
+
+describe("dashPath", () => {
+  /** A straight run north from the synthetic origin, one point per metre. */
+  const straight = (metres: number): [number, number][] =>
+    Array.from({ length: metres + 1 }, (_, i) => [-9, 38 + i / 111_320] as [number, number]);
+
+  it("splits a line into dashes of the length asked for", () => {
+    const dashes = dashPath(straight(100), 10, 10);
+
+    // 100 m alternating 10 on / 10 off is five dashes.
+    expect(dashes).toHaveLength(5);
+    for (const dash of dashes) {
+      const length = dash
+        .slice(1)
+        .reduce((sum, p, i) => sum + metresBetween(dash[i] as [number, number], p), 0);
+      expect(length).toBeCloseTo(10, 0);
+    }
+  });
+
+  it("leaves gaps between them", () => {
+    const dashes = dashPath(straight(100), 10, 10);
+    for (let i = 1; i < dashes.length; i += 1) {
+      const previousEnd = dashes[i - 1]?.at(-1) as [number, number];
+      const nextStart = dashes[i]?.[0] as [number, number];
+      expect(metresBetween(previousEnd, nextStart)).toBeCloseTo(10, 0);
+    }
+  });
+
+  it("spaces dashes by ground distance, not by sample count", () => {
+    // Twenty seconds sitting still then twenty metres of travel. Dashing by index would put
+    // every dash in the first spot -- which is exactly where the surfer did not move.
+    const still: [number, number][] = Array.from({ length: 20 }, () => [-9, 38]);
+    const moving = straight(20);
+    const dashes = dashPath([...still, ...moving], 5, 5);
+
+    expect(dashes.length).toBeGreaterThan(1);
+    expect(dashes.length).toBeLessThanOrEqual(3);
+  });
+
+  it("returns the whole path when the dash length is not usable", () => {
+    expect(dashPath(straight(10), 0, 5)).toEqual([straight(10)]);
+    expect(dashPath(straight(10), 5, 0)).toEqual([straight(10)]);
+  });
+
+  it("draws nothing from a path with no length", () => {
+    expect(dashPath([], 5, 5)).toEqual([]);
+    expect(dashPath([[-9, 38]], 5, 5)).toEqual([]);
+  });
+
+  it("handles a segment longer than several dashes at once", () => {
+    // One 100 m step: a fast ride between two seconds. The loop must not assume one
+    // boundary per segment.
+    const leap: [number, number][] = [
+      [-9, 38],
+      [-9, 38 + 100 / 111_320],
+    ];
+    expect(dashPath(leap, 10, 10)).toHaveLength(5);
   });
 });
