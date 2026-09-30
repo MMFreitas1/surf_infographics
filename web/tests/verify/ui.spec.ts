@@ -113,3 +113,55 @@ test("a session can be scrubbed and a wave marked", async ({ page }, testInfo) =
   await record(page, diag, testInfo.title);
   clean(diag);
 });
+
+test("the session screen renders its count and its absences", async ({ page }, testInfo) => {
+  // Same reasoning as the scrub spec: a cold dev server compiles this route on first
+  // request, and the fonts are fetched and self-hosted at build time.
+  test.setTimeout(180_000);
+  const SLOW = { timeout: 90_000 };
+
+  const activityId = await firstActivity();
+  test.skip(activityId === null, "no ingested session — start the API and post an activity");
+
+  const diag = await visit(page, `/session/${activityId}`);
+
+  // The hero is the reason PR 0 existed: one number, committed to by the pipeline.
+  const hero = page.locator(".hero-value");
+  await expect(hero).toBeVisible(SLOW);
+  await expect(hero).toHaveText(/^\d+$/, SLOW);
+
+  // The three panels this PR can fill honestly.
+  await expect(page.locator(".panel-ink")).toBeVisible();
+  await expect(page.locator(".coverage-bar")).toBeVisible();
+
+  // The two it cannot. Absence is a designed state and must actually be drawn, not
+  // omitted — a missing panel and an unavailable one say different things.
+  expect(await page.locator(".panel-absent").count()).toBeGreaterThanOrEqual(2);
+
+  // "Proposed" is stated once, in the banner, and nowhere else on the screen.
+  await expect(page.locator(".method-banner")).toBeVisible();
+
+  await record(page, diag, testInfo.title);
+  clean(diag);
+});
+
+test("the method banner dismisses and stays dismissed", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const activityId = await firstActivity();
+  test.skip(activityId === null, "no ingested session — start the API and post an activity");
+
+  const diag = await visit(page, `/session/${activityId}`);
+  const banner = page.locator(".method-banner");
+  await expect(banner).toBeVisible({ timeout: 90_000 });
+
+  await banner.getByRole("button").click();
+  await expect(banner).toHaveCount(0);
+
+  // It is stored per browser, so a reload must not bring it back.
+  await page.reload({ waitUntil: "networkidle" });
+  await expect(page.locator(".hero-value")).toBeVisible({ timeout: 90_000 });
+  await expect(page.locator(".method-banner")).toHaveCount(0);
+
+  await record(page, diag, testInfo.title);
+  clean(diag);
+});
