@@ -1,11 +1,167 @@
+/* =============================================================================
+   MF Concepts design tokens — ported from
+   design_handover/design_handoff_surf_analytics/prototype/_ds/.../tokens/
+
+   Style against the SEMANTIC ALIASES below, never against a raw hex. The ramps
+   exist so the aliases have somewhere to point; a component reaching past them
+   is how a design system stops being one.
+
+   The brand is a complementary pairing: amber (~hue 40) for craft, tech blue
+   (~hue 205) for outlook, unified by ink — a deep teal-navy from the wordmark.
+   Neutrals are warm-tinted cream paper, never clinical grey.
+   ============================================================================= */
+:root {
+  /* -- ramps ---------------------------------------------------------------- */
+  --amber-50: #fdf6e9;
+  --amber-100: #fbe9c4;
+  --amber-200: #f8d89a;
+  --amber-300: #f4c25c;
+  --amber-400: #f2a024;
+  --amber-500: #e8951c;
+  --amber-600: #c9760f;
+  --amber-700: #a85c0c;
+  --amber-800: #7e4309;
+  --amber-900: #5a2f08;
+
+  --blue-50: #eaf6fd;
+  --blue-100: #c9e8fa;
+  --blue-200: #9fd7f4;
+  --blue-300: #6bc2ec;
+  --blue-400: #3faee4;
+  --blue-500: #2fa8e6;
+  --blue-600: #1e86c4;
+  --blue-700: #166697;
+  --blue-800: #114e73;
+  --blue-900: #0e3a55;
+
+  --warm-0: #ffffff;
+  --warm-50: #fbf7f0;
+  --warm-100: #f4ede1;
+  --warm-200: #e9decc;
+  --warm-300: #d6c7ae;
+  --warm-400: #b3a084;
+  --warm-500: #877a64;
+
+  --ink-500: #3e6b7c;
+  --ink-600: #2a5160;
+  --ink-700: #1b3a46;
+  --ink-800: #122832;
+  --ink-900: #0e1f26;
+
+  --success: #4a7c59;
+  --success-soft: #e3eee5;
+  --danger: #d2452f;
+  --danger-soft: #fbe3de;
+
+  /* -- semantic aliases ----------------------------------------------------- */
+  --bg: var(--warm-50);
+  --surface: var(--warm-0);
+  --surface-2: var(--warm-100);
+  --border: var(--warm-200);
+  --border-strong: var(--warm-300);
+  --text: var(--ink-800);
+  --text-muted: var(--warm-500);
+  --text-subtle: var(--warm-400);
+  --primary: var(--amber-500);
+  --primary-hover: var(--amber-600);
+  --accent: var(--blue-500);
+  --accent-hover: var(--blue-600);
+  --ring: color-mix(in oklch, var(--blue-500) 55%, transparent);
+
+  /* On an ink panel the neutrals invert; these are the design's own values. */
+  --on-ink: var(--warm-50);
+  --on-ink-muted: #93a4ab;
+  --on-ink-subtle: #5e7178;
+
+  /* -- the three states, named once ----------------------------------------- *
+   * Solid stroke = GPS-measured. Dashed translucent = estimated. Absence plus a
+   * dedicated blind rail = no data at all. Never a hatch, never a fake value.
+   * A real session has 128 separate blind windows, which is why the handover
+   * replaced the hatch the brief had asked for.                               */
+  --measured: var(--blue-600);
+  --estimated: var(--ink-500);
+  --estimated-dash: 4 4;
+  --estimated-opacity: 0.32;
+  --blind-rail: var(--warm-300);
+
+  /* -- gradients ------------------------------------------------------------ *
+   * The brand gradient is the masthead rule and the banner strip. Nothing else. */
+  --gradient-brand: linear-gradient(100deg, #e8951c 0%, #f2a024 38%, #2fa8e6 100%);
+  --gradient-ink: linear-gradient(165deg, #1b3a46 0%, #0e1f26 100%);
+
+  /* -- type ----------------------------------------------------------------- */
+  --text-2xs: 11px;
+  --text-xs: 12px;
+  --text-sm: 14px;
+  --text-base: 16px;
+  --text-md: 18px;
+  --text-lg: 20px;
+  --text-xl: 24px;
+  --text-2xl: 30px;
+  --text-3xl: 38px;
+  --text-4xl: 48px;
+  --text-5xl: 62px;
+  --text-6xl: 80px;
+  --text-7xl: 104px;
+
+  --leading-tight: 1.04;
+  --leading-snug: 1.18;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.72;
+
+  --tracking-tighter: -0.03em;
+  --tracking-tight: -0.015em;
+  --tracking-wide: 0.04em;
+  --tracking-label: 0.16em;
+  --tracking-loose: 0.24em;
+
+  /* -- spacing, 4px grid ---------------------------------------------------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-7: 28px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+  --space-16: 64px;
+  --space-24: 96px;
+  --space-32: 128px;
+
+  /* -- radii, borders ------------------------------------------------------- */
+  --radius-xs: 3px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 24px;
+  --radius-full: 999px;
+
+  --border-thin: 1px;
+  --border-med: 1.5px;
+  --border-thick: 2px;
+
+  /* -- elevation, warm-tinted on the ink hue and never black ---------------- */
+  --shadow-xs: 0 1px 2px rgba(18, 40, 50, 0.06);
+  --shadow-sm: 0 1px 3px rgba(18, 40, 50, 0.08), 0 1px 2px rgba(18, 40, 50, 0.05);
+  --shadow-md: 0 4px 12px rgba(18, 40, 50, 0.1), 0 2px 4px rgba(18, 40, 50, 0.06);
+  --shadow-lg: 0 12px 28px rgba(18, 40, 50, 0.12), 0 6px 10px rgba(18, 40, 50, 0.07);
+  --focus-ring: 0 0 0 3px var(--ring);
+
+  /* -- motion --------------------------------------------------------------- */
+  --dur-fast: 140ms;
+  --dur-base: 240ms;
+  --dur-slow: 420ms;
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
 :root {
   color-scheme: light dark;
   font-family: ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-  /* The three states, named once. Nothing in this app may draw them the same way. */
-  --measured: #0f76b2;
-  --estimated: #8b8b9a;
-  --unknown: #b9b9c8;
+  /* The three states are defined once, in the token block above. */
+  --unknown: var(--warm-300);
 
   --saved: #1f9d55;
   --rejected: #b45309;
@@ -337,4 +493,383 @@ select {
   border-radius: 4px;
   background: none;
   color: inherit;
+}
+
+/* =============================================================================
+   N2 · Sessão, and the shell every level shares.
+
+   Desktop tool: the design sets a 1440px minimum deliberately and is not
+   responsive below it. A session map beside four chart cards does not survive a
+   phone, and pretending otherwise would mean designing a second product.
+   ============================================================================= */
+.shell {
+  min-width: 1440px;
+  max-width: 1500px;
+  margin: 0 auto;
+  padding: 0 46px 90px;
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-body), ui-sans-serif, system-ui, sans-serif;
+}
+
+/* -- masthead --------------------------------------------------------------- */
+.masthead {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding-top: var(--space-10);
+}
+.masthead-mark {
+  flex: none;
+}
+.masthead-title {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-5xl);
+  font-weight: 600;
+  letter-spacing: -0.035em;
+  line-height: 0.94;
+  color: var(--ink-800);
+  margin: 0;
+}
+.masthead-provenance {
+  margin-left: auto;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: var(--tracking-label);
+  color: var(--text-subtle);
+}
+.eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10.5px;
+  letter-spacing: 0.22em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: 0 0 2px;
+}
+
+/* The only gradient bar in the product. Do not repeat it. */
+.masthead-rule {
+  height: 2px;
+  margin: 22px 0 0;
+  background: var(--gradient-brand);
+}
+
+/* -- tabs ------------------------------------------------------------------- */
+.tab-bar {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: var(--border-thin) solid var(--border);
+}
+.tab {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-base);
+  font-weight: 600;
+  padding: var(--space-3) var(--space-5);
+  color: var(--text-muted);
+  text-decoration: none;
+  border-bottom: var(--border-thick) solid transparent;
+  transition:
+    background var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out);
+}
+.tab:hover {
+  color: var(--ink-800);
+}
+.tab-active {
+  background: var(--surface-2);
+  color: var(--ink-800);
+  border-bottom-color: var(--amber-500);
+}
+/* A level with nowhere to go says so rather than looking clickable. */
+.tab-disabled {
+  color: var(--text-subtle);
+  cursor: not-allowed;
+}
+
+/* -- section headers, used about six times per level ------------------------ */
+.section-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-10) 0 var(--space-4);
+}
+.section-marker {
+  width: 7px;
+  height: 7px;
+  background: var(--amber-500);
+  flex: none;
+}
+.section-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-2xs);
+  font-weight: 400;
+  letter-spacing: var(--tracking-loose);
+  text-transform: uppercase;
+  color: var(--ink-800);
+  margin: 0;
+}
+.section-rule {
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+/* -- the method banner: where "proposed" is said, once ---------------------- */
+.method-banner {
+  position: relative;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: var(--space-6);
+  margin-top: var(--space-7);
+  padding: 26px 30px;
+  background: var(--gradient-ink);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  overflow: hidden;
+}
+.method-strip {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 3px;
+  background: var(--gradient-brand);
+}
+.method-eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: var(--text-2xs);
+  letter-spacing: var(--tracking-loose);
+  text-transform: uppercase;
+  color: var(--amber-300);
+  margin: 0 0 var(--space-2);
+}
+.method-body {
+  font-size: 15px;
+  line-height: 1.7;
+  color: var(--on-ink);
+  margin: 0;
+  max-width: 78ch;
+}
+.button-primary {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  padding: var(--space-3) var(--space-5);
+  background: var(--primary);
+  color: var(--ink-900);
+  border: none;
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out);
+}
+.button-primary:hover {
+  background: var(--primary-hover);
+}
+.button-primary:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+/* -- the hero: the biggest element on the dashboard ------------------------- */
+.hero {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-8);
+  margin-top: var(--space-10);
+  padding: var(--space-5) 0 var(--space-4);
+  border-top: var(--border-med) solid var(--ink-800);
+  border-bottom: var(--border-thin) solid var(--border);
+}
+.hero-value {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-7xl);
+  font-weight: 600;
+  line-height: 0.84;
+  letter-spacing: -0.045em;
+  color: var(--blue-600);
+  margin: 0;
+}
+.hero-meta {
+  padding-bottom: var(--space-2);
+}
+.hero-label {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: var(--text-lg);
+  font-weight: 600;
+  color: var(--ink-800);
+  margin: 0;
+}
+.hero-sub {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: var(--space-1) 0 0;
+}
+.hero-unresolved {
+  color: var(--amber-600);
+}
+
+/* -- panels ----------------------------------------------------------------- */
+.panel-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(420px, 1fr));
+  gap: 26px;
+  align-items: start;
+}
+.panel {
+  background: var(--surface);
+  border: var(--border-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5) var(--space-6);
+}
+.panel-ink {
+  background: var(--gradient-ink);
+  border-color: transparent;
+  color: var(--on-ink);
+}
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.panel-eyebrow {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: var(--ink-800);
+  margin: 0 0 var(--space-4);
+}
+.panel-eyebrow-ink {
+  color: var(--blue-300);
+}
+.panel-note {
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  color: var(--on-ink-muted);
+  margin: var(--space-4) 0 0;
+}
+.badge {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: var(--tracking-label);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-full);
+  background: rgba(107, 194, 236, 0.16);
+  color: var(--blue-300);
+  margin-bottom: var(--space-4);
+}
+
+/* An absent panel is a designed state, not an error. It must not look broken, and
+   it must not look like data either. */
+.panel-absent {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  box-shadow: none;
+  background: transparent;
+}
+.absent-message {
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.stat-row {
+  display: flex;
+  gap: var(--space-8);
+}
+.stat-value {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 28px;
+  font-weight: 600;
+  line-height: var(--leading-tight);
+  margin: 0;
+}
+.stat-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin: var(--space-1) 0 0;
+}
+.stat-ink .stat-label {
+  color: var(--on-ink-subtle);
+}
+
+/* -- device confidence ------------------------------------------------------ */
+.coverage-bar {
+  height: 11px;
+  border-radius: var(--radius-full);
+  background: var(--warm-200);
+  overflow: hidden;
+}
+.coverage-seen {
+  display: block;
+  height: 100%;
+  background: var(--measured);
+}
+.coverage-key {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-800);
+  margin-top: var(--space-2);
+}
+.coverage-key .muted {
+  color: var(--text-muted);
+}
+.fact-list {
+  list-style: none;
+  padding: 0;
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-xs);
+  line-height: var(--leading-relaxed);
+  color: var(--text-muted);
+}
+
+/* -- footer ----------------------------------------------------------------- */
+.app-footer {
+  margin-top: var(--space-16);
+  padding-top: var(--space-4);
+  border-top: var(--border-thin) solid var(--border);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* Every animation in this product is gated on this.
+   Done by overriding the duration *tokens* rather than with a blanket `* !important`
+   reset: each transition above reads var(--dur-*), so zeroing the tokens stops the
+   motion at its source. It also keeps the escape hatch honest -- anything that
+   animates without going through the design system is visible as a bug here, where a
+   universal !important would have hidden it. */
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0.01ms;
+    --dur-base: 0.01ms;
+    --dur-slow: 0.01ms;
+  }
+}
+
+/* A figure without its unit is not a figure. Mono, small, and never the same weight
+   as the number it qualifies. */
+.stat-unit {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: var(--tracking-label);
+  text-transform: uppercase;
+  font-weight: 400;
+  margin-left: 3px;
+  color: var(--on-ink-subtle);
 }

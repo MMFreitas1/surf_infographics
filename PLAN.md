@@ -13,7 +13,8 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **The Session screen** (design Level 2), now in three PRs: **shell → map → charts**. The hero has a number to render: `GET /activities/{id}/waves` commits to one. Read `design_handover/design_handoff_surf_analytics/README.md` first. PR 1 also fixes the queued `make verify` flake — it is Playwright's *navigation* timeout, not the test timeout, see "Found by the loop" |
+| **Next** | **Session screen PR 2 — the track map and playback.** PR 1 landed the foundation: tokens, self-hosted fonts, pt-PT + en catalogues, the shell, the method banner, the hero (11 waves), Aeróbico and device confidence. Esri World Imagery + disk tile cache, measured/estimated/blind, the 250 ms scrubber and the state ribbon are next. Then PR 3: the four chart cards and the wave profiles |
+| **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
@@ -181,14 +182,11 @@ folded into an unrelated PR. The first is fixed; the second is still open.
       happened. Both repositories now take an `RLock` on **every** access, reads included, with
       the Parquet decode deliberately left outside it. Four regression tests, each verified to
       fail against the old code.
-- [ ] **`make verify` flakes on a cold Next dev server.** The scrub spec takes **25.1 s**
-      against a 30 s timeout when the route has not been compiled yet, and 4.0 s once it has.
-      It failed once, then passed on every rerun. **Diagnosed 2026-09-21:** it is *not* the
-      per-test timeout — `ui.spec.ts` has set `test.setTimeout(180_000)` since PR #20. It is
-      Playwright's **navigation** timeout, which defaults to 30 s: `visit()` calls
-      `page.goto(..., waitUntil: "networkidle")` and `navigationTimeout` is unset in
-      `web/playwright.config.ts`. One line. Queued into the first UI PR, which depends on
-      verification being trustworthy.
+- [x] **`make verify` flakes on a cold Next dev server.** ✅ Fixed 2026-09-30. It was *not*
+      the per-test timeout — `ui.spec.ts` has set `test.setTimeout(180_000)` since PR #20.
+      It is Playwright's **navigation** timeout, which defaults to 30 s: `visit()` calls
+      `page.goto(..., waitUntil: "networkidle")` and `navigationTimeout` was unset in
+      `web/playwright.config.ts`. Now set explicitly, with the reasoning next to it.
 
 ## Deferred, with reasons
 

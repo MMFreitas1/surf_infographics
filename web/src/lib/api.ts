@@ -9,7 +9,10 @@
 import type { z } from "zod";
 import { reportError } from "@/lib/report-error";
 import {
+  Activity,
   ActivitySummary,
+  AuditReport,
+  CleanReport,
   LabelPass,
   type PassKind,
   SessionCandidates,
@@ -67,6 +70,12 @@ async function request<T>(path: string, schema: z.ZodType<T>, init?: RequestInit
 }
 
 export const listActivities = () => request("/activities", ActivitySummary.array());
+
+export const getActivity = (id: string) => request(`/activities/${id}`, Activity);
+
+export const getCleaning = (id: string) => request(`/activities/${id}/cleaning`, CleanReport);
+
+export const getAudit = (id: string) => request(`/activities/${id}/audit`, AuditReport);
 
 export const getTrack = (id: string) => request(`/activities/${id}/track`, SessionTrack);
 
