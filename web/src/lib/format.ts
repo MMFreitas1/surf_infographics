@@ -5,7 +5,7 @@
  * hand-rolled `toFixed(1)` produces a number that is wrong in the locale the design was
  * drawn for. Every figure on screen goes through here.
  */
-import type { LocaleTag } from "./i18n/catalog";
+import type { LocaleTag, Messages } from "./i18n/catalog";
 
 export function decimal(locale: LocaleTag, value: number, digits = 1): string {
   return new Intl.NumberFormat(locale, {
@@ -37,4 +37,26 @@ export function dateTime(locale: LocaleTag, unixSeconds: number): string {
 /** Whole minutes, for a duration. Surf sessions are an hour; seconds are noise here. */
 export function minutes(locale: LocaleTag, seconds: number): string {
   return integer(locale, Math.round(seconds / 60));
+}
+
+/** m/s to km/h. The pipeline is SI; the design is drawn in km/h, and that is a display choice. */
+const KMH_PER_MS = 3.6;
+
+export function kmh(locale: LocaleTag, metresPerSecond: number, digits = 1): string {
+  return decimal(locale, metresPerSecond * KMH_PER_MS, digits);
+}
+
+/**
+ * A distance and the unit it should be read in, because 752 m and 0.8 km are the same
+ * number said with different precision and the design says the shorter one.
+ *
+ * The unit comes back as a message key rather than a string: no component holds a literal,
+ * and Portuguese and English happen to agree on "m" and "km" only until they do not.
+ */
+export function distance(
+  locale: LocaleTag,
+  metres: number,
+): { value: string; unit: keyof Messages } {
+  if (metres < 1000) return { value: integer(locale, metres), unit: "unit.metres" };
+  return { value: decimal(locale, metres / 1000), unit: "unit.km" };
 }

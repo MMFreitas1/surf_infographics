@@ -10,15 +10,15 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved at 11 |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved at 11 · **Session screen PRs 1–3b** — masthead, method banner, hero count, satellite track with playback, and the four chart cards |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Session screen PR 3b — the four chart cards** (Distância, Cadência, Velocidade, Retorno), then **PR 3c — the Perfis de onda flip grid.** PR 1 landed the foundation and the hero; PR 2 landed the track map on satellite imagery (Esri, proxied and disk-cached — ADR-0018), the 250 ms scrubber, the state ribbon and blind rail, and wave selection; **PR 3a landed L6** and **PR 3b-api added `ride_speed`**, so every figure the cards need is served by `GET /activities/{id}/metrics` and the browser derives nothing. **One decision still open, for 3b with both on screen:** whether Velocidade draws the designed bell from `mean_ms`/`sd_ms` or real bars from the histogram — see *What the prototype's source settled* below. Direction waits on Phase 6 |
+| **Next** | **Session screen PR 3c — the Perfis de onda flip grid**, the last card band on the N2 screen. PR 1 landed the foundation and the hero; PR 2 the track map on satellite imagery (Esri, proxied and disk-cached — ADR-0018), the 250 ms scrubber, the state ribbon and blind rail, and wave selection; **PR 3a landed L6**, **3b-api added `ride_speed`**, and **3b landed the four chart cards** — Distância, Cadência, Velocidade and Retorno are on screen and drawn from `GET /activities/{id}/metrics`, with the browser deriving nothing. After 3c: **Phase 6** (shore & peaks, which unblocks left/right) then **Phase 8** (sea state) |
 | **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 645 tests green (485 api · 101 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 673 tests green (492 api · 122 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -862,7 +862,13 @@ observed riding seconds**, which the card should say.
 9–10 and peaks at **23–25 km/h**, above its own mean. That is a ride's own shape: slow
 take-off, fast trim, slow kick-out, so the per-second histogram carries the entries and exits
 as a shoulder. A symmetric hump at 16.8 ± 7.1 would put its mode where the data has its dip.
-The bell-vs-bars choice is therefore still live and is PR 3b's, taken with both drawn.
+**Settled in PR 3b: the bars ship, the bell does not.** Both were built and screenshotted
+against the reference session before one was deleted. Drawn as a bell, the card puts its
+tallest point at 16.8 where the data dips, and shades 0–5 km/h where not one second was
+recorded; drawn as bars, the mode sits at 23–25 where the seconds actually are. The mean and
+the ±1σ lines stay, over the real shape — they are true, and they now read as a summary of
+the bars rather than a substitute for them. The card ships no toggle (ADR-0013: the screen
+does not offer the reader a choice the pipeline already made).
 
 **Cadência as designed cannot be built from first-party signal.** Its y-axis is
 `braçadas / min` — paddle stroke rate — and the prototype fakes it:
@@ -871,6 +877,27 @@ measurement. No stroke channel is recorded for surfing, so there is nothing to r
 The card keeps its name and geometry and changes its quantity to L6's `waves_per_10min` plus
 the per-bucket series, with the axis caption naming what it now is. Inventing a stroke rate
 from gaps is the imputation the honesty rules exist to refuse.
+
+### What PR 3b built — the four chart cards, 2026-10-21
+
+On screen at `/session/{id}`, between the track and the session panels, drawn from
+`GET /activities/{id}/metrics` with no arithmetic in the browser beyond turning a number into
+a coordinate (`web/src/lib/chart.ts`, pure and tested on its own at 122 web tests).
+
+| Card | Draws | Departure from the handover |
+|---|---|---|
+| Distância | 3.5 km headline, the swim/ride split bar, and `ride_measured_m` as a sub-line under *a surfar* | the design has two readout cells and L6 ships three numbers. 752 m attributed, **494 m with a position**: the sub-line qualifies the number above it rather than competing with it |
+| Cadência | waves per 10-minute block, with `waves_per_10min` as the headline | the quantity changed, the name and geometry did not. The y-axis was `braçadas / min`, which no channel records. **Counts, not a per-block rate:** the last block is usually short, and 2 waves in 5 minutes is not 4 per 10. The short block's dot is drawn hollow and named underneath |
+| Velocidade | `ride_speed` as measured bars on a fixed 0–40 km/h axis, mean and ±1σ over them | the bell was built, drawn and deleted — see above. Anything past 40 km/h lands in a marked overflow bar rather than rescaling the chart or vanishing (the 74.8 km/h artefact Phase 5 convicted) |
+| Retorno | the paddle back out, bars behind a line, mean in the chart and median under it | none. `returns` has one entry fewer than there are waves, so a one-wave session renders the absent state |
+
+**Hand-rolled SVG, not Observable Plot** — recorded in `docs/architecture.md`. Plot stays in
+the labelling trace panel where its scales are the question; these four are the handover's
+exact geometry, and Plot `replaceChildren`s the node it owns.
+
+**A browser check, not an eyeball:** `tests/verify/ui.spec.ts` asserts one cadence dot per
+bucket, one return bar per interval, the mean line drawn at the measured mean, and the hero
+count equal to `/metrics`' own — the two routes cannot first disagree on screen.
 
 ---
 

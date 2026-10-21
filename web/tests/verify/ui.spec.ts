@@ -145,6 +145,63 @@ test("the session screen renders its count and its absences", async ({ page }, t
   clean(diag);
 });
 
+test("the four chart cards draw what the pipeline measured", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const SLOW = { timeout: 90_000 };
+
+  const activityId = await firstActivity();
+  test.skip(activityId === null, "no ingested session — start the API and post an activity");
+
+  // The same figures the cards are drawn from, straight from the route. The point of the
+  // check is that the screen renders *these* and derives nothing of its own.
+  const metrics = (await (await fetch(`${API}/activities/${activityId}/metrics`)).json()) as {
+    cadence: unknown[];
+    returns: unknown[];
+    wave_count: number;
+    ride_speed: { n_seconds: number; mean_ms: number } | null;
+  };
+
+  const diag = await visit(page, `/session/${activityId}`);
+  await expect(page.locator(".chart-card")).toHaveCount(4, SLOW);
+
+  // Distância: a headline and a split that fills the bar.
+  await expect(page.locator(".chart-value")).toHaveText(/\d/, SLOW);
+  await expect(page.locator(".split-swim").first()).toBeVisible();
+  await expect(page.locator(".split-ride").first()).toBeVisible();
+
+  // Cadência: one dot per block the pipeline bucketed, no more and no fewer.
+  await expect(page.locator(".cadence-line")).toBeVisible();
+  await expect(page.locator(".chart-dot:not(.chart-dot-amber)")).toHaveCount(
+    metrics.cadence.length,
+  );
+
+  // Velocidade: the measured bars, with the mean drawn over them rather than instead
+  // of them. A bell would be a drawing of two numbers; these are the seconds.
+  expect(await page.locator(".speed-bar").count()).toBeGreaterThan(0);
+  if (metrics.ride_speed) {
+    // A vertical line has no width, so `toBeVisible` would call it hidden. Assert where
+    // it landed instead, which is the better check anyway: the mean is drawn at the mean.
+    const x = await page.locator(".speed-mean").getAttribute("x1");
+    expect(Number(x)).toBeCloseTo(((metrics.ride_speed.mean_ms * 3.6) / 40) * 400, 1);
+    const speedCard = page.locator(".chart-card").filter({ has: page.locator(".speed-bar") });
+    await expect(speedCard.locator(".chart-note")).toContainText(
+      String(metrics.ride_speed.n_seconds),
+    );
+  }
+
+  // Retorno: a bar and a dot per paddle back out.
+  await expect(page.locator(".return-bar")).toHaveCount(metrics.returns.length);
+  await expect(page.locator(".chart-dot-amber")).toHaveCount(metrics.returns.length);
+
+  // /waves and /metrics are the same reading of the same session, and the screen must
+  // not be the place that first disagrees: the hero and the speed card's sample both
+  // count the waves L5 settled.
+  await expect(page.locator(".hero-value")).toHaveText(String(metrics.wave_count));
+
+  await record(page, diag, testInfo.title);
+  clean(diag);
+});
+
 test("the method banner dismisses and stays dismissed", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const activityId = await firstActivity();

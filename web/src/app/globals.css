@@ -802,6 +802,217 @@ select {
   color: var(--on-ink-subtle);
 }
 
+/* -- chart cards ------------------------------------------------------------ */
+/* Two stacked columns, as the handover draws them: Distância over Cadência,
+   Velocidade over Retorno. `auto-fit` rather than a hard `1fr 1fr` so a narrow
+   window stacks the four instead of squeezing a 400-unit viewBox into 180px. */
+.card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+  gap: 26px;
+  align-items: start;
+}
+.card-col {
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+.chart-card {
+  background: var(--surface);
+  border: var(--border-thin) solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
+  padding: var(--space-5) var(--space-6);
+}
+.chart-card-absent {
+  border-style: dashed;
+  border-color: var(--border-strong);
+  box-shadow: none;
+  background: transparent;
+}
+.chart-value {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 46px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-tighter);
+  line-height: 1;
+  color: var(--ink-800);
+  margin: 12px 0 4px;
+}
+.chart-unit {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: normal;
+  color: var(--text-muted);
+  margin-left: var(--space-2);
+}
+
+/* The split is one bar, not two: the point is the proportion between them. */
+.split-bar {
+  display: flex;
+  height: 11px;
+  overflow: hidden;
+  border-radius: 3px;
+  margin: 18px 0 12px;
+}
+.split-swim {
+  background: var(--blue-500);
+}
+.split-ride {
+  background: var(--amber-500);
+}
+.split-readout {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+.readout {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.readout-label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.readout-swatch {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+}
+.readout-value {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 21px;
+  font-weight: 600;
+  color: var(--ink-800);
+}
+/* What the watch saw of the distance above it. A qualifier, so it reads as one. */
+.readout-sub {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9.5px;
+  color: var(--text-subtle);
+}
+
+.chart-svg {
+  display: block;
+  width: 100%;
+  margin-top: 12px;
+  overflow: visible;
+}
+.chart-note {
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  margin: var(--space-2) 0 0;
+}
+.chart-grid {
+  stroke: var(--border);
+  stroke-width: 1;
+}
+.chart-baseline {
+  stroke: var(--ink-800);
+  stroke-width: 1;
+}
+.chart-axis {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  fill: var(--text-muted);
+}
+.chart-tick {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  fill: var(--text-subtle);
+}
+.chart-lead {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+}
+.chart-lead-blue {
+  fill: var(--blue-700);
+}
+.chart-lead-amber {
+  fill: var(--amber-700);
+}
+.chart-sigma {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  fill: var(--text-muted);
+}
+.chart-dot {
+  fill: var(--blue-600);
+}
+.chart-dot-amber {
+  fill: var(--amber-600);
+}
+/* A block the session ended partway through counts fewer waves for a reason that is
+   not surfing. Hollow, and named under the chart. */
+.chart-dot-partial {
+  fill: var(--surface);
+  stroke: var(--blue-600);
+  stroke-width: 1.5;
+}
+
+.cadence-area {
+  fill: var(--blue-500);
+  fill-opacity: 0.14;
+}
+.cadence-line {
+  fill: none;
+  stroke: var(--blue-600);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.return-bar {
+  fill: var(--warm-400);
+  fill-opacity: 0.55;
+}
+.return-line {
+  fill: none;
+  stroke: var(--amber-600);
+  stroke-width: 2;
+  stroke-linejoin: round;
+}
+.speed-area {
+  fill: var(--blue-500);
+  fill-opacity: 0.16;
+}
+.speed-line {
+  fill: none;
+  stroke: var(--blue-600);
+  stroke-width: 2.2;
+}
+.speed-bar {
+  fill: var(--blue-600);
+  fill-opacity: 0.7;
+}
+/* Past the end of the axis. Kept and marked: a reading that fast is either the best
+   wave of the year or the artefact Phase 5 convicted, and both must be visible. */
+.speed-bar-overflow {
+  fill: var(--danger-soft);
+  fill-opacity: 1;
+  stroke: var(--danger);
+  stroke-width: 1;
+  stroke-dasharray: 3 2;
+}
+.speed-mean {
+  stroke: var(--amber-500);
+  stroke-width: 2;
+}
+.speed-sd {
+  stroke: var(--ink-500);
+  stroke-opacity: 0.45;
+  stroke-width: 1;
+  stroke-dasharray: 4 3;
+}
+
 /* -- device confidence ------------------------------------------------------ */
 .coverage-bar {
   height: 11px;
