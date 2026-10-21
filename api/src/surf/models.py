@@ -693,8 +693,18 @@ class SessionMetrics(BaseModel):
     halves of the card's split bar always add up to the total above them."""
     ride_measured_m: float | None = None
     speed: SpeedHistogram | None = None
-    """None when no second of the session carried a fix -- a distribution over nothing is
-    not a distribution."""
+    """Every observed second in the water: paddling, sitting and riding together. None when
+    no second of the session carried a fix -- a distribution over nothing is not a
+    distribution."""
+    ride_speed: SpeedHistogram | None = None
+    """The observed seconds spent **on a wave**, and nothing else.
+
+    A separate field rather than a filter the screen applies, because the two are different
+    populations and only one of them is what "how fast did he surf" means. A session is
+    mostly paddling -- on the reference session the whole-session distribution puts 239
+    seconds under 0.5 m/s -- so a mean taken over both sits between two humps and describes
+    neither. None when no wave had an observed second, including when there were no waves.
+    """
     waves_per_10min: float = 0.0
     cadence: list[CadenceBucket] = Field(default_factory=list)
     bucket_s: float = Field(default=600.0, gt=0.0)

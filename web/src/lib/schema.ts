@@ -491,7 +491,14 @@ export const SessionMetrics = z.object({
   ride_m: z.number().nullable().default(null),
   swim_m: z.number().nullable().default(null),
   ride_measured_m: z.number().nullable().default(null),
+  /** Every observed second in the water — paddling, sitting and riding together. */
   speed: SpeedHistogram.nullable().default(null),
+  /**
+   * The observed seconds spent on a wave, and nothing else — what the Velocidade card is
+   * about. Served as its own field rather than filtered here: a session is mostly paddling,
+   * so a mean over both populations sits between two humps and describes neither.
+   */
+  ride_speed: SpeedHistogram.nullable().default(null),
   waves_per_10min: z.number().min(0).default(0),
   cadence: z.array(CadenceBucket).default([]),
   bucket_s: z.number().positive().default(600),
