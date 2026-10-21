@@ -18,7 +18,7 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 617 tests green (466 api · 92 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 645 tests green (485 api · 101 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
