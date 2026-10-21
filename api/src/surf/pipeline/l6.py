@@ -138,6 +138,7 @@ class MetricStage:
             for index, verdict in enumerate(waves, start=1)
         ]
 
+        ride_spans = [(row.t_start, row.t_end) for row in rows]
         session_s = float(sum(1 for s in data.framed if self._in_session(s.t, data.audit)))
         observed_s = sum(1 for s in data.framed if s.observed and self._in_session(s.t, data.audit))
         returns = self._returns(rows)
@@ -156,6 +157,9 @@ class MetricStage:
             ),
             ride_measured_m=_total(row.ride_measured_m for row in rows),
             speed=self._histogram(data.framed, data.audit),
+            # The same code over the wave spans only. With no waves there are no riding
+            # seconds, so this is None rather than an empty distribution.
+            ride_speed=self._histogram(data.framed, data.audit, ride_spans),
             waves_per_10min=(len(rows) / session_s * 600.0 if session_s > 0.0 else 0.0),
             cadence=self._cadence(rows, data.audit),
             bucket_s=self.bucket_s,
@@ -198,10 +202,24 @@ class MetricStage:
         return statistics.fmean(onset) if onset else None
 
     def _histogram(
-        self, framed: Sequence[FramedSample], audit: AuditReport
+        self,
+        framed: Sequence[FramedSample],
+        audit: AuditReport,
+        spans: Sequence[tuple[float, float]] | None = None,
     ) -> SpeedHistogram | None:
-        """The session's observed seconds, spread across fixed-width speed bins."""
-        speeds = [s.speed_ms for s in framed if s.observed and self._in_session(s.t, audit)]
+        """Observed seconds, spread across fixed-width speed bins.
+
+        ``spans`` restricts which seconds count. ``None`` means the whole session, which is
+        the figure the confidence panel is about; the wave spans mean the seconds spent on a
+        wave, which is a *different population* and the one the Velocidade card is about.
+        A session is mostly paddling, so the two differ by more than a rounding: mixing them
+        puts the mean between two humps, where it describes neither.
+        """
+        speeds = [
+            s.speed_ms
+            for s in framed
+            if s.observed and self._in_session(s.t, audit) and _within(s.t, spans)
+        ]
         if not speeds:
             return None
 
@@ -279,6 +297,17 @@ class MetricStage:
         except ValueError as exc:
             msg = f"{NAME} payload is not a SessionMetrics: it was not written by this stage"
             raise PayloadError(msg) from exc
+
+
+def _within(t: float, spans: Sequence[tuple[float, float]] | None) -> bool:
+    """Whether this second falls inside one of ``spans``. ``None`` restricts nothing.
+
+    An empty sequence is not the same as ``None``: it restricts to nothing at all, which is
+    what a session with no waves should mean.
+    """
+    if spans is None:
+        return True
+    return any(start <= t < end for start, end in spans)
 
 
 def _total(values: Iterable[float | None]) -> float | None:

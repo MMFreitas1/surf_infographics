@@ -398,6 +398,105 @@ def test_a_single_observed_second_has_no_spread():
     assert histogram.sd_ms == 0.0
 
 
+# -- the riding distribution -------------------------------------------------------------
+#
+# `speed` is every observed second in the water; `ride_speed` is only the seconds on a
+# wave. They are different populations, and the Velocidade card is about the second one.
+
+
+def a_ride_at(speed: float, *, start: float, end: float) -> list[FramedSample]:
+    """A session paddling at 1.0 m/s with one stretch ridden at `speed`."""
+    return [
+        framed(float(t), speed=speed if start <= t < end else 1.0) for t in range(int(SESSION_S))
+    ]
+
+
+def test_the_riding_distribution_counts_only_the_seconds_on_a_wave():
+    """Known answer: ten seconds at 5.0 m/s, and nothing else, inside a ten-second ride."""
+    data = an_input(
+        verdicts=[verdict(start=20.0, end=30.0)],
+        framed_track=a_ride_at(5.0, start=20.0, end=30.0),
+    )
+
+    metrics = MetricStage().run(data)
+
+    assert metrics.ride_speed is not None
+    assert metrics.ride_speed.n_seconds == 10
+    assert metrics.ride_speed.mean_ms == pytest.approx(5.0)
+    assert metrics.ride_speed.sd_ms == 0.0
+    # The whole-session figure still sees every second, riding and paddling alike.
+    assert metrics.speed is not None
+    assert metrics.speed.n_seconds == int(SESSION_S)
+
+
+def test_the_two_distributions_are_not_the_same_number():
+    """The reason this field exists. A session is mostly paddling, so a mean over both
+    populations sits between two humps and describes neither."""
+    data = an_input(
+        verdicts=[verdict(start=20.0, end=30.0)],
+        framed_track=a_ride_at(5.0, start=20.0, end=30.0),
+    )
+
+    metrics = MetricStage().run(data)
+
+    assert metrics.speed is not None
+    assert metrics.ride_speed is not None
+    assert metrics.ride_speed.mean_ms > metrics.speed.mean_ms
+    assert metrics.ride_speed.n_seconds < metrics.speed.n_seconds
+
+
+def test_a_session_with_no_waves_has_no_riding_distribution():
+    """None, not an empty histogram: nobody rode anything, so there is nothing to describe."""
+    metrics = MetricStage().run(an_input(verdicts=[]))
+
+    assert metrics.speed is not None
+    assert metrics.ride_speed is None
+
+
+def test_a_refused_proposal_contributes_no_riding_seconds():
+    """Only the waves L5 settled count. A proposal it rejected is not a ride, however fast
+    the seconds inside it were."""
+    data = an_input(
+        verdicts=[verdict(start=20.0, end=30.0, is_wave=False)],
+        framed_track=a_ride_at(9.0, start=20.0, end=30.0),
+    )
+
+    metrics = MetricStage().run(data)
+
+    assert metrics.ride_speed is None
+
+
+def test_a_wave_the_watch_never_saw_contributes_no_riding_seconds():
+    """Coverage 0 means no observed second, so there is no speed to put in a bin -- the same
+    rule the per-wave fields follow."""
+    blind = [framed(float(t), speed=5.0, observed=False) for t in range(int(SESSION_S))]
+    data = an_input(
+        verdicts=[verdict(start=20.0, end=30.0, coverage=0.0)],
+        framed_track=blind,
+    )
+
+    assert MetricStage().run(data).ride_speed is None
+
+
+def test_a_ride_inside_an_excluded_stretch_is_left_out_of_the_riding_distribution():
+    """ADR-0015 applies to this figure too: a second L0.6 excluded is not a session second,
+    so it cannot be a riding second either."""
+    excluded = NotSurfingWindow(
+        t_start=15.0,
+        t_end=35.0,
+        reason=NotSurfingReason.INTERRUPTION,
+        source=AuditSource.BASELINE,
+        confidence=0.8,
+    )
+    data = an_input(
+        verdicts=[verdict(start=20.0, end=30.0)],
+        framed_track=a_ride_at(5.0, start=20.0, end=30.0),
+        audit=an_audit(not_surfing=[excluded]),
+    )
+
+    assert MetricStage().run(data).ride_speed is None
+
+
 # -- the stage contract ------------------------------------------------------------------
 
 

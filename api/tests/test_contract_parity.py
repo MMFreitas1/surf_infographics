@@ -342,6 +342,7 @@ def test_metrics_field_sets_match_the_models():
     for row in METRICS_RAW["metrics"]["returns"]:
         assert set(row) == set(METRICS.returns[0].model_dump())
     assert set(METRICS_RAW["metrics"]["speed"]) == set(METRICS.speed.model_dump())
+    assert set(METRICS_RAW["metrics"]["ride_speed"]) == set(METRICS.ride_speed.model_dump())
 
 
 def test_the_metrics_fixture_carries_no_coordinates():
@@ -407,10 +408,22 @@ def test_the_wave_count_is_derived_and_cannot_disagree_with_the_rows():
 
 def test_the_histogram_in_the_fixture_is_well_formed():
     """One more edge than bin, and counts that add up to the sample it claims."""
-    speed = METRICS_RAW["metrics"]["speed"]
+    for key in ("speed", "ride_speed"):
+        speed = METRICS_RAW["metrics"][key]
 
-    assert len(speed["bin_edges_ms"]) == len(speed["counts"]) + 1
-    assert sum(speed["counts"]) == speed["n_seconds"]
+        assert len(speed["bin_edges_ms"]) == len(speed["counts"]) + 1, key
+        assert sum(speed["counts"]) == speed["n_seconds"], key
+
+
+def test_the_two_distributions_in_the_fixture_describe_different_populations():
+    """What the Velocidade card depends on, pinned where the UI reads it: `ride_speed` is the
+    seconds on a wave, `speed` every second in the water. A fixture where they matched would
+    let the card be wired to the wrong one without a test noticing."""
+    for metrics in (METRICS, UNMETERED):
+        assert metrics.speed is not None
+        assert metrics.ride_speed is not None
+        assert metrics.ride_speed.n_seconds < metrics.speed.n_seconds
+        assert metrics.ride_speed.mean_ms > metrics.speed.mean_ms
 
 
 def test_a_session_with_one_wave_reports_no_return_interval():

@@ -214,9 +214,10 @@ describe("metrics contract", () => {
     for (const wave of metricsFixture.metrics.waves) {
       expect(Object.keys(wave).sort()).toEqual(waveFields);
     }
-    expect(Object.keys(metricsFixture.metrics.speed).sort()).toEqual(
-      Object.keys(SpeedHistogram.shape).sort(),
-    );
+    const histogramFields = Object.keys(SpeedHistogram.shape).sort();
+    for (const histogram of [metricsFixture.metrics.speed, metricsFixture.metrics.ride_speed]) {
+      expect(Object.keys(histogram).sort()).toEqual(histogramFields);
+    }
     const bucketFields = Object.keys(CadenceBucket.shape).sort();
     for (const bucket of metricsFixture.metrics.cadence) {
       expect(Object.keys(bucket).sort()).toEqual(bucketFields);
@@ -264,10 +265,23 @@ describe("metrics contract", () => {
   });
 
   it("carries a histogram the card can draw without re-deriving it", () => {
-    const speed = SessionMetrics.parse(metricsFixture.metrics).speed;
-    expect(speed).not.toBeNull();
-    expect(speed?.bin_edges_ms).toHaveLength((speed?.counts.length ?? 0) + 1);
-    expect(speed?.counts.reduce((a, b) => a + b, 0)).toBe(speed?.n_seconds);
+    const metrics = SessionMetrics.parse(metricsFixture.metrics);
+    for (const speed of [metrics.speed, metrics.ride_speed]) {
+      expect(speed).not.toBeNull();
+      expect(speed?.bin_edges_ms).toHaveLength((speed?.counts.length ?? 0) + 1);
+      expect(speed?.counts.reduce((a, b) => a + b, 0)).toBe(speed?.n_seconds);
+    }
+  });
+
+  it("separates the seconds on a wave from every second in the water", () => {
+    // What the Velocidade card depends on. A session is mostly paddling, so `speed` and
+    // `ride_speed` are different populations and the card must read the second one; a
+    // fixture where they matched would let it be wired to the wrong one silently.
+    for (const raw of [metricsFixture.metrics, metricsFixture.unmetered]) {
+      const metrics = SessionMetrics.parse(raw);
+      expect(metrics.ride_speed?.n_seconds).toBeLessThan(metrics.speed?.n_seconds as number);
+      expect(metrics.ride_speed?.mean_ms).toBeGreaterThan(metrics.speed?.mean_ms as number);
+    }
   });
 
   it("says there was no paddle back out after the only wave", () => {

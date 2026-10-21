@@ -13,7 +13,7 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved at 11 |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Session screen PR 3b — the four chart cards and the wave profiles.** PR 1 landed the foundation and the hero; PR 2 landed the track map on satellite imagery (Esri, proxied and disk-cached — ADR-0018), the 250 ms scrubber, the state ribbon and blind rail, and wave selection; **PR 3a landed L6**, so every figure the cards need is now served by `GET /activities/{id}/metrics` and the browser derives nothing. What is left is drawing it: Distância, Cadência, Velocidade, Retorno and the five flip cards. **One decision deferred to 3b on purpose:** Velocidade is specced as a smooth bell curve, and L6 ships both the real histogram and mean/sd so the choice can be made with both on screen — the reference session's distribution is visibly two populations, 239 seconds under 0.5 m/s against a thin tail to 9.5. Direction waits on Phase 6 |
+| **Next** | **Session screen PR 3b — the four chart cards** (Distância, Cadência, Velocidade, Retorno), then **PR 3c — the Perfis de onda flip grid.** PR 1 landed the foundation and the hero; PR 2 landed the track map on satellite imagery (Esri, proxied and disk-cached — ADR-0018), the 250 ms scrubber, the state ribbon and blind rail, and wave selection; **PR 3a landed L6** and **PR 3b-api added `ride_speed`**, so every figure the cards need is served by `GET /activities/{id}/metrics` and the browser derives nothing. **One decision still open, for 3b with both on screen:** whether Velocidade draws the designed bell from `mean_ms`/`sd_ms` or real bars from the histogram — see *What the prototype's source settled* below. Direction waits on Phase 6 |
 | **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
@@ -822,6 +822,44 @@ L3 boundary problem, not a threshold that wants turning: L3 merges bursts, so a 
 arrives inside a 40 s proposal padded with paddling. `odometer_peak_ms` (best sustained 10 s)
 was added for exactly this and recovered most of it. Six of the remaining refusals land in the
 band, which is where a model that earned its place would help — ADR-0017's did not.
+
+### What the prototype's source settled — 2026-10-21 (PR 3b-api)
+
+Reading `design_handover/design_handoff_surf_analytics/prototype/Surf Analytics.dc.html`
+rather than only the handover README corrected two premises the 3b plan had been built on.
+Both changed what gets built.
+
+**Velocidade is about surfing seconds, not session seconds.** The prototype computes the card
+from `S.filter(q => q.obs && q.k === 'riding')` and captions its axis
+`km/h · segundos a surfar`. L6's `speed` covered *every* observed in-session second, so the
+"visibly two populations" I recorded in PR 3a was an artefact of the wrong population: the
+239 seconds under 0.5 m/s are paddling and sitting, which the card was never drawing. **L6
+now ships `ride_speed` alongside `speed`** — the same histogram code over the `is_wave` spans
+— because the alternative was the browser filtering seconds into a statistic, which is the
+one thing `SessionMetrics`' own docstring forbids. Measured on the reference session:
+
+| | n | mean | sd |
+|---|---|---|---|
+| `speed` — every observed second in the water | 1334 s | 1.46 m/s · 5.2 km/h | 1.45 |
+| `ride_speed` — observed seconds on a wave | **121 s** | **4.66 m/s · 16.8 km/h** | 1.98 |
+
+A factor of 3.2 between them, so wiring the card to the wrong one would have been a visible
+lie rather than a rounding. Note the sample: the whole Velocidade card rests on **121
+observed riding seconds**, which the card should say.
+
+**The riding distribution is still not a bell**, though — it rises from 5 km/h, dips around
+9–10 and peaks at **23–25 km/h**, above its own mean. That is a ride's own shape: slow
+take-off, fast trim, slow kick-out, so the per-second histogram carries the entries and exits
+as a shoulder. A symmetric hump at 16.8 ± 7.1 would put its mode where the data has its dip.
+The bell-vs-bars choice is therefore still live and is PR 3b's, taken with both drawn.
+
+**Cadência as designed cannot be built from first-party signal.** Its y-axis is
+`braçadas / min` — paddle stroke rate — and the prototype fakes it:
+`cadV = 34 + min(34, 900/gap) + cov*12`, a formula over wave gaps and coverage, not a
+measurement. No stroke channel is recorded for surfing, so there is nothing to read.
+The card keeps its name and geometry and changes its quantity to L6's `waves_per_10min` plus
+the per-bucket series, with the axis caption naming what it now is. Inventing a stroke rate
+from gaps is the imputation the honesty rules exist to refuse.
 
 ---
 
