@@ -19,6 +19,7 @@ import BaseMap from "react-map-gl/maplibre";
 import { rasterStyle } from "@/lib/basemap";
 import type { BasemapInfo, SmoothedSample, WaveVerdict } from "@/lib/schema";
 import { dashPath, type LngLat, type Span, withRuns } from "@/lib/trace";
+import "@/lib/maplibre-worker";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 /** Design tokens that have to reach a WebGL layer, where CSS cannot go. */
