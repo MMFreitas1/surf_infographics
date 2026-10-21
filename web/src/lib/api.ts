@@ -12,6 +12,7 @@ import {
   Activity,
   ActivitySummary,
   AuditReport,
+  BasemapInfo,
   CleanReport,
   LabelPass,
   type PassKind,
@@ -83,6 +84,12 @@ export const getCandidates = (id: string) =>
   request(`/activities/${id}/candidates`, SessionCandidates);
 
 /** The count, and how every proposal was settled. The one route that answers. */
+/** Where the basemap's tiles come from, and the attribution the licence requires. */
+export const getBasemap = () => request("/basemap", BasemapInfo);
+
+/** The API's own origin, which the map needs to build absolute tile URLs. */
+export const apiBase = () => API_BASE;
+
 export const getWaves = (id: string) => request(`/activities/${id}/waves`, SessionVerdict);
 
 export const getLabels = (id: string, current = false) =>

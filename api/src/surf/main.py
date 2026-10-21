@@ -13,6 +13,15 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from surf import __version__
+from surf.basemap import (
+    ATTRIBUTION,
+    MAX_ZOOM,
+    MEDIA_TYPE,
+    MIN_ZOOM,
+    TileCache,
+    TileError,
+    cache_headers,
+)
 from surf.config import Settings, get_settings
 from surf.diagnostics import ErrorBuffer
 from surf.ingest import IngestError, source_digest
@@ -22,6 +31,7 @@ from surf.models import (
     Activity,
     ActivitySummary,
     AuditReport,
+    BasemapInfo,
     CleanReport,
     LabelPass,
     LabelSource,
@@ -84,12 +94,14 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     app.state.cache = StageCache(settings.cache_dir)
     app.state.activities = ActivityRepository(settings.db_path, app.state.cache)
     app.state.labels = LabelRepository(settings.db_path)
+    app.state.tiles = TileCache(settings.tile_dir)
     log.info(
         "api.startup",
         version=__version__,
         data_dir=str(settings.data_dir),
         log_file=str(settings.log_file),
         db=str(settings.db_path),
+        tiles=app.state.tiles.count(),
     )
     yield
     app.state.activities.close()
@@ -361,6 +373,44 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from_cache=cached,
         )
         return verdict
+
+    @app.get("/basemap/{z}/{x}/{y}")
+    def read_tile(request: Request, z: int, x: int, y: int) -> Response:
+        """One satellite basemap tile, from disk or fetched once and kept.
+
+        The browser asks this process rather than Esri directly, so that a session opens
+        with no network after the first visit -- which `architecture.md` section 7 requires
+        and a basemap talking straight to the internet cannot provide.
+
+        A tile that is neither cached nor reachable is a **404, not a 500**. Offline is a
+        designed state here: the UI draws its warm grid and the track still renders, because
+        the track has never depended on the network (ADR-0012).
+        """
+        tiles: TileCache = request.app.state.tiles
+        try:
+            tile = tiles.get(z, x, y)
+        except TileError as exc:
+            log.info("basemap.miss", z=z, x=x, y=y, reason=str(exc))
+            raise HTTPException(status_code=404, detail="tile unavailable offline") from exc
+
+        if not tile.cached:
+            log.info("basemap.fetched", z=z, x=x, y=y, bytes=len(tile.data))
+        return Response(content=tile.data, media_type=MEDIA_TYPE, headers=cache_headers())
+
+    @app.get("/basemap")
+    def read_basemap_info() -> BasemapInfo:
+        """What the map needs to configure itself, including the attribution it must show.
+
+        Served rather than hard-coded in the client so that the licence text and the tile
+        URL travel together with the thing that serves the tiles. An attribution string
+        duplicated in two repositories is one that goes stale in one of them.
+        """
+        return BasemapInfo(
+            tile_url="/basemap/{z}/{x}/{y}",
+            attribution=ATTRIBUTION,
+            min_zoom=MIN_ZOOM,
+            max_zoom=MAX_ZOOM,
+        )
 
     @app.post("/activities/{activity_id}/labels", status_code=201)
     def append_label(request: Request, activity_id: str, payload: LabelCreate) -> StoredLabel:

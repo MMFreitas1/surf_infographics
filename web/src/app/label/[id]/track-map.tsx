@@ -2,9 +2,11 @@
 
 import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import DeckGL from "@deck.gl/react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import BaseMap from "react-map-gl/maplibre";
-import type { SessionFrame, SmoothedSample } from "@/lib/schema";
+import { apiBase, getBasemap } from "@/lib/api";
+import { rasterStyle } from "@/lib/basemap";
+import type { BasemapInfo, SessionFrame, SmoothedSample } from "@/lib/schema";
 import { withRuns } from "@/lib/trace";
 import "maplibre-gl/dist/maplibre-gl.css";
 
@@ -14,8 +16,6 @@ interface Props {
   now: number;
   height?: number;
 }
-
-const MAPTILER_KEY = process.env.NEXT_PUBLIC_MAPTILER_KEY ?? "";
 
 /** Every fifth blind second. Drawing 1900 discs says nothing 380 does not. */
 const SIGMA_STRIDE = 5;
@@ -33,8 +33,19 @@ const SIGMA_STRIDE = 5;
  * ground and says so, rather than leaving the labeller staring at an empty panel.
  */
 export function TrackMap({ samples, frame, now, height = 260 }: Props) {
-  const [basemapFailed, setBasemapFailed] = useState(false);
-  const wantsBasemap = MAPTILER_KEY !== "" && !basemapFailed;
+  // The same satellite tiles the session screen draws, from this project's own API
+  // (ADR-0018). Null when the API cannot describe a basemap, which is not an error here:
+  // this map has never depended on one (ADR-0012) and says so below.
+  const [basemap, setBasemap] = useState<BasemapInfo | null>(null);
+  useEffect(() => {
+    let live = true;
+    getBasemap()
+      .then((info) => live && setBasemap(info))
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
 
   const { measured, estimated, sigma, here, view } = useMemo(() => {
     const runs = withRuns(samples);
@@ -116,17 +127,12 @@ export function TrackMap({ samples, frame, now, height = 260 }: Props) {
         <h2>Track</h2>
         <p className="caveat">
           {here?.observed === false ? "playhead is on an estimated second · " : ""}
-          {wantsBasemap ? null : "no basemap (offline or no key) — track only"}
+          {basemap === null ? "no basemap — track only" : null}
         </p>
       </header>
       <div className="map-host" style={{ height }}>
         <DeckGL initialViewState={view} controller={true} layers={layers}>
-          {wantsBasemap ? (
-            <BaseMap
-              mapStyle={`https://api.maptiler.com/maps/streets-v2/style.json?key=${MAPTILER_KEY}`}
-              onError={() => setBasemapFailed(true)}
-            />
-          ) : null}
+          {basemap ? <BaseMap mapStyle={rasterStyle(basemap, apiBase())} /> : null}
         </DeckGL>
       </div>
       <p className="legend">

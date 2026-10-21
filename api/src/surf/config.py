@@ -53,6 +53,11 @@ class Settings(BaseSettings):
         return self.data_dir / "surf.db"
 
     @property
+    def tile_dir(self) -> Path:
+        """Basemap tiles, kept so the map works with no network (architecture.md section 7)."""
+        return self.data_dir / "tiles"
+
+    @property
     def log_dir(self) -> Path:
         """Directory holding JSONL logs, readable by a person or an agent."""
         return self.data_dir / "logs"

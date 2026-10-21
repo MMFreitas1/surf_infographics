@@ -565,6 +565,21 @@ class SessionVerdict(BaseModel):
         return sum(1 for v in self.verdicts if v.decided_by is DecidedBy.UNRESOLVED)
 
 
+class BasemapInfo(BaseModel):
+    """How to draw the basemap, and the attribution the imagery licence requires.
+
+    Served rather than hard-coded in the client so the licence text and the tile URL travel
+    together with the process that serves the tiles. ``attribution`` is not optional and the
+    map must render it.
+    """
+
+    tile_url: str
+    """Template with ``{z}``, ``{x}`` and ``{y}``, relative to the API's own origin."""
+    attribution: str
+    min_zoom: int = Field(ge=0, le=24)
+    max_zoom: int = Field(ge=0, le=24)
+
+
 class WaveLabel(BaseModel):
     """Human ground truth. Append-only: corrections are new rows (ADR-0006)."""
 

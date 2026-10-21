@@ -13,7 +13,7 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Session screen PR 2 — the track map and playback.** PR 1 landed the foundation: tokens, self-hosted fonts, pt-PT + en catalogues, the shell, the method banner, the hero (11 waves), Aeróbico and device confidence. Esri World Imagery + disk tile cache, measured/estimated/blind, the 250 ms scrubber and the state ribbon are next. Then PR 3: the four chart cards and the wave profiles |
+| **Next** | **Session screen PR 3 — the four chart cards and the wave profiles.** PR 1 landed the foundation and the hero; PR 2 landed the track map on satellite imagery (Esri, proxied and disk-cached by the API — ADR-0018), the 250 ms scrubber, the state ribbon and blind rail, and wave selection. Still to come: Distância, Cadência, Velocidade, Retorno, and the five flip cards. Direction waits on Phase 6 |
 | **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
@@ -182,11 +182,15 @@ folded into an unrelated PR. The first is fixed; the second is still open.
       happened. Both repositories now take an `RLock` on **every** access, reads included, with
       the Parquet decode deliberately left outside it. Four regression tests, each verified to
       fail against the old code.
-- [x] **`make verify` flakes on a cold Next dev server.** ✅ Fixed 2026-09-30. It was *not*
-      the per-test timeout — `ui.spec.ts` has set `test.setTimeout(180_000)` since PR #20.
-      It is Playwright's **navigation** timeout, which defaults to 30 s: `visit()` calls
-      `page.goto(..., waitUntil: "networkidle")` and `navigationTimeout` was unset in
-      `web/playwright.config.ts`. Now set explicitly, with the reasoning next to it.
+- [x] **`make verify` flakes on a cold Next dev server.** ✅ Fixed 2026-09-30, in two goes.
+      It was *not* the per-test timeout — `ui.spec.ts` has set `test.setTimeout(180_000)`
+      since PR #20. Two ceilings were actually being hit, and fixing only the first left the
+      flake alive: Playwright's **navigation** timeout (30 s default, unset) *and* its
+      **expect** timeout (5 s default, unset). With navigation fixed, `page.goto` waits out
+      the compile, returns, and hands the first assertion a page still hydrating with 5 s to
+      find anything in it. Caught by the label spec failing cold then passing warm on the
+      next run — the same shape as the original report, which is how a partial fix hides.
+      Both are set explicitly now, with the reasoning beside them.
 
 ## Deferred, with reasons
 
