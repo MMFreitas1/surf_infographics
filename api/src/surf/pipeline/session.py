@@ -1,4 +1,4 @@
-"""Running the L0.5->L3 chain for one stored session.
+"""Running the L0.5->L6 chain for one stored session.
 
 The chain rule this file exists to hold: **each stage keys on the key of the stage before
 it**, never on the activity id. L0.5's input hash is L0's key, L1's is L0.5's, L2's is L1's,
@@ -24,7 +24,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from surf.models import Activity, AuditReport, CleanReport, SessionTrack, SessionVerdict
+from surf.models import (
+    Activity,
+    AuditReport,
+    CleanReport,
+    SessionMetrics,
+    SessionTrack,
+    SessionVerdict,
+)
 from surf.pipeline.audit import AuditStage
 from surf.pipeline.cache import StageCache
 from surf.pipeline.clean import CleanedSession, CleanStage
@@ -33,6 +40,7 @@ from surf.pipeline.l2 import FramedTrack, FrameStage
 from surf.pipeline.l3 import CandidateSet, CandidateStage
 from surf.pipeline.l4 import FeatureInput, FeatureSet, FeatureStage
 from surf.pipeline.l5 import ClassifyStage
+from surf.pipeline.l6 import MetricInput, MetricStage
 from surf.pipeline.runner import StageResult, run_stage, stage_key
 
 
@@ -161,14 +169,14 @@ def features_for(
     return measured.output, chain.cached and proposed.cached and measured.cached
 
 
-def waves_for(
+def _decided(
     activity: Activity, cache: StageCache, *, samples_key: str
-) -> tuple[SessionVerdict, bool]:
-    """L5: how many waves this session had, and how each candidate was settled.
+) -> tuple[StageResult[SessionVerdict], FeatureSet, bool]:
+    """L5 for one stored session, with its key, L4's measurements and the cache verdict.
 
-    The end of the chain, and the only place a verdict exists. Ships with no adjudicator:
-    ADR-0017 measured the local model against this rule and it did not clear the bar, so the
-    band goes unresolved rather than being answered by something unmeasured.
+    Private for the same reason ``_proposed`` is: the API wants the verdicts, L6 wants the
+    key to hang off and the features to read. Sharing the body is what keeps the two from
+    reaching the count two slightly different ways.
     """
     measured, cached = features_for(activity, cache, samples_key=samples_key)
     proposed, _ = _proposed(activity, cache, samples_key=samples_key)
@@ -179,4 +187,55 @@ def waves_for(
         input_hash=stage_key(FeatureStage(), cache, proposed.key),
         data=measured,
     )
-    return decided.output, cached and decided.cached
+    return decided, measured, cached and decided.cached
+
+
+def waves_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[SessionVerdict, bool]:
+    """L5: how many waves this session had, and how each candidate was settled.
+
+    The only place a verdict exists. Ships with no adjudicator: ADR-0017 measured the local
+    model against this rule and it did not clear the bar, so the band goes unresolved rather
+    than being answered by something unmeasured.
+    """
+    decided, _, cached = _decided(activity, cache, samples_key=samples_key)
+    return decided.output, cached
+
+
+def metrics_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[SessionMetrics, bool]:
+    """L6: the session and its waves as numbers, keyed on the verdict they describe.
+
+    The audit is the exception to this file's chain rule and is handled the way ADR-0015
+    requires. It is not in the chain -- it changes no sample, so keying L1 on it would mean
+    retuning a coverage threshold invalidated a track that cannot have changed -- but it
+    does decide which seconds count as session, and a session figure computed over a
+    different span is a different figure. So its key travels in L6's *params* instead of its
+    input hash: part of the cache key either way, without putting L0.6 in front of L1.
+    """
+    decided, measured, cached = _decided(activity, cache, samples_key=samples_key)
+    chain = run_chain(activity, cache, samples_key=samples_key)
+    report, audit_cached = audit_for(activity, cache, samples_key=samples_key)
+    cleaned = clean_session(activity, cache, samples_key=samples_key)
+    stage = MetricStage(audit_key=_audit_key(activity, cache, samples_key=samples_key))
+    computed: StageResult[SessionMetrics] = run_stage(
+        stage,
+        cache,
+        input_hash=decided.key,
+        data=MetricInput(
+            verdict=decided.output,
+            features=measured,
+            framed=chain.track.framed,
+            samples=cleaned.output.activity.samples,
+            audit=report,
+        ),
+    )
+    return computed.output, cached and audit_cached and chain.cached and computed.cached
+
+
+def _audit_key(activity: Activity, cache: StageCache, *, samples_key: str) -> str:
+    """The key L0.6's report is addressed by, for L6 to carry in its params."""
+    cleaned = clean_session(activity, cache, samples_key=samples_key)
+    return stage_key(AuditStage(), cache, cleaned.key)

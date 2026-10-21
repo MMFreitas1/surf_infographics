@@ -17,6 +17,7 @@ import {
   LabelPass,
   type PassKind,
   SessionCandidates,
+  SessionMetrics,
   SessionTrack,
   SessionVerdict,
   StoredLabel,
@@ -91,6 +92,12 @@ export const getBasemap = () => request("/basemap", BasemapInfo);
 export const apiBase = () => API_BASE;
 
 export const getWaves = (id: string) => request(`/activities/${id}/waves`, SessionVerdict);
+
+/**
+ * The numbers the session's cards are drawn from. Downstream of `getWaves` and never in
+ * disagreement with it: `wave_count` is the same integer from both.
+ */
+export const getMetrics = (id: string) => request(`/activities/${id}/metrics`, SessionMetrics);
 
 export const getLabels = (id: string, current = false) =>
   request(`/activities/${id}/labels${current ? "?current=true" : ""}`, StoredLabel.array());

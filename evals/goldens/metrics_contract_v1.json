@@ -1,0 +1,150 @@
+{
+  "metrics": {
+    "bucket_s": 600.0,
+    "cadence": [
+      {
+        "t_end": 600.0,
+        "t_start": 0.0,
+        "waves": 1
+      },
+      {
+        "t_end": 900.0,
+        "t_start": 600.0,
+        "waves": 2
+      }
+    ],
+    "coverage": 0.5,
+    "distance_m": 1200.0,
+    "return_mean_s": 306.0,
+    "return_median_s": 306.0,
+    "returns": [
+      {
+        "after_wave": 1,
+        "seconds": 291.0
+      },
+      {
+        "after_wave": 2,
+        "seconds": 321.0
+      }
+    ],
+    "ride_m": 206.25,
+    "ride_measured_m": 91.75,
+    "session_s": 900.0,
+    "speed": {
+      "bin_edges_ms": [
+        0.0,
+        0.5,
+        1.0,
+        1.5,
+        2.0
+      ],
+      "counts": [
+        500,
+        210,
+        144,
+        93
+      ],
+      "mean_ms": 0.8125,
+      "n_seconds": 947,
+      "sd_ms": 1.0
+    },
+    "swim_m": 993.75,
+    "wave_count": 3,
+    "waves": [
+      {
+        "avg_speed_ms": 4.5,
+        "duration_s": 15.0,
+        "hr_max_bpm": 118.0,
+        "hr_mean_bpm": 105.5,
+        "index": 1,
+        "position_coverage": 0.9375,
+        "ride_m": 52.5,
+        "ride_measured_m": 51.75,
+        "t_end": 392.0,
+        "t_start": 377.0,
+        "takeoff_speed_ms": 2.25,
+        "top_speed_ms": 7.25
+      },
+      {
+        "avg_speed_ms": null,
+        "duration_s": 9.0,
+        "hr_max_bpm": 124.0,
+        "hr_mean_bpm": 112.0,
+        "index": 2,
+        "position_coverage": 0.0,
+        "ride_m": 77.5,
+        "ride_measured_m": null,
+        "t_end": 692.0,
+        "t_start": 683.0,
+        "takeoff_speed_ms": null,
+        "top_speed_ms": null
+      },
+      {
+        "avg_speed_ms": 3.75,
+        "duration_s": 20.0,
+        "hr_max_bpm": 120.0,
+        "hr_mean_bpm": 106.75,
+        "index": 3,
+        "position_coverage": 0.5,
+        "ride_m": 76.25,
+        "ride_measured_m": 40.0,
+        "t_end": 1033.0,
+        "t_start": 1013.0,
+        "takeoff_speed_ms": null,
+        "top_speed_ms": 6.5
+      }
+    ],
+    "waves_per_10min": 2.0
+  },
+  "unmetered": {
+    "bucket_s": 600.0,
+    "cadence": [
+      {
+        "t_end": 300.0,
+        "t_start": 0.0,
+        "waves": 1
+      }
+    ],
+    "coverage": 0.6666666666666666,
+    "distance_m": null,
+    "return_mean_s": null,
+    "return_median_s": null,
+    "returns": [],
+    "ride_m": null,
+    "ride_measured_m": null,
+    "session_s": 300.0,
+    "speed": {
+      "bin_edges_ms": [
+        0.0,
+        0.5,
+        1.0
+      ],
+      "counts": [
+        120,
+        80
+      ],
+      "mean_ms": 0.5,
+      "n_seconds": 200,
+      "sd_ms": 0.25
+    },
+    "swim_m": null,
+    "wave_count": 1,
+    "waves": [
+      {
+        "avg_speed_ms": 3.25,
+        "duration_s": 18.0,
+        "hr_max_bpm": 115.0,
+        "hr_mean_bpm": 101.0,
+        "index": 1,
+        "position_coverage": 0.75,
+        "ride_m": null,
+        "ride_measured_m": null,
+        "t_end": 118.0,
+        "t_start": 100.0,
+        "takeoff_speed_ms": 1.75,
+        "top_speed_ms": 5.5
+      }
+    ],
+    "waves_per_10min": 2.0
+  }
+}
