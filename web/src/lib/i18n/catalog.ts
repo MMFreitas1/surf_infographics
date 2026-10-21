@@ -115,6 +115,14 @@ export interface Messages {
   "returns.lastWave": string;
   "returns.unavailable": string;
 
+  /** Perfis de onda: one card per settled wave, with the ride's own track on it. */
+  "section.profiles": string;
+  "profiles.title": string;
+  "profiles.open": string;
+  /** The coverage glyph's label — it is the only thing on the card that is not a figure. */
+  "profiles.signal": string;
+  "profiles.unavailable": string;
+
   /** Panels whose data source does not exist yet. A designed state, not an error. */
   "seaState.title": string;
   "seaState.unavailable": string;
@@ -125,6 +133,8 @@ export interface Messages {
   "unit.minutes": string;
   "unit.metres": string;
   "unit.km": string;
+  "unit.kmh": string;
+  "unit.secondsLong": string;
   "unit.seconds": string;
   "unit.bpm": string;
   "state.loading": string;

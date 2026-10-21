@@ -27,13 +27,19 @@ interface Props {
   apiBase: string;
   /** Stretches L0.6 says were not surfing. Drawn, but never as surfing (ADR-0015). */
   excluded: Span[];
+  /**
+   * Which wave is isolated. Held by the screen rather than here, because the profile
+   * cards below open a wave *on this map* -- the N3 Onda screen waits on Phases 6 and 7,
+   * and two copies of "which wave is selected" is how they come to disagree.
+   */
+  selected: WaveVerdict | null;
+  onSelect: (wave: WaveVerdict | null) => void;
 }
 
-export function MapCard({ samples, waves, basemap, apiBase, excluded }: Props) {
+export function MapCard({ samples, waves, basemap, apiBase, excluded, selected, onSelect }: Props) {
   const t = useT();
   const { locale } = useLocale();
   const [now, setNow] = useState(samples[0]?.t ?? 0);
-  const [selected, setSelected] = useState<WaveVerdict | null>(null);
 
   return (
     <section className="panel map-card">
@@ -49,7 +55,7 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded }: Props) {
           now={now}
           waves={waves}
           selected={selected}
-          onSelect={setSelected}
+          onSelect={onSelect}
           excluded={excluded}
         />
 
@@ -66,7 +72,7 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded }: Props) {
                 committed to this wave and said why; paraphrasing it here would put a
                 second, subtly different explanation into the product. */}
             <p className="selection-reason">{selected.reason}</p>
-            <button type="button" className="button-ghost" onClick={() => setSelected(null)}>
+            <button type="button" className="button-ghost" onClick={() => onSelect(null)}>
               {t("selection.showAll")}
             </button>
           </div>
@@ -94,7 +100,7 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded }: Props) {
         now={now}
         onNow={setNow}
         selected={selected}
-        onSelect={setSelected}
+        onSelect={onSelect}
       />
     </section>
   );

@@ -10,15 +10,15 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved at 11 · **Session screen PRs 1–3b** — masthead, method banner, hero count, satellite track with playback, and the four chart cards |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved at 11 · **Session screen PRs 1–3c** — masthead, method banner, hero count, satellite track with playback, the four chart cards and the wave profile grid |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Session screen PR 3c — the Perfis de onda flip grid**, the last card band on the N2 screen. PR 1 landed the foundation and the hero; PR 2 the track map on satellite imagery (Esri, proxied and disk-cached — ADR-0018), the 250 ms scrubber, the state ribbon and blind rail, and wave selection; **PR 3a landed L6**, **3b-api added `ride_speed`**, and **3b landed the four chart cards** — Distância, Cadência, Velocidade and Retorno are on screen and drawn from `GET /activities/{id}/metrics`, with the browser deriving nothing. After 3c: **Phase 6** (shore & peaks, which unblocks left/right) then **Phase 8** (sea state) |
+| **Next** | **Phase 6 — shore & peaks.** The N2 Session screen is built: PR 1 the foundation and the hero; PR 2 the track map on satellite imagery (Esri, proxied and disk-cached — ADR-0018), the 250 ms scrubber, the state ribbon and blind rail, and wave selection; **3a** L6, **3b-api** `ride_speed`, **3b** the four chart cards, **3c** the wave profile grid. What is left on that screen is sea state (Phase 8) and the model's prose (Phase 11), both of which render their designed absence today. **Phase 6 first**, because left/right, the shore line on the map and the whole N3 Onda screen wait on it, and because its method is the one still carrying an unmeasured assumption.|
 | **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 673 tests green (492 api · 122 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 679 tests green (492 api · 128 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -898,6 +898,32 @@ exact geometry, and Plot `replaceChildren`s the node it owns.
 **A browser check, not an eyeball:** `tests/verify/ui.spec.ts` asserts one cadence dot per
 bucket, one return bar per interval, the mean line drawn at the measured mean, and the hero
 count equal to `/metrics`' own — the two routes cannot first disagree on screen.
+
+### What PR 3c built — Perfis de onda, 2026-10-21
+
+Eleven cards, one per settled wave, under the chart band. Each carries the **ride's own GPS
+track** scaled to a 60×30 thumbnail — not a speed curve, which through a blind window would
+be a picture of the smoother's estimate shown as a measurement. Measured and estimated runs
+are separate paths and the estimated one is dashed, as on the big map (ADR-0010).
+
+**Coverage is the card's opacity** (`0.55 + cov × 0.45`), with the figure in the badge as
+well. On the reference session that puts wave 02 at 0% almost invisible and wave 11 at 96%
+crisp, which is the honest reading of the two: the watch saw one of them.
+
+**Opening a wave isolates it on the track above**, rather than linking to the N3 Onda
+screen, which waits on Phases 6 and 7. The map's selection moved up to `SessionScreen` so
+there is one answer to "which wave is selected" rather than two.
+
+**Two things from the prototype are deliberately not built**, both recorded here so they are
+not quietly re-added:
+
+- **The delete button and its lock toggle.** Removing a wave from the screen is the UI
+  overriding the pipeline's answer. L5 commits to the count and says why; a correction
+  belongs on the labelling screen, which is append-only and already exists.
+- **The trophy on the best wave.** The prototype ranked waves with
+  `top × duration × (0.4 + coverage)`, a formula invented in the browser. No stage has
+  committed to a best wave, so no card claims one. If it is wanted, it is an L6 field with a
+  stated rule, not a sort in a component.
 
 ---
 

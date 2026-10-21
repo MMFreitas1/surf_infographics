@@ -5,6 +5,8 @@ import {
   headroom,
   histogram,
   linePath,
+  MINI,
+  miniTrack,
   SERIES,
   SPEED,
   seriesBars,
@@ -113,5 +115,49 @@ describe("the measured distribution", () => {
   it("draws a flat floor rather than dividing by an empty session", () => {
     const { bars } = histogram([0, 5], [0]);
     expect(bars[0]?.height).toBe(0);
+  });
+});
+
+describe("a wave profile thumbnail", () => {
+  // Synthetic degrees, never a real session's: this repo is public.
+  const leg = (n: number, observed: boolean, lat = 0) =>
+    Array.from({ length: n }, (_, i) => ({ t: i, observed, lat, lon: i * 0.0001 }));
+
+  it("has nothing to draw for a wave with no samples", () => {
+    expect(miniTrack([])).toEqual({ paths: [], start: null });
+  });
+
+  it("fills the box it is given, inset and centred", () => {
+    const { paths, start } = miniTrack(leg(5, true));
+    expect(paths).toHaveLength(1);
+    expect(start).toEqual({ x: MINI.inset, y: MINI.height / 2 });
+    // A due-east ride spans the full inner width and nothing vertically.
+    expect(paths[0]?.d).toBe("M4.0,15.0 L 17.0,15.0 L 30.0,15.0 L 43.0,15.0 L 56.0,15.0");
+  });
+
+  it("keeps the measured and the estimated apart", () => {
+    const rows = [...leg(3, true), ...leg(3, false).map((r) => ({ ...r, t: r.t + 3 }))];
+    const { paths } = miniTrack(rows);
+    expect(paths.map((p) => p.series)).toEqual(["measured", "estimated"]);
+  });
+
+  it("bridges the two so they meet rather than leaving a gap", () => {
+    const rows = [...leg(3, true), ...leg(3, false).map((r) => ({ ...r, t: r.t + 3 }))];
+    const { paths } = miniTrack(rows);
+    const lastMeasured = paths[0]?.d.split(" L ").at(-1);
+    const firstEstimated = paths[1]?.d.slice(1).split(" L ")[0];
+    expect(firstEstimated).toBe(lastMeasured);
+  });
+
+  it("scales each wave to itself, so a short ride is not drawn as a small one", () => {
+    const short = miniTrack(leg(3, true));
+    const long = miniTrack(leg(40, true));
+    expect(short.paths[0]?.d.split(" L ").at(-1)).toBe(long.paths[0]?.d.split(" L ").at(-1));
+  });
+
+  it("still draws a wave the watch saw at a single point", () => {
+    const { paths, start } = miniTrack([{ t: 0, observed: true, lat: 0, lon: 0 }]);
+    expect(start).toEqual({ x: MINI.width / 2, y: MINI.height / 2 });
+    expect(paths[0]?.d).toBe("M30.0,15.0");
   });
 });

@@ -104,6 +104,12 @@ export const en: Messages = {
   "returns.lastWave": "wave {count}",
   "returns.unavailable": "one wave only: no paddle back to measure",
 
+  "section.profiles": "Wave profiles",
+  "profiles.title": "Wave profiles",
+  "profiles.open": "open wave",
+  "profiles.signal": "GPS coverage",
+  "profiles.unavailable": "no wave to draw",
+
   "seaState.title": "Sea state",
   "seaState.unavailable": "unavailable — marine API not wired up yet",
   "quality.title": "Session quality",
@@ -112,6 +118,8 @@ export const en: Messages = {
   "unit.minutes": "min",
   "unit.metres": "m",
   "unit.km": "km",
+  "unit.kmh": "km/h",
+  "unit.secondsLong": "seconds",
   "unit.seconds": "s",
   "unit.bpm": "bpm",
   "state.loading": "loading…",
