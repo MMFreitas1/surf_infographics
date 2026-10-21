@@ -113,6 +113,44 @@ def stored_walked_out(client: TestClient) -> str:
 
 
 @pytest.fixture
+def stored_metered(client: TestClient) -> str:
+    """The synthetic session with its odometer on, stored through the app.
+
+    ``stored_synthetic`` carries no ``distance_m`` -- that is the default every committed
+    golden is built on -- so it can only ever show the *absence* of a distance at the API
+    boundary. This one can show the figure itself, and the pair of figures that go with it:
+    what the odometer attributed to a ride, and the part of that the watch actually saw.
+    """
+    session = make_synthetic_session(SyntheticParams(odometer=True))
+    activity = session.activity.model_copy(update={"activity_id": "synthetic-metered"})
+
+    app = client.app
+    stage = IngestStage()
+    digest = "8" * 64
+    key = stage_key(stage, app.state.cache, digest)
+    app.state.cache.put(stage.meta.name, key, stage.encode(activity))
+    app.state.activities.save(activity, source_sha256=digest, samples_key=key, ingested_at=0.0)
+    return activity.activity_id
+
+
+@pytest.fixture
+def stored_reference(client: TestClient) -> str:
+    """The real reference recording, ingested through the app's own route.
+
+    Skips when ``sample_data/`` is absent, which is every CI run: the file is a GPS trace of
+    a real session and is gitignored (CLAUDE.md). A test that needs it is therefore a local
+    check, not a gate -- but it is the only place a claim about the real recording can be
+    checked at all.
+    """
+    path = SAMPLE_DIR / "24151923839_ACTIVITY.fit"
+    if not path.is_file():
+        pytest.skip("reference FIT not available")
+    response = client.post("/activities", content=path.read_bytes(), params={"filename": path.name})
+    assert response.status_code == 201, response.text
+    return str(response.json()["activity_id"])
+
+
+@pytest.fixture
 def sample_fit() -> Path:
     """Reference FIT session. Skips the test when the file is not present."""
     path = SAMPLE_DIR / "24151923839_ACTIVITY.fit"

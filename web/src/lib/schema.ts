@@ -406,3 +406,100 @@ export const BasemapInfo = z.object({
   max_zoom: z.number().int().min(0).max(24),
 });
 export type BasemapInfo = z.infer<typeof BasemapInfo>;
+
+/**
+ * One wave, measured, as `GET /activities/{id}/metrics` returns it.
+ *
+ * Every number here is nullable *by design*, for the same reason `lat` and `lon` are on a
+ * `Sample`: the channel it comes from may not have been recorded. `null` means "not
+ * knowable from this recording", and it must never be rendered as 0 — zero metres says the
+ * surfer did not move and zero km/h says they stood still, which are claims about the
+ * surfing rather than about the watch.
+ *
+ * A wave at `position_coverage: 0` is the case the odometer exists for: no speed of any
+ * kind, a distance all the same, and a heart rate, because both keep recording while the
+ * wrist is under water.
+ *
+ * `ride_m` is the odometer attributed second by second — observed seconds at their own
+ * delta, blind seconds at their run's average — and `ride_measured_m` is the part of it the
+ * watch actually saw. The second is never larger than the first.
+ */
+export const WaveMetrics = z.object({
+  index: z.number().int().min(1),
+  t_start: z.number(),
+  t_end: z.number(),
+  position_coverage: z.number().min(0).max(1),
+  top_speed_ms: z.number().nullable().default(null),
+  avg_speed_ms: z.number().nullable().default(null),
+  takeoff_speed_ms: z.number().nullable().default(null),
+  ride_m: z.number().nullable().default(null),
+  ride_measured_m: z.number().nullable().default(null),
+  hr_mean_bpm: z.number().nullable().default(null),
+  hr_max_bpm: z.number().nullable().default(null),
+  duration_s: z.number(),
+});
+export type WaveMetrics = z.infer<typeof WaveMetrics>;
+
+/**
+ * How the session's observed seconds were distributed across speed.
+ *
+ * Both forms ship: the bins are what the session actually did, and `mean_ms` / `sd_ms` are
+ * the summary the design's mean and ±1σ lines are drawn from. A surf session is two
+ * populations — paddling and riding — so a curve drawn from the summary alone can show a
+ * single tidy hump over a shape that had two.
+ *
+ * `bin_edges_ms` is one longer than `counts`: edge *i* to edge *i+1* holds `counts[i]`.
+ */
+export const SpeedHistogram = z.object({
+  bin_edges_ms: z.array(z.number()).default([]),
+  counts: z.array(z.number().int().min(0)).default([]),
+  mean_ms: z.number(),
+  sd_ms: z.number(),
+  n_seconds: z.number().int().min(1),
+});
+export type SpeedHistogram = z.infer<typeof SpeedHistogram>;
+
+/** How many waves were caught in one stretch of the session. */
+export const CadenceBucket = z.object({
+  t_start: z.number(),
+  t_end: z.number(),
+  waves: z.number().int().min(0),
+});
+export type CadenceBucket = z.infer<typeof CadenceBucket>;
+
+/** The paddle back out: from one wave's end to the next one's start. */
+export const ReturnInterval = z.object({
+  after_wave: z.number().int().min(1),
+  seconds: z.number().min(0),
+});
+export type ReturnInterval = z.infer<typeof ReturnInterval>;
+
+/**
+ * The session as its cards are drawn from, as `GET /activities/{id}/metrics` returns it.
+ *
+ * Computed in the pipeline, never here. The browser renders these numbers; it does not
+ * derive them — a screen summing odometer deltas would be a pipeline stage with no cache
+ * key and no tests, and the next screen that wanted the same figure would derive it
+ * slightly differently.
+ *
+ * `wave_count` is the same integer `/waves` reports. The two routes cannot disagree: L6
+ * reads L5's verdicts and re-decides nothing.
+ */
+export const SessionMetrics = z.object({
+  waves: z.array(WaveMetrics).default([]),
+  distance_m: z.number().nullable().default(null),
+  ride_m: z.number().nullable().default(null),
+  swim_m: z.number().nullable().default(null),
+  ride_measured_m: z.number().nullable().default(null),
+  speed: SpeedHistogram.nullable().default(null),
+  waves_per_10min: z.number().min(0).default(0),
+  cadence: z.array(CadenceBucket).default([]),
+  bucket_s: z.number().positive().default(600),
+  returns: z.array(ReturnInterval).default([]),
+  return_mean_s: z.number().nullable().default(null),
+  return_median_s: z.number().nullable().default(null),
+  session_s: z.number().min(0).default(0),
+  coverage: z.number().min(0).max(1).default(0),
+  wave_count: z.number().int().min(0),
+});
+export type SessionMetrics = z.infer<typeof SessionMetrics>;

@@ -6,13 +6,18 @@ import {
   AuditReport,
   AuditSource,
   BlindWindow,
+  CadenceBucket,
   CleanReport,
   NotSurfingReason,
   NotSurfingWindow,
   RejectedFix,
   RejectionReason,
+  ReturnInterval,
   Sample,
+  SessionMetrics,
   SessionWindow,
+  SpeedHistogram,
+  WaveMetrics,
 } from "@/lib/schema";
 
 /**
@@ -183,5 +188,99 @@ describe("audit contract", () => {
     expect(undecided.decided).toBe(false);
     expect(undecided.not_surfing).toEqual([]);
     expect(undecided.excluded_s).toBe(0);
+  });
+});
+
+/**
+ * The L6 metrics contract. `api/tests/test_contract_parity.py` holds the same fixture to
+ * the Pydantic models; here it is held to the Zod schemas, so a field added on one side
+ * only fails on the other.
+ */
+const metricsPath = new URL("../../evals/goldens/metrics_contract_v1.json", import.meta.url)
+  .pathname;
+const metricsFixture = JSON.parse(readFileSync(metricsPath, "utf8"));
+
+describe("metrics contract", () => {
+  it("parses as SessionMetrics, metered and not", () => {
+    expect(SessionMetrics.parse(metricsFixture.metrics).wave_count).toBe(3);
+    expect(SessionMetrics.parse(metricsFixture.unmetered).wave_count).toBe(1);
+  });
+
+  it("carries exactly the fields the schemas declare", () => {
+    expect(Object.keys(metricsFixture.metrics).sort()).toEqual(
+      Object.keys(SessionMetrics.shape).sort(),
+    );
+    const waveFields = Object.keys(WaveMetrics.shape).sort();
+    for (const wave of metricsFixture.metrics.waves) {
+      expect(Object.keys(wave).sort()).toEqual(waveFields);
+    }
+    expect(Object.keys(metricsFixture.metrics.speed).sort()).toEqual(
+      Object.keys(SpeedHistogram.shape).sort(),
+    );
+    const bucketFields = Object.keys(CadenceBucket.shape).sort();
+    for (const bucket of metricsFixture.metrics.cadence) {
+      expect(Object.keys(bucket).sort()).toEqual(bucketFields);
+    }
+    const returnFields = Object.keys(ReturnInterval.shape).sort();
+    for (const interval of metricsFixture.metrics.returns) {
+      expect(Object.keys(interval).sort()).toEqual(returnFields);
+    }
+  });
+
+  it("keeps a wave the watch never saw null rather than zero", () => {
+    const metrics = SessionMetrics.parse(metricsFixture.metrics);
+    const blind = metrics.waves.find((w) => w.position_coverage === 0);
+    expect(blind?.top_speed_ms).toBeNull();
+    expect(blind?.avg_speed_ms).toBeNull();
+    expect(blind?.takeoff_speed_ms).toBeNull();
+    // The case the odometer exists for: no speed, a distance all the same, and a pulse.
+    expect(blind?.ride_m).not.toBeNull();
+    expect(blind?.hr_mean_bpm).not.toBeNull();
+  });
+
+  it("keeps a session with no distance field null rather than zero", () => {
+    const metrics = SessionMetrics.parse(metricsFixture.unmetered);
+    expect(metrics.distance_m).toBeNull();
+    expect(metrics.ride_m).toBeNull();
+    expect(metrics.swim_m).toBeNull();
+    expect(metrics.ride_measured_m).toBeNull();
+  });
+
+  it("never reports more measured distance than attributed distance", () => {
+    const metrics = SessionMetrics.parse(metricsFixture.metrics);
+    expect(metrics.ride_measured_m as number).toBeLessThanOrEqual(metrics.ride_m as number);
+    for (const wave of metrics.waves) {
+      if (wave.ride_measured_m !== null && wave.ride_m !== null) {
+        expect(wave.ride_measured_m).toBeLessThanOrEqual(wave.ride_m);
+      }
+    }
+  });
+
+  it("splits the distance bar into two halves that add up", () => {
+    const metrics = SessionMetrics.parse(metricsFixture.metrics);
+    expect((metrics.swim_m as number) + (metrics.ride_m as number)).toBeCloseTo(
+      metrics.distance_m as number,
+    );
+  });
+
+  it("carries a histogram the card can draw without re-deriving it", () => {
+    const speed = SessionMetrics.parse(metricsFixture.metrics).speed;
+    expect(speed).not.toBeNull();
+    expect(speed?.bin_edges_ms).toHaveLength((speed?.counts.length ?? 0) + 1);
+    expect(speed?.counts.reduce((a, b) => a + b, 0)).toBe(speed?.n_seconds);
+  });
+
+  it("says there was no paddle back out after the only wave", () => {
+    const metrics = SessionMetrics.parse(metricsFixture.unmetered);
+    expect(metrics.returns).toEqual([]);
+    expect(metrics.return_mean_s).toBeNull();
+    expect(metrics.return_median_s).toBeNull();
+  });
+
+  it("numbers the waves from one, in the order they were surfed", () => {
+    const metrics = SessionMetrics.parse(metricsFixture.metrics);
+    expect(metrics.waves.map((w) => w.index)).toEqual([1, 2, 3]);
+    const starts = metrics.waves.map((w) => w.t_start);
+    expect([...starts].sort((a, b) => a - b)).toEqual(starts);
   });
 });

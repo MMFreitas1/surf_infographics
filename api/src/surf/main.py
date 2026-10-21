@@ -37,6 +37,7 @@ from surf.models import (
     LabelSource,
     PassKind,
     SessionCandidates,
+    SessionMetrics,
     SessionTrack,
     SessionVerdict,
     StoredLabel,
@@ -47,6 +48,7 @@ from surf.pipeline.session import (
     audit_for,
     candidates_for,
     cleaning_for,
+    metrics_for,
     track_for,
     waves_for,
 )
@@ -373,6 +375,37 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from_cache=cached,
         )
         return verdict
+
+    @app.get("/activities/{activity_id}/metrics")
+    def read_metrics(request: Request, activity_id: str) -> SessionMetrics:
+        """The session as its cards show it, and every wave in it, measured.
+
+        Downstream of `/waves` and never in disagreement with it: the waves here are exactly
+        the ones L5 settled, boundaries untouched, so `wave_count` is the same integer from
+        both routes. What this adds is what each ride was like -- speeds, distance, take-off,
+        heart rate -- and what the session added up to.
+
+        Computed in the pipeline rather than in the browser on purpose. A screen summing
+        odometer deltas would be a pipeline stage with no cache key and no tests, and the
+        second screen that wanted the same figure would derive it slightly differently.
+
+        A figure the recording cannot support is `null`, never 0.0: a session from a file
+        with no distance field reports no distance, rather than one nobody moved in.
+        """
+        activity = _stored_or_404(request, activity_id)
+        metrics, cached = metrics_for(
+            activity,
+            request.app.state.cache,
+            samples_key=_samples_key_or_404(request, activity_id),
+        )
+        log.info(
+            "metrics.served",
+            activity_id=activity_id,
+            wave_count=metrics.wave_count,
+            coverage=metrics.coverage,
+            from_cache=cached,
+        )
+        return metrics
 
     @app.get("/basemap/{z}/{x}/{y}")
     def read_tile(request: Request, z: int, x: int, y: int) -> Response:

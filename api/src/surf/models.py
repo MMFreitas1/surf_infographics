@@ -580,6 +580,141 @@ class BasemapInfo(BaseModel):
     max_zoom: int = Field(ge=0, le=24)
 
 
+class WaveMetrics(BaseModel):
+    """One wave, measured. L5 decided *whether*; this says *what it was like*.
+
+    Every field here is `None` when the channel it comes from was not recorded, never 0.0.
+    Zero metres means "did not move" and zero km/h means "stood still", and both are claims
+    about the surfing rather than about the recording -- the rule L4 already follows for a
+    missing channel, carried through to the boundary (ADR-0014).
+
+    ``t_start`` and ``t_end`` are L3's, copied through untouched like everything else
+    downstream of it: no stage may move a boundary (ADR-0016).
+    """
+
+    index: int = Field(ge=1)
+    """Which wave this is, counting from 1, in the order they were surfed. The number the
+    screen puts on the card, assigned here so the UI never has to decide it."""
+    t_start: float
+    t_end: float
+    position_coverage: float = Field(ge=0.0, le=1.0)
+    top_speed_ms: float | None = None
+    """Fastest observed second. Over observed seconds only -- an estimate's peak is a
+    property of the smoother, not of the ride (ADR-0010)."""
+    avg_speed_ms: float | None = None
+    """Mean over the ride's observed seconds, take-off and kick-out included."""
+    takeoff_speed_ms: float | None = None
+    """Mean observed speed over the ride's opening seconds. Paired with wave speed when
+    Phase 8 lands, this is what says whether the paddling needs work."""
+    ride_m: float | None = None
+    """Distance travelled, from the device's own odometer, attributed second by second: an
+    observed second at its own delta, a blind second at its run's average. Part measurement
+    and part even-spreading, which is why ``ride_measured_m`` ships beside it."""
+    ride_measured_m: float | None = None
+    """The part of ``ride_m`` the watch actually saw. Never larger than it."""
+    hr_mean_bpm: float | None = None
+    hr_max_bpm: float | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def duration_s(self) -> float:
+        return self.t_end - self.t_start
+
+
+class SpeedHistogram(BaseModel):
+    """How the session's observed seconds were distributed across speed.
+
+    A histogram rather than a mean and a standard deviation alone, because a surf session is
+    not one population: paddling and riding are two, and a session reported as "2.1 +/- 1.8
+    m/s" draws a single tidy hump over a shape that had two. Both forms ship -- the summary
+    statistics are here too -- so the screen can show the distribution and still draw the
+    mean line the design asks for.
+
+    Counts are over **observed, in-session** seconds. ``bin_edges_ms`` is one longer than
+    ``counts``: edge *i* to edge *i+1* holds ``counts[i]``.
+    """
+
+    bin_edges_ms: list[float] = Field(default_factory=list)
+    counts: list[int] = Field(default_factory=list)
+    mean_ms: float
+    sd_ms: float
+    """Population standard deviation. 0.0 from a single second, which is honest: one
+    measurement has no spread."""
+    n_seconds: int = Field(ge=1)
+
+    @model_validator(mode="after")
+    def _check_bins(self) -> SpeedHistogram:
+        if len(self.bin_edges_ms) != len(self.counts) + 1:
+            msg = (
+                f"histogram is malformed: {len(self.bin_edges_ms)} edges around "
+                f"{len(self.counts)} bins"
+            )
+            raise ValueError(msg)
+        if sum(self.counts) != self.n_seconds:
+            msg = f"histogram counts {sum(self.counts)} seconds but claims {self.n_seconds}"
+            raise ValueError(msg)
+        return self
+
+
+class CadenceBucket(BaseModel):
+    """How many waves were caught in one stretch of the session."""
+
+    t_start: float
+    t_end: float
+    waves: int = Field(ge=0)
+
+
+class ReturnInterval(BaseModel):
+    """The paddle back out: from one wave's end to the next one's start."""
+
+    after_wave: int = Field(ge=1)
+    """The wave this interval follows, by :attr:`WaveMetrics.index`."""
+    seconds: float = Field(ge=0.0)
+
+
+class SessionMetrics(BaseModel):
+    """L6: the session as the cards show it, and every wave in it, measured.
+
+    The end of the chain, and the last stage that computes anything. It exists so that the
+    screen does arithmetic nowhere: a browser summing odometer deltas would be a pipeline
+    stage with no cache key, no tests and no coverage attached to its answer.
+
+    Nothing here re-decides anything. The waves are exactly L5's, in L5's order; a figure
+    this stage cannot compute is `None` rather than zero.
+    """
+
+    waves: list[WaveMetrics] = Field(default_factory=list)
+    distance_m: float | None = None
+    """The whole session, from the odometer's own reading at each end of the session span."""
+    ride_m: float | None = None
+    """Of that, the part spent on waves."""
+    swim_m: float | None = None
+    """And the part spent getting back out. ``distance_m`` minus ``ride_m``, so the two
+    halves of the card's split bar always add up to the total above them."""
+    ride_measured_m: float | None = None
+    speed: SpeedHistogram | None = None
+    """None when no second of the session carried a fix -- a distribution over nothing is
+    not a distribution."""
+    waves_per_10min: float = 0.0
+    cadence: list[CadenceBucket] = Field(default_factory=list)
+    bucket_s: float = Field(default=600.0, gt=0.0)
+    returns: list[ReturnInterval] = Field(default_factory=list)
+    return_mean_s: float | None = None
+    return_median_s: float | None = None
+    session_s: float = Field(default=0.0, ge=0.0)
+    """Seconds the audit calls session: the span it chose, less any stretch it excluded."""
+    coverage: float = Field(default=0.0, ge=0.0, le=1.0)
+    """Fraction of those seconds that carried a fix. The session's own figure, in the one
+    place it lives -- every per-wave figure carries its own."""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def wave_count(self) -> int:
+        """The same number L5 reached. Recomputed from these rows so the two cannot differ
+        without a test noticing."""
+        return len(self.waves)
+
+
 class WaveLabel(BaseModel):
     """Human ground truth. Append-only: corrections are new rows (ADR-0006)."""
 

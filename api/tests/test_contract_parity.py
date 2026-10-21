@@ -9,6 +9,8 @@ two tests together are what stops the contract drifting.
 import json
 from pathlib import Path
 
+import pytest
+
 from surf.models import (
     Activity,
     ActivitySummary,
@@ -20,9 +22,11 @@ from surf.models import (
     RejectedFix,
     RejectionReason,
     SessionCandidates,
+    SessionMetrics,
     SessionTrack,
     SessionVerdict,
     StoredLabel,
+    WaveMetrics,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -315,3 +319,102 @@ def test_the_counts_are_derived_and_cannot_disagree_with_the_verdicts():
     assert WAVES.unresolved_count == sum(
         1 for r in WAVES_RAW["verdicts"] if r["decided_by"] == "unresolved"
     )
+
+
+# -- the L6 metrics, the numbers the session's cards are drawn from ----------------------
+
+METRICS_RAW = json.loads((GOLDENS / "metrics_contract_v1.json").read_text(encoding="utf-8"))
+METRICS = SessionMetrics.model_validate(METRICS_RAW["metrics"])
+UNMETERED = SessionMetrics.model_validate(METRICS_RAW["unmetered"])
+
+
+def test_the_metrics_fixture_serialises_back_to_exactly_itself():
+    assert json.loads(METRICS.model_dump_json()) == METRICS_RAW["metrics"]
+    assert json.loads(UNMETERED.model_dump_json()) == METRICS_RAW["unmetered"]
+
+
+def test_metrics_field_sets_match_the_models():
+    assert set(METRICS_RAW["metrics"]) == set(METRICS.model_dump())
+    for row in METRICS_RAW["metrics"]["waves"]:
+        assert set(row) == set(METRICS.waves[0].model_dump())
+    for row in METRICS_RAW["metrics"]["cadence"]:
+        assert set(row) == set(METRICS.cadence[0].model_dump())
+    for row in METRICS_RAW["metrics"]["returns"]:
+        assert set(row) == set(METRICS.returns[0].model_dump())
+    assert set(METRICS_RAW["metrics"]["speed"]) == set(METRICS.speed.model_dump())
+
+
+def test_the_metrics_fixture_carries_no_coordinates():
+    """Pinned at the contract boundary as well as in the stage: this file is committed to a
+    public repo, and a lat/lon here would be a GPS trace in git (CLAUDE.md)."""
+    assert not {"lat", "lon"} & set(WaveMetrics.model_fields)
+    assert not {"lat", "lon"} & set(SessionMetrics.model_fields)
+    assert "lat" not in json.dumps(METRICS_RAW)
+
+
+def test_the_metrics_fixture_covers_a_wave_the_watch_never_saw():
+    """The honest-rendering case: a ride with a distance, no speed of any kind, and a heart
+    rate -- which keeps recording while the wrist is under water."""
+    blind = next(w for w in METRICS_RAW["metrics"]["waves"] if w["position_coverage"] == 0.0)
+
+    assert blind["top_speed_ms"] is None
+    assert blind["avg_speed_ms"] is None
+    assert blind["takeoff_speed_ms"] is None
+    assert blind["ride_m"] is not None
+    assert blind["hr_mean_bpm"] is not None
+
+
+def test_the_metrics_fixture_still_covers_both_states_of_every_optional_field():
+    """Guards the fixture itself: trimmed to only-present values it would test nothing, and
+    the Zod side's nullability could drift unnoticed."""
+    waves = METRICS_RAW["metrics"]["waves"] + METRICS_RAW["unmetered"]["waves"]
+    for field in (
+        "top_speed_ms",
+        "avg_speed_ms",
+        "takeoff_speed_ms",
+        "ride_m",
+        "ride_measured_m",
+    ):
+        assert any(w[field] is not None for w in waves), f"{field} never present"
+        assert any(w[field] is None for w in waves), f"{field} never absent"
+
+    for field in ("distance_m", "ride_m", "swim_m", "ride_measured_m", "return_mean_s"):
+        assert METRICS_RAW["metrics"][field] is not None, f"{field} never present"
+        assert METRICS_RAW["unmetered"][field] is None, f"{field} never absent"
+
+
+def test_a_measured_distance_is_never_more_than_the_attributed_one():
+    """The promise the Distancia card is built on, pinned where the UI reads it."""
+    assert METRICS.ride_measured_m is not None
+    assert METRICS.ride_m is not None
+    assert METRICS.ride_measured_m <= METRICS.ride_m
+    for wave in METRICS.waves:
+        if wave.ride_measured_m is not None and wave.ride_m is not None:
+            assert wave.ride_measured_m <= wave.ride_m
+
+
+def test_the_two_halves_of_the_distance_bar_add_up_to_the_whole():
+    assert METRICS.swim_m is not None
+    assert METRICS.ride_m is not None
+    assert METRICS.distance_m == pytest.approx(METRICS.swim_m + METRICS.ride_m)
+
+
+def test_the_wave_count_is_derived_and_cannot_disagree_with_the_rows():
+    """A computed field, so a hand-edited fixture cannot claim a different total."""
+    assert METRICS.wave_count == len(METRICS_RAW["metrics"]["waves"])
+    assert UNMETERED.wave_count == 1
+
+
+def test_the_histogram_in_the_fixture_is_well_formed():
+    """One more edge than bin, and counts that add up to the sample it claims."""
+    speed = METRICS_RAW["metrics"]["speed"]
+
+    assert len(speed["bin_edges_ms"]) == len(speed["counts"]) + 1
+    assert sum(speed["counts"]) == speed["n_seconds"]
+
+
+def test_a_session_with_one_wave_reports_no_return_interval():
+    """None, not 0.0: there is nothing to paddle back from after the last ride."""
+    assert METRICS_RAW["unmetered"]["returns"] == []
+    assert METRICS_RAW["unmetered"]["return_mean_s"] is None
+    assert METRICS_RAW["unmetered"]["return_median_s"] is None
