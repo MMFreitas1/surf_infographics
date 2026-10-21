@@ -8,6 +8,7 @@ import { apiBase, getBasemap } from "@/lib/api";
 import { rasterStyle } from "@/lib/basemap";
 import type { BasemapInfo, SessionFrame, SmoothedSample } from "@/lib/schema";
 import { withRuns } from "@/lib/trace";
+import "@/lib/maplibre-worker";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 interface Props {

@@ -191,6 +191,17 @@ folded into an unrelated PR. The first is fixed; the second is still open.
       find anything in it. Caught by the label spec failing cold then passing warm on the
       next run — the same shape as the original report, which is how a partial fix hides.
       Both are set explicitly now, with the reasoning beside them.
+- [x] **maplibre's worker never loaded, on every map.** ✅ Fixed 2026-10-21, found the first
+      time the UI was opened after the dependency sweep. maplibre 6.11 ships the worker as a
+      module that imports a sibling chunk and locates itself from `import.meta.url`; Turbopack
+      bundles the library into a hashed chunk, so the worker resolved to a
+      `/_next/static/chunks/` path that was never emitted. **CI could not have caught it** —
+      lint, types, unit tests and `next build` are all green with a dead worker, and the style
+      is raster-only so the map still draws. Only `pnpm run verify` saw it, on all five specs
+      that mount a map. `scripts/copy-maplibre-worker.mjs` copies the worker and its chunk into
+      `public/` before dev, build and test, and `src/lib/maplibre-worker.ts` names that URL
+      through `setWorkerUrl`. Copied from `node_modules` rather than vendored so the worker can
+      never be a different version from the library.
 
 ## Deferred, with reasons
 
