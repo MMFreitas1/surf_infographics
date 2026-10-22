@@ -750,6 +750,59 @@ real session is mostly slow ones. Miguel's method inverts that and uses the sitt
 **Done when:** every candidate on the reference session carries left/right/straight with a
 stated confidence, and the shore line can be drawn on the session map without a caveat.
 
+### Measured before building — 2026-10-22
+
+Per *measure before building a numeric phase*: the stationarity premise was probed on the
+reference session before any Phase 6 code exists. **It holds.** Greedy clustering of the
+**observed** seconds only — a cluster extends while every member stays within 20 m of its
+running centroid — then keeping clusters lasting at least 60 s:
+
+| | |
+|---|---|
+| Session, after the audit | 3300 s · 1334 observed (40.4%) |
+| Clusters within 20 m | 61 |
+| …lasting ≥ 60 s | **11** |
+| Time held still | **1366 s — 41.4% of the session** |
+| Peak centroids, pairwise | **4–125 m apart** |
+
+Three things that fall out of it, all of which are Phase 6's to decide:
+
+1. **A duration floor is not enough.** Peak 11 lasts 170 s on **10 observed seconds**, and
+   peaks 7 and 2 are nearly as thin. A stretch the watch barely saw is not evidence of
+   sitting still — it is evidence of nothing. The rule needs an observed-seconds floor as
+   well as a duration one, or it will site a peak on an estimate.
+2. **This session has one peak area, not several.** 4–125 m between centroids is one bank,
+   so the eleven clusters want merging before anything regresses a coastline through them.
+   The classifier must handle both shapes: a session at one peak and a session drifting
+   between three are different objects.
+3. **20 m is doing work.** Cluster spread runs 11–20 m, up against the radius, so the first
+   build step is a sweep over radius and duration rather than shipping the first pair that
+   looked right.
+
+### Still owed by a decision, not by the code
+
+**Where the coastline comes from is open, and it is a new external dependency** — so it is
+plan-mode-and-approval work (CLAUDE.md), not a detail to settle while building:
+
+- **OSM via Overpass** — keyless, $0, matches the stack rule, but it is a rate-limited public
+  API with a usage policy, and it is a live service in a local-first app.
+- **A static dataset** (Natural Earth, GSHHG) cropped once to the region — no service, no
+  rate limit, works offline by construction, at the cost of a coarser line and a file to
+  carry.
+- **The basemap vendor** — our Esri imagery is keyless *raster*; a vector coastline from the
+  same source is not, which breaks the $0 rule.
+
+Whichever is chosen, two things are already settled by existing decisions: it caches to disk
+on first fetch and degrades to the stated fallback when absent (§7, and `basemap.py` is the
+working precedent — ADR-0018), and **a new ADR records it**, because a coastline is the first
+outside geometry the pipeline consumes. It is reference geography rather than a third party's
+derived view of *this session*, so ADR-0008 is not breached — but that is a judgement that
+belongs written down, not assumed.
+
+`synthetic.py` has no coastline today, so the known-answer test ("a synthetic coast at a known
+angle recovers a known left/right split") needs one added alongside the method.
+
+
 ---
 
 ## Phase 7 · Wave metrics — resolver landed 2026-09-21, metrics still open
