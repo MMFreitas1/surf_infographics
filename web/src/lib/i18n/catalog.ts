@@ -55,6 +55,13 @@ export interface Messages {
   "selection.decidedBy.model": string;
   "selection.decidedBy.unresolved": string;
 
+  /** The basemap layer ticks. */
+  "layer.ocean": string;
+  "layer.imagery": string;
+  "layer.relief": string;
+  /** How strongly the imagery draws over the sea floor under it. */
+  "layer.blend": string;
+
   /** Section headers. */
   "section.track": string;
   "section.session": string;

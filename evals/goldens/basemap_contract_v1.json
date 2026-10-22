@@ -1,0 +1,34 @@
+{
+  "_comment": "The /basemap contract. Read by api/tests/test_contract_parity.py and web/tests/contract.test.ts. Layer ids and zoom ceilings are the real ones; the URLs are this API's own routes, so nothing here names an outside service or a coordinate.",
+  "basemap": {
+    "layers": [
+      {
+        "id": "ocean",
+        "tile_url": "/basemap/ocean/{z}/{x}/{y}",
+        "attribution": "EMODnet Bathymetry Consortium",
+        "min_zoom": 0,
+        "max_zoom": 16,
+        "opacity": 1.0,
+        "default": true
+      },
+      {
+        "id": "imagery",
+        "tile_url": "/basemap/imagery/{z}/{x}/{y}",
+        "attribution": "Esri, Vantor, Earthstar Geographics, and the GIS User Community",
+        "min_zoom": 0,
+        "max_zoom": 19,
+        "opacity": 1.0,
+        "default": true
+      },
+      {
+        "id": "relief",
+        "tile_url": "/basemap/relief/{z}/{x}/{y}",
+        "attribution": "Esri, Vantor, Airbus DS, USGS, NGA, NASA, CGIAR, NCEAS, NLS, OS, NMA",
+        "min_zoom": 0,
+        "max_zoom": 19,
+        "opacity": 0.55,
+        "default": false
+      }
+    ]
+  }
+}

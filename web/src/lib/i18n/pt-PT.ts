@@ -54,6 +54,11 @@ export const ptPT: Messages = {
   "selection.decidedBy.model": "decidida pelo modelo",
   "selection.decidedBy.unresolved": "por decidir",
 
+  "layer.ocean": "Fundo do mar",
+  "layer.imagery": "Satélite",
+  "layer.relief": "Relevo",
+  "layer.blend": "Intensidade",
+
   "section.track": "Percurso",
   "section.session": "A sessão",
   "section.conditions": "Estado do mar",

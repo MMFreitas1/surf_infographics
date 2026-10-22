@@ -9,11 +9,30 @@
  */
 import dynamic from "next/dynamic";
 import { useState } from "react";
+import { defaultView, type LayerView } from "@/lib/basemap";
 import { percent } from "@/lib/format";
 import { useLocale, useT } from "@/lib/i18n";
+import type { Messages } from "@/lib/i18n/catalog";
 import type { BasemapInfo, SmoothedSample, WaveVerdict } from "@/lib/schema";
 import type { Span } from "@/lib/trace";
 import { Playback } from "./playback";
+
+/**
+ * What each layer is called. Keyed by the id the API serves, so a layer added there with no
+ * name here still appears -- labelled by its id, which is ugly and visible, rather than
+ * silently missing from the control.
+ */
+const LAYER_LABELS: Partial<Record<string, keyof Messages>> = {
+  ocean: "layer.ocean",
+  imagery: "layer.imagery",
+  relief: "layer.relief",
+};
+
+/**
+ * The one layer that hides what is under it rather than shading it, so the one with a
+ * strength control. Blended over the sea floor is the view this feature exists for.
+ */
+const BLENDABLE = "imagery";
 
 const TrackMap = dynamic(() => import("./track-map").then((m) => m.TrackMap), {
   ssr: false,
@@ -40,6 +59,17 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded, selected, 
   const t = useT();
   const { locale } = useLocale();
   const [now, setNow] = useState(samples[0]?.t ?? 0);
+  const [shown, setShown] = useState<readonly string[]>(() =>
+    basemap ? defaultView(basemap).shown : [],
+  );
+  const [blend, setBlend] = useState(1);
+
+  // Order is the style's, never this list's: a tick says whether a layer draws, not where.
+  const view: LayerView = { shown, opacity: { [BLENDABLE]: blend } };
+
+  function toggle(id: string) {
+    setShown((on) => (on.includes(id) ? on.filter((other) => other !== id) : [...on, id]));
+  }
 
   return (
     <section className="panel map-card">
@@ -51,6 +81,7 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded, selected, 
         <TrackMap
           samples={samples}
           basemap={basemap}
+          layerView={view}
           apiBase={apiBase}
           now={now}
           waves={waves}
@@ -58,6 +89,37 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded, selected, 
           onSelect={onSelect}
           excluded={excluded}
         />
+
+        {basemap && basemap.layers.length > 1 ? (
+          <div className="layer-control">
+            {basemap.layers.map((layer) => {
+              const label = LAYER_LABELS[layer.id];
+              return (
+                <label key={layer.id} className="layer-tick">
+                  <input
+                    type="checkbox"
+                    checked={shown.includes(layer.id)}
+                    onChange={() => toggle(layer.id)}
+                  />
+                  {label ? t(label) : layer.id}
+                </label>
+              );
+            })}
+            {shown.includes(BLENDABLE) ? (
+              <label className="layer-blend">
+                {t("layer.blend")}
+                <input
+                  type="range"
+                  min={0}
+                  max={100}
+                  value={Math.round(blend * 100)}
+                  onChange={(event) => setBlend(Number(event.target.value) / 100)}
+                  aria-label={t("layer.blend")}
+                />
+              </label>
+            ) : null}
+          </div>
+        ) : null}
 
         {selected ? (
           <div className="selection-callout">

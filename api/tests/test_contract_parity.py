@@ -11,11 +11,13 @@ from pathlib import Path
 
 import pytest
 
+from surf.basemap import DEFAULT_LAYERS, LAYERS
 from surf.models import (
     Activity,
     ActivitySummary,
     AuditReport,
     AuditSource,
+    BasemapInfo,
     CleanReport,
     LabelPass,
     NotSurfingReason,
@@ -35,6 +37,7 @@ CONTRACT = json.loads((GOLDENS / "activity_contract_v1.json").read_text(encoding
 LABELING = json.loads((GOLDENS / "labeling_contract_v1.json").read_text(encoding="utf-8"))
 CLEANING = json.loads((GOLDENS / "cleaning_contract_v1.json").read_text(encoding="utf-8"))
 AUDIT = json.loads((GOLDENS / "audit_contract_v1.json").read_text(encoding="utf-8"))
+BASEMAP = json.loads((GOLDENS / "basemap_contract_v1.json").read_text(encoding="utf-8"))
 
 
 ACTIVITY = Activity.model_validate(CONTRACT["activity"])
@@ -431,3 +434,42 @@ def test_a_session_with_one_wave_reports_no_return_interval():
     assert METRICS_RAW["unmetered"]["returns"] == []
     assert METRICS_RAW["unmetered"]["return_mean_s"] is None
     assert METRICS_RAW["unmetered"]["return_median_s"] is None
+
+
+# -- the basemap, which is a licence as much as a contract -------------------------------
+
+
+def test_the_basemap_fixture_is_a_valid_info_and_round_trips():
+    """Byte-for-byte, like the others: a renamed field or a changed default breaks here."""
+    info = BasemapInfo.model_validate(BASEMAP["basemap"])
+
+    assert info.model_dump(mode="json") == BASEMAP["basemap"]
+
+
+def test_the_fixture_describes_the_layers_the_api_actually_serves():
+    """The fixture is the contract both sides read, so it may not drift from the registry.
+
+    Adding a layer in `basemap.py` without adding it here fails this; adding it here
+    without teaching the Zod schema fails on the web side.
+    """
+    fixture = {layer["id"]: layer for layer in BASEMAP["basemap"]["layers"]}
+
+    assert set(fixture) == set(LAYERS)
+    for layer_id, layer in LAYERS.items():
+        assert fixture[layer_id]["attribution"] == layer.attribution
+        assert fixture[layer_id]["min_zoom"] == layer.min_zoom
+        assert fixture[layer_id]["max_zoom"] == layer.max_zoom
+        assert fixture[layer_id]["opacity"] == layer.opacity
+        assert fixture[layer_id]["default"] is (layer_id in DEFAULT_LAYERS)
+
+
+def test_every_layer_in_the_fixture_carries_its_attribution():
+    """Attribution is a licence condition. An empty one is a breach rendered on screen."""
+    for layer in BASEMAP["basemap"]["layers"]:
+        assert layer["attribution"].strip()
+
+
+def test_the_fixture_opens_the_same_layers_the_registry_does():
+    defaults = {layer["id"] for layer in BASEMAP["basemap"]["layers"] if layer["default"]}
+
+    assert defaults == DEFAULT_LAYERS
