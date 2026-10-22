@@ -78,6 +78,43 @@ export interface Messages {
   "confidence.sessionSpan": string;
   "confidence.excluded": string;
 
+  /** The four chart cards. */
+  "section.metrics": string;
+
+  "distance.title": string;
+  "distance.swim": string;
+  "distance.ride": string;
+  /** The part of the ridden distance the watch actually had a position for. */
+  "distance.measured": string;
+  "distance.unavailable": string;
+
+  "cadence.title": string;
+  "cadence.axis": string;
+  "cadence.rate": string;
+  "cadence.firstBlock": string;
+  "cadence.lastBlock": string;
+  /** A session rarely ends on a round ten minutes, and a short block counts fewer waves. */
+  "cadence.partialBlock": string;
+  "cadence.unavailable": string;
+
+  "speed.title": string;
+  "speed.axis": string;
+  "speed.mean": string;
+  "speed.sdLow": string;
+  "speed.sdHigh": string;
+  /** How many seconds the card is drawn from. Not a hedge: the sample size. */
+  "speed.sample": string;
+  "speed.overflow": string;
+  "speed.unavailable": string;
+
+  "returns.title": string;
+  "returns.axis": string;
+  "returns.mean": string;
+  "returns.median": string;
+  "returns.firstWave": string;
+  "returns.lastWave": string;
+  "returns.unavailable": string;
+
   /** Panels whose data source does not exist yet. A designed state, not an error. */
   "seaState.title": string;
   "seaState.unavailable": string;
@@ -86,6 +123,8 @@ export interface Messages {
 
   /** Shared. */
   "unit.minutes": string;
+  "unit.metres": string;
+  "unit.km": string;
   "unit.seconds": string;
   "unit.bpm": string;
   "state.loading": string;

@@ -3,12 +3,12 @@
 /**
  * The Session screen's body.
  *
- * What this PR fills: the hero count, the aerobic panel and device confidence — everything
- * the pipeline can answer today. The track map, the four chart cards and the wave profiles
- * are PR 2 and PR 3; sea state and the model's prose wait on Phases 8 and 11 and render
- * their designed absence in the meantime.
+ * What is on it: the hero count, the track, the four chart cards, the aerobic panel and
+ * device confidence — everything the pipeline can answer today. The wave profiles are the
+ * next PR; sea state and the model's prose wait on Phases 8 and 11 and render their
+ * designed absence in the meantime.
  *
- * Four requests rather than one composite endpoint, because they are four genuinely
+ * Seven requests rather than one composite endpoint, because they are seven genuinely
  * different questions and the existing routes already answer them. Nothing here blocks on
  * the slowest: a panel whose request failed says so and the rest of the screen stands.
  */
@@ -20,6 +20,7 @@ import {
   getAudit,
   getBasemap,
   getCleaning,
+  getMetrics,
   getTrack,
   getWaves,
 } from "@/lib/api";
@@ -29,9 +30,11 @@ import type {
   AuditReport,
   BasemapInfo,
   CleanReport,
+  SessionMetrics,
   SessionTrack,
   SessionVerdict,
 } from "@/lib/schema";
+import { CadenceCard, DistanceCard, ReturnCard, SpeedCard } from "../../_ui/chart-cards";
 import { MapCard } from "../../_ui/map-card";
 import { MethodBanner } from "../../_ui/method-banner";
 import { AerobicPanel, DeviceConfidence, HeroCount, Unavailable } from "../../_ui/panels";
@@ -43,6 +46,7 @@ interface Loaded {
   cleaning: CleanReport;
   audit: AuditReport;
   track: SessionTrack;
+  metrics: SessionMetrics;
   /** Null when the API cannot describe a basemap. The track never depends on it (ADR-0012). */
   basemap: BasemapInfo | null;
 }
@@ -73,12 +77,13 @@ export function SessionScreen({ activityId }: { activityId: string }) {
       getCleaning(activityId),
       getAudit(activityId),
       getTrack(activityId),
+      getMetrics(activityId),
       // The basemap is the one request allowed to fail without taking the screen with it:
       // a session with no imagery still draws its track over the designed warm grid.
       getBasemap().catch(() => null),
     ])
-      .then(([activity, waves, cleaning, audit, track, basemap]) => {
-        if (live) setData({ activity, waves, cleaning, audit, track, basemap });
+      .then(([activity, waves, cleaning, audit, track, metrics, basemap]) => {
+        if (live) setData({ activity, waves, cleaning, audit, track, metrics, basemap });
       })
       .catch((cause) => {
         if (live) setError(cause instanceof ApiError ? cause.message : String(cause));
@@ -127,6 +132,18 @@ export function SessionScreen({ activityId }: { activityId: string }) {
         apiBase={apiBase()}
         excluded={data.audit.not_surfing}
       />
+
+      <SectionHeader label="section.metrics" />
+      <div className="card-grid">
+        <div className="card-col">
+          <DistanceCard metrics={data.metrics} />
+          <CadenceCard metrics={data.metrics} />
+        </div>
+        <div className="card-col">
+          <SpeedCard metrics={data.metrics} />
+          <ReturnCard metrics={data.metrics} />
+        </div>
+      </div>
 
       <SectionHeader label="section.session" />
       <div className="panel-grid">
