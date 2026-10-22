@@ -18,7 +18,7 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 702 tests green (504 api · 139 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 709 tests green (511 api · 139 web · 59 evals); 19 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -998,12 +998,15 @@ decoding is hand-rolled over a handful of interoperability constants, with no Ga
 dependency. Qwen 7B is Apache-2.0 and Ollama is MIT, and neither ships (ADR-0016, ADR-0017).
 The design handover is Miguel's own, made with Claude.
 
-**The one that blocks a sale: Esri imagery.** Keyless is not licensed-for-resale, the imagery
-is sub-licensed from third parties, and ADR-0018's cache-forever design is the pattern those
-terms restrict. **Decision: render our own tiles** (Miguel, 2026-10-22). ADR-0019 builds the
-registry that makes it a contained change and a `source="local"` mode for a pyramid we cut
-ourselves; the pyramid itself is its own PR. The sea floor layer is already off Esri and on
-open data.
+**The one that blocked a sale: Esri imagery — settled 2026-10-22 (ADR-0021).** Keyless is
+not licensed-for-resale and ADR-0018's cache-forever design is the pattern those terms
+restrict. The answer was expected to be a pyramid we render ourselves; it is not. **Imagery
+is now DGT's OrtoSat 2023** — ~50 cm, 2023, **CC BY 4.0**, so caching is permitted and
+ADR-0018's design stands untouched. Five sources were compared on the reference session's own
+frame before choosing: the open one is also the best one, and the only one that happens to
+show swell. **No pyramid PR.** Remaining: **relief is still Esri hillshade**, off by default
+and unresolved, and imagery is **Portugal-only** — France (Licence Ouverte 2.0) and Spain
+(CC BY 4.0) are registry entries when a session needs them.
 
 **Cheap but real:** Open-Meteo's free tier is non-commercial — Phase 8 needs their paid plan
 and a CC-BY credit. The repo is public with no LICENSE file, so it is all-rights-reserved by

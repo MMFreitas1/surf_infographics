@@ -10,10 +10,13 @@ the whole surface is a handful of tiles and caching it is trivially correct.
 street map draws (ADR-0018). Bathymetry answers that at least as well as imagery does, so the
 default is the sea floor and the imagery sits on a tick above it (ADR-0019).
 
-**Ocean comes from EMODnet** rather than a vendor basemap because it is open data with an
-attribution condition and nothing else — the one layer we may keep without asking anybody.
-**Imagery is still Esri**, which is keyless but not clearly licensed for a commercial product
-that caches tiles the way this module does. ADR-0019 records that and the route out.
+**Ocean comes from EMODnet** and **imagery from DGT's OrtoSat 2023**, because both are open
+data with an attribution condition and nothing else — the licence permits exactly the
+fetch-once-and-keep design this module is built on, which Esri's terms did not (ADR-0021).
+
+**DGT serves WMS, not tiles.** It answers a bounding box, so this module turns z/x/y into one
+before asking. That is the only mechanical difference between the layers, and it lives in the
+layer's own URL: a template may spell ``{bbox}`` where another spells ``{z}/{x}/{y}``.
 
 **Each layer owns its own everything** — URL template, path order, zoom range, media type and
 attribution — because getting one of those from another layer is a bug that renders. Esri's
@@ -28,11 +31,40 @@ passes through it.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Final, Literal
 
 import httpx
+
+WORLD_M: Final = 20037508.342789244
+"""Half the width of the Web Mercator plane, in metres — the x of longitude 180."""
+
+
+def _tile_lonlat(z: int, x: int, y: int) -> tuple[float, float, float, float]:
+    """One tile as west, south, east, north in degrees."""
+    n = 1 << z
+    west = x / n * 360.0 - 180.0
+    east = (x + 1) / n * 360.0 - 180.0
+    north = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * y / n))))
+    south = math.degrees(math.atan(math.sinh(math.pi * (1 - 2 * (y + 1) / n))))
+    return west, south, east, north
+
+
+def _mercator_bbox(z: int, x: int, y: int) -> str:
+    """One XYZ tile as ``minx,miny,maxx,maxy`` in EPSG:3857 metres.
+
+    A WMS answers a bounding box, not a tile index, so a layer that is served by one needs
+    this to be addressable the same way as every other. The grid is the ordinary Web
+    Mercator one — ``y`` counts down from the north — so this is a coordinate transform with
+    a known answer at every zoom, and it is tested as such rather than eyeballed on a map.
+    """
+    span = 2 * WORLD_M / (1 << z)
+    minx = -WORLD_M + x * span
+    maxy = WORLD_M - y * span
+    return f"{minx:.3f},{maxy - span:.3f},{minx + span:.3f},{maxy:.3f}"
+
 
 SourceMode = Literal["upstream", "local"]
 """Where a layer's tiles come from.
@@ -49,8 +81,13 @@ class Layer:
     """One basemap, and everything about it that differs from the others."""
 
     id: str
+    """The *role* this layer fills — the sea floor, the imagery, the shading.
+
+    The contract, the ticks and the opacity slider all name it, so it outlives any one
+    provider behind it."""
     url: str
-    """Template over ``{z}``, ``{x}`` and ``{y}``. Empty when ``source`` is ``local``."""
+    """Template over ``{z}``, ``{x}``, ``{y}`` and ``{bbox}`` — a layer uses whichever its
+    service speaks. Empty when ``source`` is ``local``."""
     attribution: str
     """Required by the licence and rendered in the map's corner. Not optional, never empty."""
     min_zoom: int
@@ -62,12 +99,37 @@ class Layer:
     media_type: str
     extension: str
     source: SourceMode = "upstream"
+    bounds: tuple[float, float, float, float] | None = None
+    """West, south, east, north in degrees — the ground this layer actually covers.
+
+    A national service is not global, and asked for ground it does not hold it does not say
+    so: DGT answers a tile off the Portuguese coast with a valid, uniform, 667-byte JPEG.
+    Cached, that is a white square kept forever, which is the silent kind of wrong this
+    product refuses. So coverage is declared, from the service's own
+    ``EX_GeographicBoundingBox``, and a tile outside it is refused exactly like an
+    impossible one: the UI draws its designed fallback and nothing blank reaches the disk.
+
+    ``None`` means global, which is true of the sea floor and of a hillshade."""
+    cache_id: str = ""
+    """Directory the tiles live in, when it must differ from :attr:`id`. Falls back to it.
+
+    ADR-0019 keyed the cache by layer so two sources could not collide at one z/x/y. The
+    same hazard exists one level down: change the *provider* behind a role and the tiles
+    already on disk are a different picture of the same three integers, which would be
+    served as the new provider's, silently and forever. A role whose provider has changed
+    carries that provider here, so the old tiles are orphaned by construction rather than
+    by somebody remembering to delete them."""
     opacity: float = 1.0
     """How strongly the layer draws when it is on.
 
     A hillshade is a *shading* layer: at full strength it replaces what it was meant to
     shade. That is a property of the layer rather than a preference of the screen, so it
     lives here with the rest of the facts about it."""
+
+    @property
+    def storage_id(self) -> str:
+        """The directory name for this layer's tiles."""
+        return self.cache_id or self.id
 
 
 LAYERS: Final[dict[str, Layer]] = {
@@ -89,15 +151,32 @@ LAYERS: Final[dict[str, Layer]] = {
     ),
     "imagery": Layer(
         id="imagery",
+        # WMS 1.1.1 rather than the 1.3.0 the service also advertises: 1.3.0 reverses the
+        # axis order of geographic CRSs, and the version that does not is one fewer way to
+        # draw the right tile of the wrong hemisphere.
         url=(
-            "https://server.arcgisonline.com/ArcGIS/rest/services"
-            "/World_Imagery/MapServer/tile/{z}/{y}/{x}"
+            "https://ortos.dgterritorio.gov.pt/wms/ortosat2023"
+            "?service=WMS&request=GetMap&version=1.1.1"
+            "&layers=ortoSat2023-CorVerdadeira&styles="
+            "&format=image/jpeg&srs=EPSG:3857"
+            "&width=256&height=256&bbox={bbox}"
         ),
-        attribution="Esri, Vantor, Earthstar Geographics, and the GIS User Community",
+        attribution="Ortos Satélite 2023, Direção-Geral do Território (CC BY 4.0)",
         min_zoom=0,
-        max_zoom=19,
+        # Measured on 2026-10-22, not read off a spec. The service declares a 1:500 ceiling
+        # -- about z20 -- but that is a *rendering* limit, not a resolution claim: asked for
+        # one 128 m square at rising pixel densities, it stops adding information below
+        # about 50 cm/px. At this latitude z18 is 0.47 m/px of ground, so 18 is the last
+        # zoom with real pixels behind it. Past it maplibre overzooms our last tile, which
+        # looks soft -- honest -- where letting the server interpolate to z20 would look
+        # sharp and claim detail the imagery does not hold.
+        max_zoom=18,
         media_type="image/jpeg",
         extension="jpg",
+        cache_id="imagery-ortosat2023",
+        # The service's own EX_GeographicBoundingBox, read 2026-10-22: continental
+        # Portugal, and not the Azores or Madeira.
+        bounds=(-10.1934, 36.7643, -5.70954, 42.2796),
     ),
     "relief": Layer(
         id="relief",
@@ -154,11 +233,21 @@ def _valid(layer: Layer, z: int, x: int, y: int) -> bool:
     At zoom z the world is a 2^z grid, so an index outside it is not a missing tile but a
     nonsensical one. Checked before touching the disk, because the path is built from these
     numbers and an unchecked index is how a path escapes its directory.
+
+    A tile outside the layer's declared coverage is refused here too, and for the same
+    reason it is refused rather than fetched: a national service answers for ground it does
+    not hold with a blank tile rather than an error, and the cache would keep it.
     """
     if not layer.min_zoom <= z <= layer.max_zoom:
         return False
     limit = 1 << z
-    return 0 <= x < limit and 0 <= y < limit
+    if not (0 <= x < limit and 0 <= y < limit):
+        return False
+    if layer.bounds is None:
+        return True
+    west, south, east, north = _tile_lonlat(z, x, y)
+    covered_w, covered_s, covered_e, covered_n = layer.bounds
+    return not (east < covered_w or west > covered_e or north < covered_s or south > covered_n)
 
 
 class TileCache:
@@ -172,10 +261,12 @@ class TileCache:
         """Where a tile lives.
 
         The layer is part of the path, so two sources cannot collide at one z/x/y -- which
-        would otherwise serve a bathymetry tile as imagery, silently and forever. The id
-        comes from :data:`LAYERS` and the rest are integers, so a caller cannot steer it.
+        would otherwise serve a bathymetry tile as imagery, silently and forever. It is
+        :attr:`Layer.storage_id` rather than the id, so that changing the provider behind a
+        role orphans the old provider's tiles instead of inheriting them. Both come from
+        :data:`LAYERS` and the rest are integers, so a caller cannot steer it.
         """
-        return self.root / layer.id / str(z) / str(x) / f"{y}.{layer.extension}"
+        return self.root / layer.storage_id / str(z) / str(x) / f"{y}.{layer.extension}"
 
     def cached(self, layer: Layer, z: int, x: int, y: int) -> bytes | None:
         path = self.path_for(layer, z, x, y)
@@ -203,7 +294,7 @@ class TileCache:
 
         try:
             response = httpx.get(
-                layer.url.format(z=z, x=x, y=y),
+                layer.url.format(z=z, x=x, y=y, bbox=_mercator_bbox(z, x, y)),
                 timeout=self.timeout_s,
                 follow_redirects=True,
                 headers={"User-Agent": "surf-infographics/0.1 (local-first, personal use)"},

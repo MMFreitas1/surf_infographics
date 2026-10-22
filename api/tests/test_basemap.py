@@ -9,7 +9,7 @@ about keeping them apart: two sources at the same z/x/y are the same three integ
 cache that cannot tell them apart serves bathymetry as imagery, silently and forever.
 
 Every test here runs offline. `httpx.get` is replaced rather than reached; a test suite that
-quietly fetches from Esri or EMODnet would pass on this laptop and fail in CI, which is the
+quietly fetches from DGT or EMODnet would pass on this laptop and fail in CI, which is the
 failure mode the rule in CLAUDE.md exists to prevent.
 """
 
@@ -18,13 +18,28 @@ from pathlib import Path
 import httpx
 import pytest
 
-from surf.basemap import DEFAULT_LAYERS, LAYERS, Layer, TileCache, TileError
+from surf.basemap import (
+    DEFAULT_LAYERS,
+    LAYERS,
+    Layer,
+    TileCache,
+    TileError,
+    _mercator_bbox,
+)
 
 JPEG = b"\xff\xd8\xff\xe0 pretend this is imagery \xff\xd9"
 PNG = b"\x89PNG\r\n\x1a\n pretend this is the sea floor"
 
 IMAGERY = LAYERS["imagery"]
 OCEAN = LAYERS["ocean"]
+
+# Tiles inside the imagery layer's declared coverage, since a national service refuses the
+# rest. Derived from the middle of DGT's own published bounding box -- never from a session,
+# because this repo is public and a session is somebody's address at a time of day.
+PT10 = (10, 489, 389)
+PT14 = (14, 7830, 6230)
+PT16 = (16, 31320, 24923)
+PT17 = (17, 62640, 49846)
 
 
 class Upstream:
@@ -59,8 +74,8 @@ def cache(tmp_path: Path) -> TileCache:
 
 def test_the_first_request_fetches_and_the_second_does_not(cache, upstream):
     """The whole point. One trip upstream per tile, ever."""
-    first = cache.get(IMAGERY, 16, 100, 200)
-    second = cache.get(IMAGERY, 16, 100, 200)
+    first = cache.get(IMAGERY, *PT16)
+    second = cache.get(IMAGERY, *PT16)
 
     assert first.data == JPEG
     assert first.cached is False
@@ -71,22 +86,76 @@ def test_the_first_request_fetches_and_the_second_does_not(cache, upstream):
 
 def test_a_cached_tile_survives_a_new_cache_object(tmp_path, upstream):
     """Disk, not memory: restarting the API must not re-fetch the session's basemap."""
-    TileCache(tmp_path / "tiles").get(IMAGERY, 15, 3, 4)
-    reopened = TileCache(tmp_path / "tiles").get(IMAGERY, 15, 3, 4)
+    TileCache(tmp_path / "tiles").get(IMAGERY, *PT16)
+    reopened = TileCache(tmp_path / "tiles").get(IMAGERY, *PT16)
 
     assert reopened.cached is True
     assert len(upstream.calls) == 1
 
 
-def test_it_asks_esri_for_z_y_x_and_not_z_x_y(cache, upstream):
-    """Esri's path order is z/y/x.
+@pytest.mark.parametrize(
+    ("z", "x", "y", "expected"),
+    [
+        # The whole world, which is the one tile whose answer anybody can check by eye.
+        (0, 0, 0, "-20037508.343,-20037508.343,20037508.343,20037508.343"),
+        # y counts down from the north, so 1/1/0 is the north-east quadrant and 1/0/1 the
+        # south-west. Getting that upside down is the classic way to draw a valid tile of
+        # the wrong hemisphere.
+        (1, 1, 0, "0.000,0.000,20037508.343,20037508.343"),
+        (1, 0, 1, "-20037508.343,-20037508.343,0.000,0.000"),
+    ],
+)
+def test_a_tile_index_becomes_the_bounding_box_it_names(z, x, y, expected):
+    """A WMS answers a box, so the transform is load-bearing and has a known answer."""
+    assert _mercator_bbox(z, x, y) == expected
 
-    Swapping the two yields a perfectly valid tile of the wrong piece of the planet, which
-    renders as a plausible coastline somewhere else entirely. Worth a test of its own.
+
+def test_a_bounding_box_layer_is_asked_for_a_box_and_not_a_path(cache, upstream):
+    """DGT serves WMS: the tile index goes into the query, not into the path.
+
+    The imagery layer's template spells ``{bbox}`` where the ocean's spells ``{z}/{x}/{y}``,
+    and asking the wrong one of those two questions yields no tile at all -- which at least
+    fails loudly, unlike every other way of getting a tile address wrong.
     """
-    cache.get(IMAGERY, 14, 8001, 6002)
+    cache.get(IMAGERY, *PT14)
 
-    assert upstream.calls[0].endswith("/14/6002/8001")
+    called = upstream.calls[0]
+    assert f"bbox={_mercator_bbox(*PT14)}" in called
+    assert "{bbox}" not in called, "the template was sent unformatted"
+    assert "/14/7830/6230" not in called
+
+
+def test_the_imagery_layer_is_open_data_we_may_cache_forever():
+    """The point of ADR-0021: this module keeps tiles, so the licence has to allow it.
+
+    Esri's did not. A silent return to a host whose terms restrict caching would re-break a
+    decision that was made for licensing reasons and cannot be seen on screen.
+    """
+    assert "dgterritorio.gov.pt" in IMAGERY.url
+    assert "Direção-Geral do Território" in IMAGERY.attribution
+    assert "CC BY 4.0" in IMAGERY.attribution
+
+
+def test_changing_the_provider_behind_a_role_does_not_inherit_its_tiles(tmp_path):
+    """A role outlives its provider; the tiles on disk do not.
+
+    Keyed on the role alone, the previous provider's imagery would be served as the new
+    one's -- a different picture of the same three integers, with nothing on screen to say
+    so. The directory carries the provider, so the old tiles are simply not found.
+    """
+    previous = Layer(
+        id="imagery",
+        url="https://example.invalid/{z}/{y}/{x}",
+        attribution="the provider that came before",
+        min_zoom=0,
+        max_zoom=19,
+        media_type="image/jpeg",
+        extension="jpg",
+    )
+
+    assert previous.storage_id != IMAGERY.storage_id
+    cache = TileCache(tmp_path / "tiles")
+    assert cache.path_for(previous, 14, 1, 2) != cache.path_for(IMAGERY, 14, 1, 2)
 
 
 def test_it_asks_emodnet_for_z_x_y_in_its_own_order(cache, upstream):
@@ -108,10 +177,10 @@ def test_one_layers_tile_is_never_served_for_another(tmp_path, monkeypatch):
     """
     monkeypatch.setattr("surf.basemap.httpx.get", Upstream(data=JPEG))
     cache = TileCache(tmp_path / "tiles")
-    cache.get(IMAGERY, 10, 5, 6)
+    cache.get(IMAGERY, *PT10)
 
     monkeypatch.setattr("surf.basemap.httpx.get", (ocean := Upstream(data=PNG)))
-    tile = cache.get(OCEAN, 10, 5, 6)
+    tile = cache.get(OCEAN, *PT10)
 
     assert tile.data == PNG
     assert tile.cached is False, "the imagery tile was served as bathymetry"
@@ -150,16 +219,16 @@ def test_an_uncached_tile_with_no_network_raises_rather_than_inventing_one(tmp_p
     monkeypatch.setattr("surf.basemap.httpx.get", Upstream(fail=True))
 
     with pytest.raises(TileError):
-        TileCache(tmp_path / "tiles").get(IMAGERY, 16, 1, 1)
+        TileCache(tmp_path / "tiles").get(IMAGERY, *PT16)
 
 
 def test_a_cached_tile_is_served_with_no_network_at_all(tmp_path, monkeypatch):
     """The requirement, stated as a test: once fetched, the map never needs the internet."""
     monkeypatch.setattr("surf.basemap.httpx.get", Upstream())
-    TileCache(tmp_path / "tiles").get(IMAGERY, 16, 1, 1)
+    TileCache(tmp_path / "tiles").get(IMAGERY, *PT16)
 
     monkeypatch.setattr("surf.basemap.httpx.get", Upstream(fail=True))
-    offline = TileCache(tmp_path / "tiles").get(IMAGERY, 16, 1, 1)
+    offline = TileCache(tmp_path / "tiles").get(IMAGERY, *PT16)
 
     assert offline.data == JPEG
     assert offline.cached is True
@@ -172,7 +241,7 @@ def test_an_empty_response_is_refused_rather_than_cached(tmp_path, monkeypatch):
     cache = TileCache(tmp_path / "tiles")
 
     with pytest.raises(TileError):
-        cache.get(IMAGERY, 16, 1, 1)
+        cache.get(IMAGERY, *PT16)
     assert cache.count() == 0
 
 
@@ -223,7 +292,31 @@ def test_a_zoom_past_a_layers_own_ceiling_is_refused(cache, upstream):
     tile rather than asking for one that was never rendered."""
     with pytest.raises(TileError):
         cache.get(OCEAN, OCEAN.max_zoom + 1, 1, 1)
-    assert cache.get(IMAGERY, OCEAN.max_zoom + 1, 1, 1).data == JPEG
+    assert cache.get(IMAGERY, *PT17).data == JPEG
+
+
+def test_a_tile_outside_a_layers_coverage_is_refused_rather_than_cached_blank(cache, upstream):
+    """A national service does not say "I do not have that".
+
+    Asked for ground it does not hold, DGT answers 200 with a valid, uniform JPEG. Fetched
+    once and kept, that is a white square served forever -- indistinguishable on screen
+    from imagery of a very calm, very pale sea. So coverage is declared and checked here,
+    and the tile never leaves for the network at all.
+    """
+    assert IMAGERY.bounds is not None
+
+    # Hossegor is a surf town, and it is not in Portugal.
+    with pytest.raises(TileError):
+        cache.get(IMAGERY, 14, 8120, 5880)
+
+    assert upstream.calls == [], "a tile outside coverage was fetched"
+    assert cache.count() == 0
+
+
+def test_a_layer_without_declared_coverage_is_asked_anywhere(cache, upstream):
+    """The sea floor is global, so `bounds=None` must not become a silent refusal."""
+    assert OCEAN.bounds is None
+    assert cache.get(OCEAN, 10, 1, 1).data is not None
 
 
 def test_a_negative_index_cannot_escape_the_cache_directory(cache, upstream):
@@ -239,7 +332,7 @@ def test_a_negative_index_cannot_escape_the_cache_directory(cache, upstream):
 def test_the_endpoint_serves_a_tile_and_says_it_is_immutable(client, monkeypatch):
     monkeypatch.setattr("surf.basemap.httpx.get", Upstream())
 
-    response = client.get("/basemap/imagery/16/100/200")
+    response = client.get("/basemap/imagery/16/31320/24923")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/jpeg"
@@ -269,7 +362,7 @@ def test_the_endpoint_404s_offline_rather_than_500ing(client, monkeypatch):
     """
     monkeypatch.setattr("surf.basemap.httpx.get", Upstream(fail=True))
 
-    assert client.get("/basemap/imagery/16/100/200").status_code == 404
+    assert client.get("/basemap/imagery/16/31320/24923").status_code == 404
 
 
 def test_the_endpoint_refuses_an_impossible_tile(client, monkeypatch):
@@ -304,4 +397,4 @@ def test_a_tile_is_served_with_no_session_stored_at_all(client, monkeypatch):
     monkeypatch.setattr("surf.basemap.httpx.get", Upstream())
 
     assert client.get("/activities").json() == []
-    assert client.get("/basemap/imagery/16/100/200").status_code == 200
+    assert client.get("/basemap/imagery/16/31320/24923").status_code == 200
