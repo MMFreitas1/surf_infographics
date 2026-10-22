@@ -12,7 +12,7 @@
  * different questions and the existing routes already answer them. Nothing here blocks on
  * the slowest: a panel whose request failed says so and the rest of the screen stands.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ApiError,
   apiBase,
@@ -33,12 +33,15 @@ import type {
   SessionMetrics,
   SessionTrack,
   SessionVerdict,
+  WaveMetrics,
+  WaveVerdict,
 } from "@/lib/schema";
 import { CadenceCard, DistanceCard, ReturnCard, SpeedCard } from "../../_ui/chart-cards";
 import { MapCard } from "../../_ui/map-card";
 import { MethodBanner } from "../../_ui/method-banner";
 import { AerobicPanel, DeviceConfidence, HeroCount, Unavailable } from "../../_ui/panels";
 import { SectionHeader, Shell } from "../../_ui/shell";
+import { WaveProfiles } from "../../_ui/wave-profiles";
 
 interface Loaded {
   activity: Activity;
@@ -68,6 +71,19 @@ export function SessionScreen({ activityId }: { activityId: string }) {
   const t = useT();
   const [data, setData] = useState<Loaded | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [selected, setSelected] = useState<WaveVerdict | null>(null);
+  const track = useRef<HTMLDivElement>(null);
+
+  /**
+   * Opening a wave from its profile card isolates it on the track above and brings the
+   * map into view. Not a link to the N3 Onda screen: that screen waits on Phases 6 and 7,
+   * and a card that navigates nowhere is worse than one that shows you the ride.
+   */
+  function openWave(wave: WaveMetrics) {
+    const verdict = data?.waves.verdicts.find((v) => v.t_start === wave.t_start && v.is_wave);
+    setSelected(verdict ?? null);
+    track.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 
   useEffect(() => {
     let live = true;
@@ -125,13 +141,17 @@ export function SessionScreen({ activityId }: { activityId: string }) {
       <HeroCount verdict={data.waves} />
 
       <SectionHeader label="section.track" />
-      <MapCard
-        samples={data.track.smoothed}
-        waves={data.waves.verdicts}
-        basemap={data.basemap}
-        apiBase={apiBase()}
-        excluded={data.audit.not_surfing}
-      />
+      <div ref={track}>
+        <MapCard
+          samples={data.track.smoothed}
+          waves={data.waves.verdicts}
+          basemap={data.basemap}
+          apiBase={apiBase()}
+          excluded={data.audit.not_surfing}
+          selected={selected}
+          onSelect={setSelected}
+        />
+      </div>
 
       <SectionHeader label="section.metrics" />
       <div className="card-grid">
@@ -144,6 +164,14 @@ export function SessionScreen({ activityId }: { activityId: string }) {
           <ReturnCard metrics={data.metrics} />
         </div>
       </div>
+
+      <SectionHeader label="section.profiles" />
+      <WaveProfiles
+        waves={data.metrics.waves}
+        samples={data.track.smoothed}
+        selectedStart={selected?.t_start ?? null}
+        onOpen={openWave}
+      />
 
       <SectionHeader label="section.session" />
       <div className="panel-grid">

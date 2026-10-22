@@ -162,7 +162,7 @@ test("the four chart cards draw what the pipeline measured", async ({ page }, te
   };
 
   const diag = await visit(page, `/session/${activityId}`);
-  await expect(page.locator(".chart-card")).toHaveCount(4, SLOW);
+  await expect(page.locator(".card-grid .chart-card")).toHaveCount(4, SLOW);
 
   // Distância: a headline and a split that fills the bar.
   await expect(page.locator(".chart-value")).toHaveText(/\d/, SLOW);
@@ -197,6 +197,55 @@ test("the four chart cards draw what the pipeline measured", async ({ page }, te
   // not be the place that first disagrees: the hero and the speed card's sample both
   // count the waves L5 settled.
   await expect(page.locator(".hero-value")).toHaveText(String(metrics.wave_count));
+
+  await record(page, diag, testInfo.title);
+  clean(diag);
+});
+
+test("a wave profile draws its own ride and opens it on the track", async ({ page }, testInfo) => {
+  test.setTimeout(180_000);
+  const SLOW = { timeout: 90_000 };
+
+  const activityId = await firstActivity();
+  test.skip(activityId === null, "no ingested session — start the API and post an activity");
+
+  const metrics = (await (await fetch(`${API}/activities/${activityId}/metrics`)).json()) as {
+    waves: { index: number; position_coverage: number }[];
+  };
+
+  const diag = await visit(page, `/session/${activityId}`);
+
+  // One card per settled wave. The grid is a view of L5's answer, not a second opinion
+  // about it, so it cannot hold more cards or fewer.
+  const cards = page.locator(".flip-card");
+  await expect(cards).toHaveCount(metrics.waves.length, SLOW);
+
+  // Coverage is the card's opacity: a ride the watch barely saw is barely there. Check
+  // the extremes against the figures rather than the look of it.
+  const worst = metrics.waves.reduce((a, b) => (b.position_coverage < a.position_coverage ? b : a));
+  const best = metrics.waves.reduce((a, b) => (b.position_coverage > a.position_coverage ? b : a));
+  if (worst.position_coverage < best.position_coverage) {
+    const opacity = async (index: number) =>
+      Number(
+        await page
+          .locator(".profile-slot", { has: page.getByText(String(index).padStart(2, "0")) })
+          .locator(".flip-front")
+          .evaluate((el) => getComputedStyle(el).opacity),
+      );
+    expect(await opacity(worst.index)).toBeLessThan(await opacity(best.index));
+  }
+
+  // The ride is drawn from the track, and an estimated stretch is dashed there as it is
+  // on the big map (ADR-0010).
+  expect(await page.locator(".profile-measured, .profile-estimated").count()).toBeGreaterThan(0);
+
+  // Opening a wave isolates it above. Not a link to the Onda screen — that waits on
+  // Phases 6 and 7, and a card that navigates nowhere is worse than one that shows you
+  // the ride.
+  await expect(page.locator(".selection-callout")).toHaveCount(0);
+  await cards.first().click();
+  await expect(page.locator(".selection-callout")).toBeVisible(SLOW);
+  await expect(page.locator(".flip-card-selected")).toHaveCount(1);
 
   await record(page, diag, testInfo.title);
   clean(diag);

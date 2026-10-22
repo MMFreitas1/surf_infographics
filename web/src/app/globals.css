@@ -153,6 +153,8 @@
   --dur-fast: 140ms;
   --dur-base: 240ms;
   --dur-slow: 420ms;
+  /* The wave cards' full turn. Long on purpose: it is an invitation, not feedback. */
+  --dur-spin: 900ms;
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
@@ -1013,6 +1015,168 @@ select {
   stroke-dasharray: 4 3;
 }
 
+/* -- wave profiles ---------------------------------------------------------- */
+/* Five across, as the handover draws them, until the cards would be too narrow to
+   read a two-figure footer. */
+.profile-grid {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+  margin-top: 12px;
+}
+@media (max-width: 860px) {
+  .profile-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+/* The slot owns the perspective; the card inside it is what turns. */
+.profile-slot {
+  position: relative;
+  height: 104px;
+  perspective: 900px;
+}
+.flip-card {
+  position: absolute;
+  inset: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  transform-style: preserve-3d;
+  transition: transform var(--dur-spin) var(--ease-out);
+}
+.flip-card:hover,
+.flip-card:focus-visible {
+  transform: rotateY(360deg);
+}
+.flip-front,
+.flip-back {
+  position: absolute;
+  inset: 0;
+  padding: 8px;
+  border-radius: var(--radius-md);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+}
+/* Coverage is the card's opacity, set inline per wave: a ride the watch barely saw is
+   barely there. The badge says the figure too, because opacity alone is a hint. */
+.flip-front {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 2px;
+  text-align: left;
+  background: var(--surface);
+  border: var(--border-thin) solid var(--border);
+  box-shadow: var(--shadow-xs);
+  transform: rotateY(0deg);
+}
+.flip-card-selected .flip-front {
+  border-color: var(--amber-500);
+}
+.flip-back {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: var(--border-thin) solid var(--border);
+  background: var(--surface-2);
+  color: var(--text-muted);
+  transform: rotateY(180deg);
+}
+.profile-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+}
+.profile-no {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--text-muted);
+}
+.profile-badge {
+  display: inline-flex;
+  align-items: center;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+.profile-badge-high {
+  background: var(--blue-100);
+  color: var(--blue-700);
+}
+.profile-badge-mid {
+  background: var(--amber-100);
+  color: var(--amber-700);
+}
+.profile-badge-low {
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.profile-signal {
+  margin-right: 3px;
+  flex: none;
+}
+.profile-track {
+  width: 100%;
+  height: 42px;
+}
+.profile-measured {
+  fill: none;
+  stroke: var(--blue-600);
+  stroke-width: 1.7;
+  stroke-linecap: round;
+}
+/* Dashed for the same reason the big map dashes it: L1 estimated this stretch. */
+.profile-estimated {
+  fill: none;
+  stroke: var(--ink-500);
+  stroke-opacity: 0.34;
+  stroke-width: 1.3;
+  stroke-dasharray: 3 3;
+}
+.profile-start {
+  fill: var(--amber-500);
+}
+.profile-foot {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 8px;
+}
+.profile-figure {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+}
+.profile-figure-end {
+  align-items: flex-end;
+}
+.profile-value {
+  font-family: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: var(--tracking-tight);
+  color: var(--ink-800);
+}
+.profile-unit,
+.profile-back-label {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 8px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.profile-back-label {
+  letter-spacing: 0.14em;
+  text-align: center;
+  line-height: 1.5;
+  color: inherit;
+}
+
 /* -- device confidence ------------------------------------------------------ */
 .coverage-bar {
   height: 11px;
@@ -1070,6 +1234,7 @@ select {
     --dur-fast: 0.01ms;
     --dur-base: 0.01ms;
     --dur-slow: 0.01ms;
+    --dur-spin: 0.01ms;
   }
 }
 

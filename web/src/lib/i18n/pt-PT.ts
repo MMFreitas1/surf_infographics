@@ -109,6 +109,12 @@ export const ptPT: Messages = {
   "returns.lastWave": "onda {count}",
   "returns.unavailable": "uma onda só: não há regresso para medir",
 
+  "section.profiles": "Perfis de onda",
+  "profiles.title": "Perfis de onda",
+  "profiles.open": "abrir onda",
+  "profiles.signal": "cobertura de GPS",
+  "profiles.unavailable": "nenhuma onda para desenhar",
+
   "seaState.title": "Estado do mar",
   "seaState.unavailable": "indisponível — ainda por ligar à API marinha",
   "quality.title": "Qualidade da sessão",
@@ -117,6 +123,8 @@ export const ptPT: Messages = {
   "unit.minutes": "min",
   "unit.metres": "m",
   "unit.km": "km",
+  "unit.kmh": "km/h",
+  "unit.secondsLong": "segundos",
   "unit.seconds": "s",
   "unit.bpm": "bpm",
   "state.loading": "a carregar…",

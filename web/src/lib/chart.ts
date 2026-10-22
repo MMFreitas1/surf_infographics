@@ -12,6 +12,8 @@
  * looking at it is a chart that drifts.
  */
 
+import { type Observed, withRuns } from "./trace";
+
 export interface Point {
   x: number;
   y: number;
@@ -165,4 +167,81 @@ export function histogram(edgesMs: number[], counts: number[]): Histogram {
 /** One decimal is the resolution of a 400-unit viewBox; more is noise in the DOM. */
 function round(value: number): string {
   return value.toFixed(1);
+}
+
+/** The wave-profile thumbnail: a 60×30 box with a 4-unit inset, as the handover draws it. */
+export const MINI = { width: 60, height: 30, inset: 4 } as const;
+
+export interface MiniPath {
+  d: string;
+  series: "measured" | "estimated";
+}
+
+export interface MiniTrack {
+  paths: MiniPath[];
+  /** Where the ride began, drawn as a dot. Null when the wave has no position at all. */
+  start: Point | null;
+}
+
+/**
+ * One wave's own track, scaled to fit a thumbnail, with its provenance kept apart.
+ *
+ * The profile is the **GPS trace of the ride**, not a speed curve — the handover is explicit
+ * about that, and it is the more honest of the two: the shape of a ride is a thing the watch
+ * recorded, where a speed curve through a blind window would be a drawing of the smoother's
+ * estimate.
+ *
+ * Measured and estimated runs come back as separate paths, so a stretch L1 had to estimate
+ * can be drawn dashed (ADR-0010). The scale is computed over every point of the wave at
+ * once, so the runs stay in register with each other.
+ *
+ * Each thumbnail is scaled to itself, which is the point: it shows the *shape* of a ride.
+ * Two cards cannot be compared for size, and nothing on them invites that.
+ */
+export function miniTrack(rows: readonly (Observed & { lat: number; lon: number })[]): MiniTrack {
+  if (rows.length === 0) return { paths: [], start: null };
+
+  const runs = withRuns(rows);
+
+  // Equirectangular, local to this wave: a ride is tens of metres, where the error of
+  // treating degrees as a plane is far below one unit of a 60-wide box. Longitude is
+  // squeezed by the latitude it sits at, or the track leans; y is negated because north
+  // is up on screen and down in SVG coordinates.
+  const lat0 = (runs[0] as (typeof runs)[number]).lat;
+  const squeeze = Math.cos((lat0 * Math.PI) / 180);
+  const raw = runs.map((row) => ({ x: row.lon * squeeze, y: -row.lat }));
+
+  const xs = raw.map((p) => p.x);
+  const ys = raw.map((p) => p.y);
+  const spanX = Math.max(...xs) - Math.min(...xs);
+  const spanY = Math.max(...ys) - Math.min(...ys);
+  const room = { x: MINI.width - 2 * MINI.inset, y: MINI.height - 2 * MINI.inset };
+  const fits = [spanX > 0 ? room.x / spanX : Infinity, spanY > 0 ? room.y / spanY : Infinity];
+  const scale = Math.min(...fits);
+  // A wave the watch saw at one point only has no extent to scale, and must still draw.
+  const zoom = Number.isFinite(scale) ? scale : 1;
+
+  const fitted = raw.map((p) => ({
+    x: MINI.inset + (room.x - spanX * zoom) / 2 + (p.x - Math.min(...xs)) * zoom,
+    y: MINI.inset + (room.y - spanY * zoom) / 2 + (p.y - Math.min(...ys)) * zoom,
+  }));
+
+  const paths: MiniPath[] = [];
+  let run = -1;
+  let current: Point[] = [];
+  runs.forEach((row, i) => {
+    if (row.run !== run) {
+      if (current.length > 0) {
+        paths.push({ d: linePath(current), series: runs[i - 1]?.series ?? "measured" });
+      }
+      run = row.run;
+      current = [];
+    }
+    current.push(fitted[i] as Point);
+  });
+  if (current.length > 0) {
+    paths.push({ d: linePath(current), series: runs[runs.length - 1]?.series ?? "measured" });
+  }
+
+  return { paths, start: fitted[0] ?? null };
 }
