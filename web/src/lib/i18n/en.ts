@@ -50,6 +50,11 @@ export const en: Messages = {
   "selection.decidedBy.model": "decided by the model",
   "selection.decidedBy.unresolved": "undecided",
 
+  "layer.ocean": "Sea floor",
+  "layer.imagery": "Satellite",
+  "layer.relief": "Relief",
+  "layer.blend": "Strength",
+
   "section.track": "Track",
   "section.session": "The session",
   "section.conditions": "Sea state",

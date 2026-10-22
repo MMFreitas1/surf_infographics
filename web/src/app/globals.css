@@ -1280,6 +1280,52 @@ select {
   background: var(--surface-2);
 }
 
+/* The layer ticks, top-right of the map. Mirrors the legend opposite it: same surface,
+   same mono type, so the two overlays read as one family rather than two widgets. */
+.layer-control {
+  position: absolute;
+  right: var(--space-3);
+  top: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--space-2) var(--space-3);
+  background: rgba(251, 247, 240, 0.95);
+  border: var(--border-thin) solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 10px;
+  color: var(--ink-800);
+}
+.layer-tick {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+}
+.layer-tick input {
+  accent-color: var(--accent);
+  cursor: pointer;
+  margin: 0;
+}
+/* Only appears when the imagery is on, because it is the only layer that covers what is
+   under it rather than shading it. */
+.layer-blend {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 4px;
+  margin-top: 2px;
+  border-top: var(--border-thin) solid var(--border);
+  color: var(--text-muted);
+}
+.layer-blend input {
+  width: 72px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .map-legend {
   position: absolute;
   right: var(--space-3);

@@ -251,6 +251,51 @@ test("a wave profile draws its own ride and opens it on the track", async ({ pag
   clean(diag);
 });
 
+test("the basemap layers tick on and off and carry their own credit", async ({
+  page,
+}, testInfo) => {
+  test.setTimeout(180_000);
+  const SLOW = { timeout: 90_000 };
+
+  const activityId = await firstActivity();
+  test.skip(activityId === null, "no ingested session — start the API and post an activity");
+
+  const served = (await (await fetch(`${API}/basemap`)).json()) as {
+    layers: { id: string; attribution: string; default: boolean }[];
+  };
+
+  const diag = await visit(page, `/session/${activityId}`);
+  const ticks = page.locator(".layer-tick input");
+  await expect(ticks).toHaveCount(served.layers.length, SLOW);
+
+  // What the API says opens ticked is what opens ticked. Two copies of that answer is how
+  // the control and the map come to disagree about what is on screen.
+  for (const [index, layer] of served.layers.entries()) {
+    await expect(ticks.nth(index)).toBeChecked({ checked: layer.default });
+  }
+
+  // Attribution is a licence condition, and maplibre renders it only for sources a visible
+  // layer uses — so ticking a layer off has to take its credit with it.
+  const offIndex = served.layers.findIndex((layer) => !layer.default);
+  const credit = page.locator(".maplibregl-ctrl-attrib-inner");
+  if (offIndex >= 0) {
+    const off = served.layers[offIndex] as (typeof served.layers)[number];
+    await expect(credit).not.toContainText(off.attribution, SLOW);
+    await ticks.nth(offIndex).check();
+    await expect(credit).toContainText(off.attribution, SLOW);
+  }
+
+  // The strength slider belongs to the one layer that covers what is under it, so it is
+  // there when that layer is and gone when it is not.
+  const imageryIndex = served.layers.findIndex((layer) => layer.id === "imagery");
+  await expect(page.locator(".layer-blend input")).toHaveCount(1);
+  await ticks.nth(imageryIndex).uncheck();
+  await expect(page.locator(".layer-blend input")).toHaveCount(0);
+
+  await record(page, diag, testInfo.title);
+  clean(diag);
+});
+
 test("the method banner dismisses and stays dismissed", async ({ page }, testInfo) => {
   test.setTimeout(180_000);
   const activityId = await firstActivity();

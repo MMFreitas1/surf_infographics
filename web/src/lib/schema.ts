@@ -399,11 +399,24 @@ export type SessionVerdict = z.infer<typeof SessionVerdict>;
  * requires it. It is served rather than hard-coded here so the licence text travels with the
  * process that serves the tiles, instead of going stale in a second repository.
  */
-export const BasemapInfo = z.object({
+export const BasemapLayer = z.object({
+  id: z.string().min(1),
   tile_url: z.string(),
+  /** A licence condition, per layer: the sea floor and the imagery are credited to
+   *  different people. Never empty. */
   attribution: z.string().min(1),
   min_zoom: z.number().int().min(0).max(24),
   max_zoom: z.number().int().min(0).max(24),
+  /** How strongly it draws when on. A shading layer at full strength replaces what it
+   *  was meant to shade, which is a fact about the layer and not a taste. */
+  opacity: z.number().min(0).max(1).default(1),
+  default: z.boolean().default(false),
+});
+export type BasemapLayer = z.infer<typeof BasemapLayer>;
+
+/** Every layer the map may draw, in the order they stack, bottom first. */
+export const BasemapInfo = z.object({
+  layers: z.array(BasemapLayer).default([]),
 });
 export type BasemapInfo = z.infer<typeof BasemapInfo>;
 

@@ -16,7 +16,7 @@ import { PathLayer, ScatterplotLayer } from "@deck.gl/layers";
 import DeckGL from "@deck.gl/react";
 import { useMemo } from "react";
 import BaseMap from "react-map-gl/maplibre";
-import { rasterStyle } from "@/lib/basemap";
+import { type LayerView, rasterStyle } from "@/lib/basemap";
 import type { BasemapInfo, SmoothedSample, WaveVerdict } from "@/lib/schema";
 import { dashPath, type LngLat, type Span, withRuns } from "@/lib/trace";
 import "@/lib/maplibre-worker";
@@ -36,6 +36,9 @@ const GAP_M = 5;
 interface Props {
   samples: SmoothedSample[];
   basemap: BasemapInfo | null;
+  /** Which basemap layers are ticked, and how strongly they draw. Named apart from the
+   *  deck.gl `view` below, which is the camera and a different thing entirely. */
+  layerView?: LayerView;
   apiBase: string;
   now: number;
   waves: WaveVerdict[];
@@ -49,6 +52,7 @@ interface Props {
 export function TrackMap({
   samples,
   basemap,
+  layerView,
   apiBase,
   now,
   waves,
@@ -185,7 +189,7 @@ export function TrackMap({
           maplibre draws nothing and this is what shows through. */}
       <div className="map-grid" aria-hidden="true" />
       <DeckGL initialViewState={view} controller={true} layers={layers}>
-        {basemap ? <BaseMap mapStyle={rasterStyle(basemap, apiBase)} /> : null}
+        {basemap ? <BaseMap mapStyle={rasterStyle(basemap, apiBase, layerView)} /> : null}
       </DeckGL>
     </div>
   );

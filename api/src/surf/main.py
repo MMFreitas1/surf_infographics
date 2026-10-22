@@ -14,10 +14,8 @@ from pydantic import BaseModel, Field
 
 from surf import __version__
 from surf.basemap import (
-    ATTRIBUTION,
-    MAX_ZOOM,
-    MEDIA_TYPE,
-    MIN_ZOOM,
+    DEFAULT_LAYERS,
+    LAYERS,
     TileCache,
     TileError,
     cache_headers,
@@ -32,6 +30,7 @@ from surf.models import (
     ActivitySummary,
     AuditReport,
     BasemapInfo,
+    BasemapLayer,
     CleanReport,
     LabelPass,
     LabelSource,
@@ -407,28 +406,33 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
         return metrics
 
-    @app.get("/basemap/{z}/{x}/{y}")
-    def read_tile(request: Request, z: int, x: int, y: int) -> Response:
-        """One satellite basemap tile, from disk or fetched once and kept.
+    @app.get("/basemap/{layer_id}/{z}/{x}/{y}")
+    def read_tile(request: Request, layer_id: str, z: int, x: int, y: int) -> Response:
+        """One basemap tile from one layer, from disk or fetched once and kept.
 
-        The browser asks this process rather than Esri directly, so that a session opens
-        with no network after the first visit -- which `architecture.md` section 7 requires
-        and a basemap talking straight to the internet cannot provide.
+        The browser asks this process rather than the source directly, so that a session
+        opens with no network after the first visit -- which `architecture.md` section 7
+        requires and a basemap talking straight to the internet cannot provide.
 
         A tile that is neither cached nor reachable is a **404, not a 500**. Offline is a
         designed state here: the UI draws its warm grid and the track still renders, because
-        the track has never depended on the network (ADR-0012).
+        the track has never depended on the network (ADR-0012). An unknown layer is a 404 by
+        the same door and before any network call, since the id indexes a closed registry.
         """
+        layer = LAYERS.get(layer_id)
+        if layer is None:
+            raise HTTPException(status_code=404, detail="no such basemap layer")
+
         tiles: TileCache = request.app.state.tiles
         try:
-            tile = tiles.get(z, x, y)
+            tile = tiles.get(layer, z, x, y)
         except TileError as exc:
-            log.info("basemap.miss", z=z, x=x, y=y, reason=str(exc))
+            log.info("basemap.miss", layer=layer_id, z=z, x=x, y=y, reason=str(exc))
             raise HTTPException(status_code=404, detail="tile unavailable offline") from exc
 
         if not tile.cached:
-            log.info("basemap.fetched", z=z, x=x, y=y, bytes=len(tile.data))
-        return Response(content=tile.data, media_type=MEDIA_TYPE, headers=cache_headers())
+            log.info("basemap.fetched", layer=layer_id, z=z, x=x, y=y, bytes=len(tile.data))
+        return Response(content=tile.data, media_type=layer.media_type, headers=cache_headers())
 
     @app.get("/basemap")
     def read_basemap_info() -> BasemapInfo:
@@ -439,10 +443,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         duplicated in two repositories is one that goes stale in one of them.
         """
         return BasemapInfo(
-            tile_url="/basemap/{z}/{x}/{y}",
-            attribution=ATTRIBUTION,
-            min_zoom=MIN_ZOOM,
-            max_zoom=MAX_ZOOM,
+            layers=[
+                BasemapLayer(
+                    id=layer.id,
+                    tile_url=f"/basemap/{layer.id}/{{z}}/{{x}}/{{y}}",
+                    attribution=layer.attribution,
+                    min_zoom=layer.min_zoom,
+                    max_zoom=layer.max_zoom,
+                    opacity=layer.opacity,
+                    default=layer.id in DEFAULT_LAYERS,
+                )
+                for layer in LAYERS.values()
+            ]
         )
 
     @app.post("/activities/{activity_id}/labels", status_code=201)

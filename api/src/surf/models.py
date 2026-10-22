@@ -565,19 +565,34 @@ class SessionVerdict(BaseModel):
         return sum(1 for v in self.verdicts if v.decided_by is DecidedBy.UNRESOLVED)
 
 
-class BasemapInfo(BaseModel):
-    """How to draw the basemap, and the attribution the imagery licence requires.
+class BasemapLayer(BaseModel):
+    """One basemap the map may draw, and the attribution its licence requires.
 
     Served rather than hard-coded in the client so the licence text and the tile URL travel
     together with the process that serves the tiles. ``attribution`` is not optional and the
-    map must render it.
+    map must render it -- and it is per layer, because the sea floor and the imagery are
+    credited to different people.
     """
 
+    id: str
     tile_url: str
     """Template with ``{z}``, ``{x}`` and ``{y}``, relative to the API's own origin."""
     attribution: str
     min_zoom: int = Field(ge=0, le=24)
     max_zoom: int = Field(ge=0, le=24)
+    """Where the source's own resolution runs out. Past it the map overzooms the last tile,
+    which looks soft rather than claiming detail the data does not have."""
+    opacity: float = Field(1.0, ge=0.0, le=1.0)
+    """How strongly it draws when on. A shading layer at full strength replaces what it
+    was meant to shade."""
+    default: bool = False
+    """Ticked on when the map opens. Exactly one layer carries this."""
+
+
+class BasemapInfo(BaseModel):
+    """Every layer the map may draw, in the order they stack, bottom first."""
+
+    layers: list[BasemapLayer] = Field(default_factory=list)
 
 
 class WaveMetrics(BaseModel):
