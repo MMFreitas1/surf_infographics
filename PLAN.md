@@ -1009,6 +1009,30 @@ open data.
 and a CC-BY credit. The repo is public with no LICENSE file, so it is all-rights-reserved by
 default; worth making that a decision rather than an oversight.
 
+## Selling it, asked 2026-10-22 — **hosting is deferred** (ADR-0020)
+
+Asked the same day as the audit above: a ~€5/month subscription, hosted in Azure, data in the
+EU, a hosted model where the local one sits. **The money is not the constraint** — about €3.72
+of a €5 charge survives VAT and card fees, against €0.25–0.45/month of marginal cost per user,
+so break-even is 15–20 subscribers and ~1,000 of them is €45k/year gross. That is a
+distribution problem, and no amount of architecture helps with it.
+
+**[ADR-0020](./docs/adr/0020-hosting-is-deferred-not-foreclosed.md) records the deferral as a
+decision rather than drift**, with the four invariants that keep the hosted path a change and
+not a rewrite, and the measurement behind them: four IO seams, one composition root, one
+`sqlite3.connect`, and a content-addressed cache that is already multi-tenant-correct.
+
+**Two gates reopen it, and neither alone is enough.** Garmin's Connect Developer Program is
+reported closed to new applications (September 2026), so today every user hand-exports FIT
+files — that is the onboarding, not a detail of it. And ADR-0013 permits no accuracy claim
+until a session is labelled the day it was surfed. Users with nothing we may honestly tell
+them, or a claim with no way to get a file, are each half a product.
+
+**One thing is wrong for tenancy today and is cheap to fix later:** `activities.source_sha256`
+is globally `UNIQUE` and upload dedupe returns the existing activity for a known digest.
+Shared, that hands one user another's session. `UNIQUE (user_id, source_sha256)` when the day
+comes — but until then `activity_id` must not become an identifier the UI treats as global.
+
 ---
 
 ## Phase 8 · Marine context
