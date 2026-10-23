@@ -60,10 +60,11 @@ describe("the style it builds", () => {
     const style = rasterStyle(basemap, API);
     const ceiling = (id: string) => style.sources[id]?.maxzoom;
 
-    // EMODnet stops being worth the tiles at z16; the imagery goes to 19. One ceiling for
-    // both would either blur the imagery or over-fetch the sea floor.
+    // EMODnet stops being worth the tiles at z16; the imagery saturates at 18, where its
+    // ~50 cm source runs out (ADR-0021). One ceiling for both would either blur the
+    // imagery or over-fetch the sea floor.
     expect(ceiling("ocean")).toBe(16);
-    expect(ceiling("imagery")).toBe(19);
+    expect(ceiling("imagery")).toBe(18);
   });
 
   it("points at our own origin, never at the source", () => {
@@ -79,7 +80,7 @@ describe("the style it builds", () => {
     const credit = (id: string) => style.sources[id]?.attribution;
 
     expect(credit("ocean")).toContain("EMODnet");
-    expect(credit("imagery")).toContain("Esri");
+    expect(credit("imagery")).toContain("Direção-Geral do Território");
   });
 
   it("falls back to the layer's own strength, and lets the view override it", () => {
