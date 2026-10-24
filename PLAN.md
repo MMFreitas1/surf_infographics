@@ -10,15 +10,15 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved by L6 · **6a** — the phase's premise measured and inverted, ADR-0022 and ADR-0023 (#68) · **6b** — a wave must be corroborated by the watch's own speedometer, **count 11 → 8** against Miguel's labels (#69) · **6c** — `surf.coast`, the committed GSHHG extract and `NOTICE` · **Session screen PRs 1–3c** — masthead, method banner, hero count, satellite track with playback, the four chart cards and the wave profile grid |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved by L6 · **6a** — the phase's premise measured and inverted, ADR-0022 and ADR-0023 (#68) · **6b** — a wave must be corroborated by the watch's own speedometer, **count 11 → 8** against Miguel's labels (#69) · **6c** — `surf.coast`, the committed GSHHG extract and `NOTICE` (#70) · **6d** — L2's two witnesses, sign from the walk, **the frame is reliable at last** · **Session screen PRs 1–3c** — masthead, method banner, hero count, satellite track with playback, the four chart cards and the wave profile grid |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Phase 6 — shore & peaks**, re-planned 2026-10-24 after measuring it. **6a, 6b and 6c are in.** The phase's premise was false twice over: ADR-0011's axis is **right to 4.2°**, and the real defect was the **count** — three of eleven waves were the smoother bridging a blind gap, now refused by the device's own speedometer (ADR-0023), so the reference session reports **8**. `surf.coast` now serves the shore angle from a committed 259 KiB GSHHG extract. Remaining: **6d** L2 re-estimated with two witnesses and L1.5 peaks beside it, **6e** left/right end to end at a ±8° straight band. **The shore line is never drawn** — only its angle is used |
+| **Next** | **Phase 6 — shore & peaks.** **6a–6d are in.** Both premises the phase was planned on were false: ADR-0011's axis was **right to 4.2°** all along, and the real defect was the **count** — three of eleven waves were the smoother bridging a blind gap, now refused by the device's own speedometer (ADR-0023). The reference session reports **8 waves** and its frame is **`reliable` for the first time**, off two witnesses 4.36° apart. Remaining: **6e** `PeaksStage` beside L2 for sit-spots, **6f** left/right end to end at a ±8° straight band. **The shore line is never drawn** — only its angle is used |
 | **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 755 tests green (557 api · 139 web · 59 evals); 25 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 772 tests green (574 api · 139 web · 59 evals); 25 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -764,12 +764,20 @@ Five PRs, in order:
       window-sensitive than the OSM measuring stick — 3.0° of swing across 200–2000 m
       against OSM's 20.6° — because the coarser spacing smooths the local wiggles, so the
       declared ±1 km window is not a knife-edge.
-- [ ] **6d — L2 re-estimated, and L1.5 peaks beside it.** Two chains: the **angle** from
+- [x] **6d — L2 re-estimated: two witnesses.** Two chains: the **angle** from
       coastline → velocity → none, the **sign** from the walk → ride majority → none.
       `reliable` becomes agreement within 25°. L0.6's key travels in L2's **params**, as at L6
-      (ADR-0015). `PeaksStage` hangs off L1 **beside** L2 — it is for sit-spots, not for the
-      frame. `CODE_VERSION` bumps; the count does not move.
-- [ ] **6e — left or right, end to end.** L4 measures alongshore travel and the angle off
+      (ADR-0015). `CODE_VERSION` bumps. **Measured: the frame is `reliable` for the first time
+      on the real session** — the two witnesses land 4.36° apart, the axis rotated 71.1° →
+      75.5°, and the count held at 8. `synthetic.coastline_at()` is new, because the synthetic
+      sits 5 km offshore of the committed extract and the primary estimator therefore had no
+      test coverage at all.
+- [ ] **6e — L1.5 peaks, beside L2.** Split out of 6d, because peaks are not in the axis path
+      and the two share nothing. `PeaksStage` hangs off L1 **beside** L2 (ADR-0015's shape),
+      keeps a cluster on duration ≥ 60 s **and** observed fraction ≥ 0.25, merges centroids
+      closer than 50 m, and does **not** report `spread` — it saturates at the radius by
+      construction. For sit-spots on the map.
+- [ ] **6f — left or right, end to end.** L4 measures alongshore travel and the angle off
       dead-shoreward; L6 publishes `direction` + `direction_confidence`; straight band **±8°**.
       Sit-spots on the map, direction on the wave cards. **No shore line** — there is no
       waterline we can place.

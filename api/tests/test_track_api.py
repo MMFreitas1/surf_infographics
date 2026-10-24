@@ -51,7 +51,14 @@ def test_every_second_carries_a_position_and_a_stated_uncertainty(client, stored
 
 
 def test_the_frame_is_served_with_its_reliability_not_without_it(client, stored_synthetic):
-    """An unreliable bearing is an answer (ADR-0011). The UI needs it to refuse to draw."""
+    """An unreliable bearing is an answer (ADR-0011). The UI needs it to refuse to draw.
+
+    Since ADR-0022 it is served with its *provenance* too, and that is not decoration: a
+    direction off a single witness is a weaker claim than one off two, and the screen is
+    where that difference has to survive. ``disagreement_deg`` is the number ``reliable``
+    is computed from, so serving the verdict without it would leave the UI unable to show
+    its own reasoning.
+    """
     frame = client.get(f"/activities/{stored_synthetic}/track").json()["frame"]
     assert set(frame) == {
         "shore_bearing_deg",
@@ -61,8 +68,26 @@ def test_the_frame_is_served_with_its_reliability_not_without_it(client, stored_
         "effective_seconds",
         "origin_lat",
         "origin_lon",
+        "angle_source",
+        "sign_source",
+        "disagreement_deg",
+        "coast",
     }
     assert isinstance(frame["reliable"], bool)
+    assert frame["angle_source"] in {"coastline", "velocity", "none"}
+    assert frame["sign_source"] in {"walk", "rides", "none"}
+
+
+def test_a_frame_with_one_witness_says_so_rather_than_implying_two(client, stored_synthetic):
+    """The synthetic session sits over 5 km offshore of the committed extract, so the
+    coastline cannot reach it and the frame rests on velocity alone. It must say that
+    plainly: no coast fit, and no disagreement to report between witnesses that were never
+    both there."""
+    frame = client.get(f"/activities/{stored_synthetic}/track").json()["frame"]
+
+    assert frame["angle_source"] == "velocity"
+    assert frame["coast"] is None
+    assert frame["disagreement_deg"] is None
 
 
 def test_scrubbing_a_session_twice_does_no_extra_work(client, stored_synthetic, settings):
