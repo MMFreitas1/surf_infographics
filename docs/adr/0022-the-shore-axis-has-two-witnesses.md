@@ -147,10 +147,21 @@ sit-spots on the map rather than for the frame.
   pipeline consumes no third party's *derived view of this session*. A published coastline is
   reference geography, in the same class as a map projection constant. Written down here
   because it is a judgement, not an obvious call.
-- **`api/data/coast/` is committed, and that is a deliberate exception** to the instinct
-  behind `.gitignore`. That rule exists for activity files — a GPS trace with timestamps.
-  Agreed with Miguel: the spot is not a secret and the geometry is not his. `data/` and
-  `sample_data/` stay ignored, and so does `web/verification/`.
+- **The extract is committed, and that is a deliberate exception** to the instinct behind
+  `.gitignore`. That rule exists for activity files — a GPS trace with timestamps. Agreed with
+  Miguel: the spot is not a secret and the geometry is not his. `data/` and `sample_data/`
+  stay ignored, and so does `web/verification/`.
+- **It lives at `api/src/surf/reference/coast/`, inside the package.** This ADR first said
+  `api/data/coast/`, which was wrong twice over and was caught while building PR 6c.
+  `.gitignore` carries `data/` with no leading slash, so it matches `api/data/` too and the
+  file would never have been committed at all; and `api/Dockerfile` copies only
+  `pyproject.toml`, `uv.lock` and `src`, so anything outside `src` is absent from the
+  container. Neither failure would have been loud: L2 would have fallen through to its
+  velocity fallback and served a single-witness frame. `reference/coast/vendor.py` stays at
+  the repo root, because a shapefile reader should not be importable from the package.
+  (**`prompts/` has the second half of this bug today** — `llm/audit.py` and
+  `llm/adjudicate.py` resolve it from the repo root, which the container does not have. Not
+  touched here; it is a separate finding.)
 - **The coastline file's sha256 is in L2's params**, so a bearing can never be served under a
   coastline it was not computed from. This is the argument that chose a file over a live
   query: an Overpass-derived bearing moves when a stranger retraces the beach, with no code
