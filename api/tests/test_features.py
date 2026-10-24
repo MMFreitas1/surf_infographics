@@ -17,7 +17,16 @@ zero. Zero metres means "did not move", which is a claim. Absence is not.
 
 import pytest
 
-from surf.models import FramedSample, Sample, SessionFrame, WaveCandidate
+from surf.models import (
+    CleanReport,
+    FramedSample,
+    RejectedFix,
+    RejectionEffect,
+    RejectionReason,
+    Sample,
+    SessionFrame,
+    WaveCandidate,
+)
 from surf.pipeline.l3 import CandidateSet
 from surf.pipeline.l4 import FeatureInput, FeatureSet, FeatureStage, PayloadError, blind_runs
 from surf.synthetic import ORIGIN_LAT, ORIGIN_LON
@@ -38,14 +47,26 @@ def a_frame() -> SessionFrame:
     )
 
 
-def sample(t: float, *, fix: bool = True, distance: float | None = None, hr: int = 100) -> Sample:
-    """One second, positioned or not, carrying the channels that survive a blind window."""
+def sample(
+    t: float,
+    *,
+    fix: bool = True,
+    distance: float | None = None,
+    hr: int = 100,
+    speed: float | None = None,
+) -> Sample:
+    """One second, positioned or not, carrying the channels that survive a blind window.
+
+    ``speed`` is the device's own Doppler reading, which is a separate channel from the
+    position fixes and is what the corroboration feature cross-examines the track against.
+    """
     return Sample(
         t=t,
         lat=LAT if fix else None,
         lon=LON if fix else None,
         distance_m=distance,
         hr_bpm=hr,
+        speed_ms=speed,
     )
 
 
@@ -62,16 +83,39 @@ def framed(t: float, *, v_cross: float = 0.0, observed: bool = True):
     )
 
 
-def measure(candidate: WaveCandidate, samples, frames=()) -> dict[str, float]:
+def measure(candidate: WaveCandidate, samples, frames=(), report=None) -> dict[str, float]:
     """Run the stage over one candidate and hand back its features."""
     out = FeatureStage().run(
         FeatureInput(
             candidates=CandidateSet(frame=a_frame(), candidates=[candidate]),
             framed=list(frames),
             samples=list(samples),
+            report=report,
         )
     )
     return out.candidates[0].features
+
+
+def a_report(*rejections: float, enabled: bool = True) -> CleanReport:
+    """A cleaner's record that refused a fix at each of the given times."""
+    return CleanReport(
+        enabled=enabled,
+        sample_count=100,
+        fixes_before=100,
+        fixes_after=100 - len(rejections),
+        speeds_before=100,
+        speeds_after=100,
+        rejections=[
+            RejectedFix(
+                t=t,
+                reason=RejectionReason.IMPLIED_SPEED,
+                effect=RejectionEffect.DEMOTED_TO_BLIND,
+                value=40.0,
+                limit=18.0,
+            )
+            for t in rejections
+        ],
+    )
 
 
 # -- blind runs, and the back-fill they carry --------------------------------------------
@@ -390,3 +434,84 @@ def test_a_session_with_no_odometer_attributes_nothing():
     assert "odometer_m" not in features
     assert "odometer_ms" not in features
     assert "odometer_peak_ms" not in features
+
+
+# -- the watch against the track (ADR-0023) ----------------------------------------------
+
+
+def test_the_device_speed_and_the_claimed_speed_become_a_ratio():
+    """Both peaks are reported, and so is the ratio L5 vetoes on."""
+    frames = [framed(float(t), v_cross=6.0) for t in range(10)]
+    samples = [sample(float(t), speed=5.4) for t in range(10)]
+
+    f = measure(WaveCandidate(t_start=0.0, t_end=10.0), samples, frames)
+
+    assert f["claimed_speed_max_ms"] == pytest.approx(6.0)
+    assert f["device_speed_max_ms"] == pytest.approx(5.4)
+    assert f["speed_corroboration"] == pytest.approx(0.9)
+
+
+def test_the_claimed_peak_spans_estimated_seconds_which_is_the_whole_point():
+    """The artefact this catches *is* an estimated peak.
+
+    ``measured_speed_max_ms`` asks only about observed seconds, so a smoother bridging a
+    blind gap with an 11 m/s arc is invisible to it. The corroboration denominator has to
+    see that arc, or it cannot ask whether anything measured it.
+    """
+    frames = [
+        framed(0.0, v_cross=2.0, observed=True),
+        framed(1.0, v_cross=11.0, observed=False),
+        framed(2.0, v_cross=2.0, observed=True),
+    ]
+    samples = [sample(0.0, speed=2.0), sample(1.0, fix=False), sample(2.0, speed=2.0)]
+
+    f = measure(WaveCandidate(t_start=0.0, t_end=3.0), samples, frames)
+
+    assert f["measured_speed_max_ms"] == pytest.approx(2.0)
+    assert f["claimed_speed_max_ms"] == pytest.approx(11.0)
+    assert f["speed_corroboration"] == pytest.approx(2.0 / 11.0)
+
+
+def test_corroboration_is_absent_when_the_span_carries_no_speed_reading():
+    """Absent, never zero. Zero would mean the watch recorded a standstill, which is a claim.
+
+    The reference session's three-second ride 2 is this case, and L5 abstains on it rather
+    than refusing it.
+    """
+    frames = [framed(float(t), v_cross=6.0) for t in range(3)]
+    samples = [sample(float(t), fix=False) for t in range(3)]
+
+    f = measure(WaveCandidate(t_start=0.0, t_end=3.0), samples, frames)
+
+    assert "claimed_speed_max_ms" in f
+    assert "speed_corroboration" not in f
+    assert "device_speed_max_ms" not in f
+
+
+def test_rejections_outside_the_span_are_not_counted_against_it():
+    """A candidate is answerable for the fixes refused inside it, not for the session's."""
+    frames = [framed(float(t), v_cross=6.0) for t in range(10)]
+    samples = [sample(float(t), speed=5.0) for t in range(10)]
+
+    f = measure(
+        WaveCandidate(t_start=0.0, t_end=10.0),
+        samples,
+        frames,
+        report=a_report(2.0, 3.0, 40.0, 41.0),
+    )
+
+    assert f["rejected_fixes_in_span"] == pytest.approx(2.0)
+
+
+def test_the_rejection_count_is_absent_when_the_cleaner_was_switched_off():
+    """Zero would then mean "we did not look", not "nothing was refused"."""
+    frames = [framed(float(t), v_cross=6.0) for t in range(10)]
+    samples = [sample(float(t), speed=5.0) for t in range(10)]
+
+    off = measure(
+        WaveCandidate(t_start=0.0, t_end=10.0), samples, frames, report=a_report(enabled=False)
+    )
+    missing = measure(WaveCandidate(t_start=0.0, t_end=10.0), samples, frames)
+
+    assert "rejected_fixes_in_span" not in off
+    assert "rejected_fixes_in_span" not in missing

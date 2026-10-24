@@ -24,6 +24,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from surf.config import get_settings
 from surf.models import (
     Activity,
     AuditReport,
@@ -164,6 +165,7 @@ def features_for(
             candidates=proposed.output,
             framed=chain.track.framed,
             samples=cleaned.output.activity.samples,
+            report=cleaned.output.report,
         ),
     )
     return measured.output, chain.cached and proposed.cached and measured.cached
@@ -180,7 +182,10 @@ def _decided(
     """
     measured, cached = features_for(activity, cache, samples_key=samples_key)
     proposed, _ = _proposed(activity, cache, samples_key=samples_key)
-    stage = ClassifyStage()
+    # The composition root is where a configured stage is built, so the stages themselves
+    # stay pure functions of (input, params) and never read the environment. The resolved
+    # cutoff is a param, so it is in the key (ADR-0023).
+    stage = ClassifyStage(min_speed_corroboration=get_settings().wave_speed_corroboration)
     decided: StageResult[SessionVerdict] = run_stage(
         stage,
         cache,

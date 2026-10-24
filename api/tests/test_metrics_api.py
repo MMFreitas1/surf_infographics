@@ -117,16 +117,23 @@ def test_a_session_with_an_odometer_reports_both_distances(client, stored_metere
             assert wave["ride_measured_m"] <= wave["ride_m"]
 
 
-def test_the_reference_session_still_reports_eleven_waves(client, stored_reference):
-    """The number the pipeline committed to in Phase 7, from the route that describes them.
+def test_the_reference_session_reports_eight_waves(client, stored_reference):
+    """The number the pipeline commits to, from the route that describes them.
 
-    L6 adds no feature to L4 and touches no threshold in L5, so it *cannot* move the count --
-    this is that claim checked against the one real recording rather than argued.
+    It was eleven from Phase 7 until 2026-10-24, when Miguel labelled the session and three
+    of those eleven turned out not to be waves: two were the smoother bridging a blind gap
+    between distant fixes, one was him waiting for a wave that never walled up. L5 now
+    refuses a candidate the device's own speedometer contradicts (ADR-0023), and
+    `test_speed_corroboration.py` is where that cut is checked against the labels.
+
+    What this still defends is the older claim, which the change did not touch: **L6 adds no
+    feature to L4 and moves no threshold in L5, so it cannot move the count.** Eight is L5's
+    integer, and this route only renders it.
     """
     body = metrics(client, stored_reference)
 
-    assert body["wave_count"] == 11
-    assert len(body["waves"]) == 11
+    assert body["wave_count"] == 8
+    assert len(body["waves"]) == 8
 
 
 def test_the_reference_session_rides_are_physically_plausible(client, stored_reference):

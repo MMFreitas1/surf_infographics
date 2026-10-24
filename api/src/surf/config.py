@@ -19,6 +19,21 @@ class Settings(BaseSettings):
     error_buffer_size: int = Field(default=200, alias="SURF_ERROR_BUFFER_SIZE")
     """How many recent errors the /diagnostics endpoint keeps in memory."""
 
+    wave_speed_corroboration: float = Field(
+        default=0.65, alias="SURF_WAVE_SPEED_CORROBORATION", gt=0.0, le=1.0
+    )
+    """How much of a candidate's claimed top speed the watch's own speedometer must have
+    measured before L5 will call it a wave (ADR-0023).
+
+    **The only stage parameter that comes from the environment**, and the reason every other
+    one is a field in code is this stage cache: a stage is keyed on its params, so the
+    *resolved* value travels into L5's key and a verdict can never be served under a cutoff
+    it was not computed under. Two ``.env`` files therefore give two cache keys and two wave
+    counts, which is correct rather than a bug. The default lives in ``ClassifyStage`` so the
+    repo can reproduce its own published numbers with no ``.env`` at all; this only overrides
+    it. Measured safe anywhere in 0.4-0.7 on the one labelled session there is.
+    """
+
     max_upload_bytes: int = Field(default=64 * 1024 * 1024, alias="SURF_MAX_UPLOAD_BYTES")
     """Ceiling on an ingested file. A season of surfing is a few hundred KB per session."""
 
