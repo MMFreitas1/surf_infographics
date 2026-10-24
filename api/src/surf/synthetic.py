@@ -22,6 +22,7 @@ import math
 import random
 from dataclasses import dataclass, field
 
+from surf.coast import Coastline
 from surf.evaluation import Interval
 from surf.models import Activity, BlindCause, BlindWindow, Fidelity, Sample
 
@@ -154,6 +155,40 @@ class SyntheticSession:
     def wave_count(self) -> int:
         """Number of real rides in this session."""
         return len(self.truth)
+
+
+def coastline_at(
+    bearing_deg: float = 0.0,
+    *,
+    offset_m: float = 400.0,
+    span_m: float = 6000.0,
+    step_m: float = 100.0,
+) -> Coastline:
+    """A straight coast at a known angle, for L2's primary estimator to be tested against.
+
+    The committed GSHHG extract reaches the real Portuguese coast, and this origin sits over
+    5 km offshore of it, so the coastline witness never fires on a synthetic session. That is
+    why it exists: without an injectable coast, every synthetic test and every eval exercises
+    only the velocity fallback, and the primary path is green because it is never run.
+
+    The default is the axis this generator's shore already lies on. ``make_synthetic_session``
+    puts shore to the east, so shoreward is 90 degrees and the coast itself runs **north to
+    south** -- which is also, usefully, the case ordinary least squares cannot fit: a vertical
+    line has infinite slope. ``offset_m`` places it east of the origin, where land is, and
+    changes nothing about the answer: only the angle is ever read from it (ADR-0022).
+    """
+    east, north = math.sin(math.radians(bearing_deg)), math.cos(math.radians(bearing_deg))
+    vertices = []
+    for step in range(-int(span_m // 2), int(span_m // 2) + 1, int(step_m)):
+        lat, lon = _to_latlon(offset_m + east * step, north * step)
+        vertices.append((lon, lat))
+    return Coastline(
+        lines=(tuple(vertices),),
+        sha256=f"synthetic:{bearing_deg:.3f}:{offset_m:.1f}:{span_m:.1f}:{step_m:.1f}",
+        source=f"synthetic straight coast at {bearing_deg:.1f} deg",
+        licence="n/a",
+        vertices=len(vertices),
+    )
 
 
 def _to_latlon(x_m: float, y_m: float) -> tuple[float, float]:

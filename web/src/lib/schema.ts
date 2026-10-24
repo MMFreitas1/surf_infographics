@@ -120,11 +120,38 @@ export const FramedSample = z.object({
 });
 export type FramedSample = z.infer<typeof FramedSample>;
 
+/** Which witness gave the shore's angle. `none` means no bearing worth trusting. */
+export const AngleSource = z.enum(["coastline", "velocity", "none"]);
+export type AngleSource = z.infer<typeof AngleSource>;
+
+/** Which witness decided which way along that axis is shoreward. */
+export const SignSource = z.enum(["walk", "rides", "none"]);
+export type SignSource = z.infer<typeof SignSource>;
+
+/** What the coastline witness fitted. `residual_m` is reported, and is not a quality gate. */
+export const CoastFit = z.object({
+  bearing_deg: z.number().min(0).max(180),
+  residual_m: z.number().min(0),
+  points: z.number().int().min(0),
+  radius_m: z.number().positive(),
+  sha256: z.string(),
+});
+export type CoastFit = z.infer<typeof CoastFit>;
+
 /**
  * Where the shore is, for one session — and how much that estimate is worth.
  *
  * `reliable === false` means "we cannot tell where the shore is". That is an answer, and
  * the UI must render it as one rather than drawing a confident wrong bearing (ADR-0011).
+ *
+ * Since ADR-0022 the axis has **two witnesses** and `reliable` is their agreement: a
+ * published coastline fitted near the session and the session's own speed-weighted velocity
+ * share no input, so landing a few degrees apart is evidence rather than consistency.
+ * `coherence` is still served and no longer decides anything — it read 0.365 on the
+ * reference session while refusing a bearing that was right to 4.2°.
+ *
+ * Nothing here is a line to draw. No source places the waterline well enough, and only the
+ * angle is ever used (ADR-0022), which is why there is no coastline geometry in this schema.
  */
 export const SessionFrame = z.object({
   shore_bearing_deg: z.number().min(0).max(360),
@@ -134,6 +161,11 @@ export const SessionFrame = z.object({
   effective_seconds: z.number().min(0),
   origin_lat: z.number().min(-90).max(90),
   origin_lon: z.number().min(-180).max(180),
+  angle_source: AngleSource,
+  sign_source: SignSource,
+  /** Angle between the two witnesses' axes, or null when only one answered. */
+  disagreement_deg: z.number().min(0).max(90).nullable(),
+  coast: CoastFit.nullable(),
 });
 export type SessionFrame = z.infer<typeof SessionFrame>;
 

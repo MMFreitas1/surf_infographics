@@ -138,6 +138,38 @@ class AuditSource(StrEnum):
     measurably beats the baseline (ADR-0005), so this value means a measured improvement."""
 
 
+class AngleSource(StrEnum):
+    """Which witness gave the shore's *angle*. Never inferred -- always recorded.
+
+    Two estimators that share no input, so their agreement is evidence rather than
+    consistency (ADR-0022). A direction served under ``NONE`` is not a measurement.
+    """
+
+    COASTLINE = "coastline"
+    """A published coastline, fitted near the session. Shares nothing with the recording."""
+    VELOCITY = "velocity"
+    """ADR-0011's speed-weighted sum of headings, from the session's own motion."""
+    NONE = "none"
+    """Neither answered. The frame is returned anyway, marked, with no bearing to trust."""
+
+
+class SignSource(StrEnum):
+    """Which witness decided *which way* along the axis is shoreward.
+
+    An angle is known mod 180: a line has no direction. Nothing in a static coastline file
+    can supply the sign -- GSHHG places the reference session's sit spot inside its own land
+    polygon -- so it comes from the recording (ADR-0022).
+    """
+
+    WALK = "walk"
+    """The audit's not-surfing stretches. The walk is on land, which fixes the sign."""
+    RIDES = "rides"
+    """Net shoreward displacement of the fast runs. The weaker witness: it reads the same
+    evidence the velocity estimator does, so it cannot corroborate a velocity angle."""
+    NONE = "none"
+    """Undetermined. The axis stands but no side of it is claimed."""
+
+
 class RejectionEffect(StrEnum):
     """What a rejection actually did to the sample.
 
@@ -398,6 +430,29 @@ class SmoothedSample(BaseModel):
         return math.hypot(self.vx_ms, self.vy_ms)
 
 
+class CoastFit(BaseModel):
+    """What the coastline witness actually fitted, so the angle can be argued with."""
+
+    bearing_deg: float = Field(ge=0.0, lt=180.0)
+    """The axis the coast runs along. **Mod 180 by construction** -- a line has no
+    direction, and the sign comes from :class:`SignSource`."""
+    residual_m: float = Field(ge=0.0)
+    """Rms perpendicular distance of the resampled points from the fitted line.
+
+    Reported, and **not** a quality gate. Natural Earth scores 4.3 m near the reference peak
+    and is the worse source: its fit is straight because it carries one vertex per 2.7 km.
+    A fit that cannot be wrong is not thereby right (ADR-0022).
+    """
+    points: int = Field(ge=0)
+    """How many resampled points the fit rested on."""
+    radius_m: float = Field(gt=0.0)
+    """The window fitted over. The dominant lever, so the answer is meaningless without it:
+    the same anchor on dense OSM gives 142.0 deg at 200 m and 168.7 at 1500."""
+    sha256: str
+    """Digest of the coastline file. In L2's params too, so a bearing can never be served
+    under a coastline it was not computed from."""
+
+
 class SessionFrame(BaseModel):
     """Where the shore is, for one session -- an estimate that states how good it is.
 
@@ -405,10 +460,18 @@ class SessionFrame(BaseModel):
     against, and that axis is not the compass: it is the local shore normal (ADR-0003).
     This is that axis, estimated once per session and reused by everything downstream.
 
-    ``coherence`` is what keeps it honest. Where a session has real rides, the fast seconds
-    agree on a direction and it runs high; on a flat day nothing points shoreward and it
-    collapses. A low value is an answer -- "we cannot tell where the shore is" -- not a
-    failure to be papered over with a confident wrong bearing.
+    **The axis has two witnesses and ``reliable`` is their agreement** (ADR-0022). A
+    published coastline fitted near the session and ADR-0011's speed-weighted velocity sum
+    share no input, so landing within a few degrees of each other is evidence rather than
+    mere consistency -- they did it to 4.2 deg on the reference session.
+
+    ``coherence`` is still computed and still reported, and it no longer decides anything.
+    It is the weighted mean resultant length of the velocity direction votes: whether the
+    fast seconds agree *with each other*, which on a session that is four-fifths paddling
+    they do not even when their sum is correct. It read 0.365 on the reference session and
+    refused a bearing that was right all along. Where velocity is the *only* witness it
+    still guards, together with ``effective_seconds``, because a single fast second can
+    score 0.90 off a Kish size of 1.25 and no coastline can catch that.
     """
 
     shore_bearing_deg: float = Field(ge=0.0, lt=360.0)
@@ -429,6 +492,20 @@ class SessionFrame(BaseModel):
     """Latitude of the local frame's origin."""
     origin_lon: float = Field(ge=-180.0, le=180.0)
     """Longitude of the local frame's origin, so shore-relative metres map back to the map."""
+    angle_source: AngleSource = AngleSource.NONE
+    """Which witness gave the angle. Defaults to ``NONE`` so a frame built by hand claims no
+    provenance it does not have."""
+    sign_source: SignSource = SignSource.NONE
+    """Which witness decided which way is shoreward."""
+    disagreement_deg: float | None = Field(default=None, ge=0.0, le=90.0)
+    """Angle between the two witnesses' axes, when both answered. ``None`` means only one
+    did, which is a usable frame and a weaker claim.
+
+    **This is what ``reliable`` is computed from** when it is present. Measured 4.2 deg on
+    the reference session, where ``coherence`` read 0.365 and refused a bearing that was
+    right all along (ADR-0022). Bounded at 90 because both sides are axes mod 180."""
+    coast: CoastFit | None = None
+    """The coastline fit, when there was one."""
 
 
 class FramedSample(BaseModel):

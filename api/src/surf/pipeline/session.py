@@ -37,7 +37,7 @@ from surf.pipeline.audit import AuditStage
 from surf.pipeline.cache import StageCache
 from surf.pipeline.clean import CleanedSession, CleanStage
 from surf.pipeline.l1 import KinematicsStage
-from surf.pipeline.l2 import FramedTrack, FrameStage
+from surf.pipeline.l2 import FramedTrack, FrameInput, FrameStage
 from surf.pipeline.l3 import CandidateSet, CandidateStage
 from surf.pipeline.l4 import FeatureInput, FeatureSet, FeatureStage
 from surf.pipeline.l5 import ClassifyStage
@@ -69,13 +69,26 @@ def clean_session(
 
 
 def run_chain(activity: Activity, cache: StageCache, *, samples_key: str) -> ChainResult:
-    """Clean the session, smooth it, and rotate it into its shore frame."""
+    """Clean the session, smooth it, and rotate it into its shore frame.
+
+    L2 now reads the audit, which makes this the second place the ADR-0015 exception shows
+    up. The walk up the beach is what decides which way the shore is -- it is on land, and
+    the audit is what separates it from the session (ADR-0022) -- so a different audit is a
+    different frame and has to re-key. But the audit still changes no sample, so it travels
+    in L2's **params** rather than its input hash: L1 stays keyed on L0.5 alone, and
+    retuning a coverage threshold cannot invalidate a smoothed track that cannot have
+    changed.
+    """
     cleaned = clean_session(activity, cache, samples_key=samples_key)
     smoothed = run_stage(
         KinematicsStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity
     )
+    report, _ = audit_for(activity, cache, samples_key=samples_key)
     framed: StageResult[FramedTrack] = run_stage(
-        FrameStage(), cache, input_hash=smoothed.key, data=smoothed.output
+        FrameStage(audit_key=_audit_key(activity, cache, samples_key=samples_key)),
+        cache,
+        input_hash=smoothed.key,
+        data=FrameInput(track=smoothed.output, audit=report),
     )
     return ChainResult(
         track=SessionTrack(

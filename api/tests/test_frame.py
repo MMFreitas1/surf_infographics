@@ -12,10 +12,23 @@ import random
 
 import pytest
 
-from surf.models import SmoothedSample
+from surf import coast as coastline
+from surf.models import AngleSource, AuditReport, SignSource, SmoothedSample
 from surf.pipeline.l1 import KinematicsStage
-from surf.pipeline.l2 import FramedTrack, FrameStage, PayloadError, estimate_bearing
-from surf.synthetic import ORIGIN_LAT, ORIGIN_LON, SyntheticParams, make_synthetic_session
+from surf.pipeline.l2 import (
+    FramedTrack,
+    FrameInput,
+    FrameStage,
+    PayloadError,
+    estimate_bearing,
+)
+from surf.synthetic import (
+    ORIGIN_LAT,
+    ORIGIN_LON,
+    SyntheticParams,
+    coastline_at,
+    make_synthetic_session,
+)
 
 TRUE_SHORE_DEG = 90.0
 """The synthetic generator puts the shore due east, and rides travel +x toward it."""
@@ -240,3 +253,246 @@ def test_a_payload_this_stage_did_not_write_is_refused():
     naked = KinematicsStage().encode(KinematicsStage().run(make_synthetic_session().activity))
     with pytest.raises(PayloadError):
         stage.decode(naked)
+
+
+# -- two witnesses for the angle, and a separate one for the sign (ADR-0022) -------------
+
+M_PER_DEG_LAT = 111_320.0
+
+
+def at(east_m: float, north_m: float) -> tuple[float, float]:
+    """Metres east/north of the synthetic origin, as degrees."""
+    per_deg_lon = M_PER_DEG_LAT * math.cos(math.radians(ORIGIN_LAT))
+    return ORIGIN_LAT + north_m / M_PER_DEG_LAT, ORIGIN_LON + east_m / per_deg_lon
+
+
+def placed(east_m: float, north_m: float, t: float, *, vx=0.0, vy=0.0) -> SmoothedSample:
+    lat, lon = at(east_m, north_m)
+    return SmoothedSample(
+        t=t,
+        lat=lat,
+        lon=lon,
+        vx_ms=vx,
+        vy_ms=vy,
+        position_sigma_m=2.0,
+        confidence=0.9,
+        observed=True,
+    )
+
+
+def session_with_walk(walk_east_m: float, *, rides: bool = True):
+    """A session at the origin with a walk parked at a chosen offset, positions integrated.
+
+    Integrated rather than scattered, because the sign witnesses read *displacement*: a
+    fixture whose velocities and positions disagree would let the ride-majority test pass
+    while measuring nothing. Each ride runs shoreward and the paddling between them cancels
+    it, so the session stays put and the walk stays separable.
+
+    The walk is what fixes the sign. It is on land, so shoreward is the perpendicular
+    pointing toward it; parking it due east or due west is the cleanest way to ask whether
+    the stage reads it, because the synthetic coast runs north-south.
+    """
+    rng = random.Random(5)
+    track = [placed(walk_east_m, i * 2.0, float(i)) for i in range(40)]
+
+    x = y = 0.0
+    for i in range(400):
+        if rides and i % 100 >= 80:
+            vx, vy = 5.0, rng.gauss(0.0, 0.4)
+        else:
+            heading = 0.0 if (i // 20) % 2 == 0 else math.pi
+            angle = rng.gauss(heading, 0.6)
+            speed = rng.uniform(0.8, 1.7)
+            vx, vy = speed * math.cos(angle), speed * math.sin(angle)
+        x += vx
+        y += vy
+        track.append(placed(x, y, 100.0 + i, vx=vx, vy=vy))
+
+    audit = AuditReport(
+        window_s=30.0,
+        t_start=0.0,
+        t_end=600.0,
+        surfing_t_start=100.0,
+        surfing_t_end=500.0,
+    )
+    return track, audit
+
+
+@pytest.mark.parametrize("coast_axis_deg", [0.0, 30.0, 90.0, 165.3])
+def test_a_synthetic_coast_at_a_known_angle_gives_a_known_shore_bearing(coast_axis_deg):
+    """The known-answer test for the primary estimator, and the reason
+    `synthetic.coastline_at` exists: the committed extract never reaches this origin, so
+    without an injectable coast this path is green because it is never run."""
+    track, audit = session_with_walk(walk_east_m=300.0)
+    stage = FrameStage(coast=coastline_at(coast_axis_deg))
+
+    frame = stage.run(FrameInput(track=track, audit=audit)).frame
+
+    assert frame.angle_source is AngleSource.COASTLINE
+    assert frame.coast is not None
+    assert frame.coast.bearing_deg == pytest.approx(coast_axis_deg, abs=0.2)
+    # Shoreward is perpendicular to the coast, on whichever side the walk sits.
+    assert min(
+        abs(bearing_error(frame.shore_bearing_deg, (coast_axis_deg + turn) % 360.0))
+        for turn in (90.0, 270.0)
+    ) == pytest.approx(0.0, abs=0.3)
+
+
+def test_the_angle_falls_through_to_velocity_where_the_coastline_does_not_reach():
+    """The synthetic origin is over 5 km offshore of the committed extract, by design."""
+    _, track = synthetic_track()
+
+    frame = FrameStage().run(track).frame
+
+    assert frame.angle_source is AngleSource.VELOCITY
+    assert frame.coast is None
+    assert frame.disagreement_deg is None
+
+
+def test_a_missing_extract_is_a_missing_witness_not_a_broken_session(monkeypatch):
+    """A coastline that cannot be read costs the frame a witness. It does not raise."""
+
+    def boom(*args: object, **kwargs: object) -> None:
+        raise coastline.CoastlineError("gone")
+
+    monkeypatch.setattr(coastline, "bearing_near", boom)
+    track, audit = session_with_walk(walk_east_m=300.0)
+
+    frame = FrameStage().run(FrameInput(track=track, audit=audit)).frame
+
+    assert frame.angle_source is AngleSource.VELOCITY
+
+
+def test_the_walk_decides_which_way_is_shoreward():
+    """All of the reference session's 489 observed walking seconds fall on one side."""
+    track, audit = session_with_walk(walk_east_m=300.0)
+
+    frame = FrameStage(coast=coastline_at(0.0)).run(FrameInput(track=track, audit=audit)).frame
+
+    assert frame.sign_source is SignSource.WALK
+    assert bearing_error(frame.shore_bearing_deg, 90.0) == pytest.approx(0.0, abs=0.3)
+
+
+def test_a_walk_on_the_other_side_turns_the_bearing_right_around():
+    """The sharpest form of the claim: the angle is identical, the sign is opposite."""
+    east = (
+        FrameStage(coast=coastline_at(0.0))
+        .run(FrameInput(*session_with_walk(walk_east_m=300.0)))
+        .frame
+    )
+    west = (
+        FrameStage(coast=coastline_at(0.0))
+        .run(FrameInput(*session_with_walk(walk_east_m=-300.0)))
+        .frame
+    )
+
+    assert east.coast.bearing_deg == pytest.approx(west.coast.bearing_deg, abs=0.01)
+    assert abs(bearing_error(east.shore_bearing_deg, west.shore_bearing_deg)) == pytest.approx(
+        180.0, abs=0.3
+    )
+
+
+def test_without_an_audit_the_sign_falls_to_the_rides():
+    """Weaker, and recorded as weaker: it reads the same evidence velocity does."""
+    track, _ = session_with_walk(walk_east_m=300.0)
+
+    frame = FrameStage(coast=coastline_at(0.0)).run(FrameInput(track=track)).frame
+
+    assert frame.sign_source is SignSource.RIDES
+    assert bearing_error(frame.shore_bearing_deg, 90.0) == pytest.approx(0.0, abs=0.3)
+
+
+def test_with_no_walk_and_no_rides_the_axis_stands_but_no_side_is_claimed():
+    """A rotation still has to happen for the track to be expressible. Marking it is what
+    stops the arbitrary choice from reading as a measurement."""
+    track, _ = session_with_walk(walk_east_m=300.0, rides=False)
+    session_only = [s for s in track if s.t >= 100.0]
+
+    frame = FrameStage(coast=coastline_at(0.0)).run(FrameInput(track=session_only)).frame
+
+    assert frame.sign_source is SignSource.NONE
+    assert not frame.reliable
+
+
+# -- reliability is agreement (ADR-0022) -------------------------------------------------
+
+
+def test_coherence_no_longer_decides_whether_the_frame_is_trusted():
+    """The headline of ADR-0022, as a test, and put the sharp way.
+
+    The reference session scores 0.365 coherence -- far below ADR-0011's 0.85 gate -- and
+    its bearing is right to 4.2 degrees. Coherence asks whether the velocity votes agree
+    *with each other*, which on a session that is four-fifths paddling they do not, even
+    when their sum is correct. So this sets the old gate to a value nothing can ever clear
+    and shows the frame is trusted anyway, because the two witnesses agree. Nothing about
+    the fixture's noise is doing the work.
+    """
+    track, audit = session_with_walk(walk_east_m=300.0)
+    impossible = FrameStage(coast=coastline_at(0.0), min_coherence=1.1)
+
+    frame = impossible.run(FrameInput(track=track, audit=audit)).frame
+
+    assert frame.coherence < impossible.min_coherence
+    assert frame.disagreement_deg is not None
+    assert frame.disagreement_deg <= impossible.max_disagreement_deg
+    assert frame.reliable
+
+    # Take the second witness away and ADR-0011's gate is back in charge, and refuses.
+    alone = FrameStage(use_coastline=False, min_coherence=1.1)
+    assert not alone.run(FrameInput(track=track, audit=audit)).frame.reliable
+
+
+def test_two_witnesses_that_disagree_refuse_the_frame():
+    """A coast at right angles to where the session says the shore is. One of them is
+    describing somewhere else, and the frame must not pick a favourite."""
+    track, audit = session_with_walk(walk_east_m=300.0)
+
+    frame = FrameStage(coast=coastline_at(90.0)).run(FrameInput(track=track, audit=audit)).frame
+
+    assert frame.disagreement_deg > 25.0
+    assert not frame.reliable
+
+
+def test_the_disagreement_is_measured_between_axes_not_directions():
+    """Folding the sign in would make two estimators that agree perfectly about the beach
+    look 180 degrees apart."""
+    for walk in (300.0, -300.0):
+        track, audit = session_with_walk(walk_east_m=walk)
+
+        frame = FrameStage(coast=coastline_at(0.0)).run(FrameInput(track=track, audit=audit)).frame
+
+        assert frame.disagreement_deg <= 90.0
+        assert frame.disagreement_deg < 25.0
+
+
+def test_velocity_alone_still_faces_both_of_adr_0011_guards():
+    """Where the coastline is absent nothing has changed: a lone velocity estimate can be
+    fooled by concentration, and no coastline is there to catch it."""
+    frame = FrameStage().run(rideless_track()).frame
+
+    assert frame.angle_source is AngleSource.VELOCITY
+    assert frame.disagreement_deg is None
+    assert not frame.reliable
+
+
+# -- the key ------------------------------------------------------------------------------
+
+
+def test_the_coastline_digest_is_in_the_stage_key():
+    """A bearing can never be served under a coastline it was not computed from."""
+    one = FrameStage(coast=coastline_at(0.0)).meta.params
+    other = FrameStage(coast=coastline_at(30.0)).meta.params
+
+    assert one["coast_sha256"] != other["coast_sha256"]
+    assert FrameStage(use_coastline=False).meta.params["coast_sha256"] == ""
+
+
+def test_the_audit_key_travels_in_the_params():
+    """ADR-0015's pattern, now at L2 as well as L6: the walk decides the sign, so a
+    different audit is a different frame -- but the audit changes no sample, so L0.6 must
+    not sit in front of L1."""
+    params = FrameStage(audit_key="abc123").meta.params
+
+    assert params["audit_key"] == "abc123"
+    assert FrameStage().meta.params["audit_key"] == ""
+    assert params != FrameStage().meta.params

@@ -9,7 +9,17 @@
       "contributing_seconds": 120,
       "effective_seconds": 42.5,
       "origin_lat": 38.0,
-      "origin_lon": -9.0
+      "origin_lon": -9.0,
+      "angle_source": "coastline",
+      "sign_source": "walk",
+      "disagreement_deg": 4.4,
+      "coast": {
+        "bearing_deg": 165.5,
+        "residual_m": 23.2,
+        "points": 42,
+        "radius_m": 1000.0,
+        "sha256": "b4a371a1f2f1a305225f0854ffdca94f291c23f256fc71631dce2c3b079dc871"
+      }
     },
     "smoothed": [
       {
@@ -66,7 +76,17 @@
       "contributing_seconds": 120,
       "effective_seconds": 42.5,
       "origin_lat": 38.0,
-      "origin_lon": -9.0
+      "origin_lon": -9.0,
+      "angle_source": "coastline",
+      "sign_source": "walk",
+      "disagreement_deg": 4.4,
+      "coast": {
+        "bearing_deg": 165.5,
+        "residual_m": 23.2,
+        "points": 42,
+        "radius_m": 1000.0,
+        "sha256": "b4a371a1f2f1a305225f0854ffdca94f291c23f256fc71631dce2c3b079dc871"
+      }
     },
     "candidates": [
       {
