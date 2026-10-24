@@ -10,15 +10,15 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | | |
 |---|---|
 | **Tier** | 2 · approved 2026-08-28 |
-| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved by L6 · **6a** — the phase's premise measured and inverted, ADR-0022 and ADR-0023 (#68) · **6b** — a wave must be corroborated by the watch's own speedometer, **count 11 → 8** against Miguel's labels · **Session screen PRs 1–3c** — masthead, method banner, hero count, satellite track with playback, the four chart cards and the wave profile grid |
+| **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved by L6 · **6a** — the phase's premise measured and inverted, ADR-0022 and ADR-0023 (#68) · **6b** — a wave must be corroborated by the watch's own speedometer, **count 11 → 8** against Miguel's labels (#69) · **6c** — `surf.coast`, the committed GSHHG extract and `NOTICE` · **Session screen PRs 1–3c** — masthead, method banner, hero count, satellite track with playback, the four chart cards and the wave profile grid |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Phase 6 — shore & peaks**, re-planned 2026-10-24 after measuring it. **6a and 6b are in.** The phase's premise was false twice over: ADR-0011's axis is **right to 4.2°** (coherence was measuring vote agreement, not error), and the real defect was the **count** — three of eleven waves were the smoother bridging a blind gap, now refused by the device's own speedometer (ADR-0023), so the reference session reports **8**. Remaining: **6c** `coast.py` and the committed GSHHG extract, **6d** L2 re-estimated with L1.5 peaks beside it, **6e** left/right end to end at a ±8° straight band. **The shore line is never drawn** — only its angle is used |
+| **Next** | **Phase 6 — shore & peaks**, re-planned 2026-10-24 after measuring it. **6a, 6b and 6c are in.** The phase's premise was false twice over: ADR-0011's axis is **right to 4.2°**, and the real defect was the **count** — three of eleven waves were the smoother bridging a blind gap, now refused by the device's own speedometer (ADR-0023), so the reference session reports **8**. `surf.coast` now serves the shore angle from a committed 259 KiB GSHHG extract. Remaining: **6d** L2 re-estimated with two witnesses and L1.5 peaks beside it, **6e** left/right end to end at a ±8° straight band. **The shore line is never drawn** — only its angle is used |
 | **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
 | **Re-planned** | 2026-08-31 — the product is a **three-level drill-down** (Sessions → Session → Wave), specced by Miguel and merged below. The labelling gate is dropped (ADR-0013): every derived number ships marked *proposed*, and validation waits for a session labelled the day it is surfed |
-| **Health** | `make check` → 732 tests green (534 api · 139 web · 59 evals); 25 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
+| **Health** | `make check` → 755 tests green (557 api · 139 web · 59 evals); 25 api tests skip without `sample_data/`, and 6 eval cases need Ollama and skip unless `SURF_LLM_EVAL=1`. `make labels` reports on human labels and gates nothing |
 | **Repo** | **PUBLIC** — `sample_data/` and `data/` are gitignored; never commit GPS traces. `web/verification/` too: those screenshots show a real track |
 
 **Orient in four commands:**
@@ -755,11 +755,15 @@ Five PRs, in order:
       honest. **Count 11 → 8, measured.** All eleven of Miguel's labels reproduce: eight
       kept, three refused, the one span the watch missed abstained on. The 0.4-0.7
       plateau holds in the real stages and 0.8 starts cutting a genuine wave.
-- [ ] **6c — `api/src/surf/coast.py` and the committed extract.** GSHHG 2.3.7 full, clipped to
+- [x] **6c — `api/src/surf/coast.py` and the committed extract.** GSHHG 2.3.7 full, clipped to
       mainland Portugal, under 1 MB, read with stdlib `json`; `NOTICE` carries its LGPL v3+
       terms. `segment_near()` resamples at fixed spacing; `fit_bearing()` is **total least
       squares**, because a north–south coast has infinite slope in OLS. Returns an angle mod
-      180° and nothing else. The file's sha256 travels into L2's params.
+      180° and nothing else. The file's sha256 travels into L2's params. **Measured: 259 KiB,
+      12,254 vertices, and it reproduces the 165.3° fit to 0.03°.** It is also far less
+      window-sensitive than the OSM measuring stick — 3.0° of swing across 200–2000 m
+      against OSM's 20.6° — because the coarser spacing smooths the local wiggles, so the
+      declared ±1 km window is not a knife-edge.
 - [ ] **6d — L2 re-estimated, and L1.5 peaks beside it.** Two chains: the **angle** from
       coastline → velocity → none, the **sign** from the walk → ride majority → none.
       `reliable` becomes agreement within 25°. L0.6's key travels in L2's **params**, as at L6
@@ -876,7 +880,9 @@ straight stays rare by design — it is a beginner's shape.
 
 ### Settled 2026-10-22, confirmed by measurement 2026-10-24: a committed file
 
-The coastline source is **GSHHG 2.3.7 full, LGPL v3+**, committed to `api/data/coast/`.
+The coastline source is **GSHHG 2.3.7 full, LGPL v3+**, committed to
+`api/src/surf/reference/coast/` — inside the package, because `.gitignore`'s `data/` rule
+matches `api/data/` too and `api/Dockerfile` copies only `src`.
 Reproducibility chose a file over a live query — §3 requires every published result to be
 exactly reproducible, and a file can be hashed into the stage params where a live query
 cannot: an OSM-derived bearing moves when a stranger retraces the beach, with no code change

@@ -1,0 +1,65 @@
+# NOTICE
+
+Third-party material **redistributed in this repository**, and the terms that apply to it.
+
+Data this project fetches at runtime is credited where it is served, not here: `GET /basemap`
+returns each layer's attribution alongside its tile URL, so the credit travels with the thing
+that serves the tiles and appears exactly when that layer does (ADR-0018, ADR-0019, ADR-0021).
+
+---
+
+## GSHHG 2.3.7 — Global Self-consistent, Hierarchical, High-resolution Geography
+
+**Files:** `api/src/surf/reference/coast/gshhg-2.3.7-pt.geojson`
+
+**Licence:** GNU Lesser General Public License, version 3 or later.
+
+**Upstream:** <https://www.soest.hawaii.edu/pwessel/gshhg/>, by Paul Wessel (SOEST, University
+of Hawaii) and Walter H. F. Smith (NOAA Laboratory for Satellite Altimetry).
+
+**Please cite:** Wessel, P., and W. H. F. Smith (1996), *A global, self-consistent,
+hierarchical, high-resolution shoreline database*, J. Geophys. Res., 101(B4), 8741–8743,
+<https://doi.org/10.1029/96JB00104>.
+
+The committed file is an **extract, not the distribution**: the full-resolution level-1
+shoreline, clipped to mainland Portugal's coast and converted from ESRI shapefile to GeoJSON
+by `reference/coast/vendor.py`. Coordinates are rounded to six decimal places. Nothing else
+about the geometry is altered — no simplification, no smoothing — because the vertex spacing
+is what the shore-angle fit rests on (ADR-0022).
+
+The upstream licence and the LGPL v3 text are reproduced verbatim beside the data, as its
+permission notice requires:
+
+- `api/src/surf/reference/coast/LICENSE.GSHHG.txt`
+- `api/src/surf/reference/coast/COPYING.LESSERv3`
+
+Its permission notice, in full:
+
+> Permission to use, copy, modify, and distribute (with no more than a reasonable
+> redistribution fee) this data and its documentation for any purpose is hereby granted,
+> provided that the above copyright notice appear in all copies, that both that copyright
+> notice and this permission notice appear in supporting documentation, and that the name of
+> GSHHG not be used in advertising or publicity pertaining to distribution of the software
+> without specific, written prior permission. The GSHHG package may be included in a bundled
+> distribution of software for which a fee may be charged. The University of Hawaii (UH) and
+> the National Oceanic and Atmospheric Administration (NOAA) make no representations about
+> the suitability of this software for any purpose. It is provided "as is" without expressed
+> or implied warranty. It is provided with no support and without obligation on the part of
+> UH or NOAA, to assist in its use, correction, modification, or enhancement.
+
+Two consequences worth stating plainly, because they were the reason this source was chosen
+over the denser alternative:
+
+- **A fee may be charged** for software that bundles it, so vendoring this file forecloses
+  nothing about how the project is distributed later (ADR-0020).
+- **The GSHHG name may not be used in advertising or publicity** for this project. Crediting
+  it as the source of the coastline — here, in `docs/adr/`, and in the data file's own
+  properties — is attribution and not publicity.
+
+## Not redistributed: OpenStreetMap
+
+OSM coastline data was fetched once through Overpass, used as a **measuring stick** to check
+the extract above, and is **not** included in this repository or consumed by the pipeline.
+The measurement is reported in `docs/adr/0022-the-shore-axis-has-two-witnesses.md` and
+PLAN.md; the two sources agree to 0.2° near the reference session. ODbL's share-alike
+obligations on a derived database are a reason beyond reproducibility not to ship it.
