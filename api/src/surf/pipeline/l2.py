@@ -264,14 +264,10 @@ def sign_from_walk(
         return None
 
     inside = [
-        s
-        for s in track
-        if s.observed and audit.surfing_t_start <= s.t <= audit.surfing_t_end
+        s for s in track if s.observed and audit.surfing_t_start <= s.t <= audit.surfing_t_end
     ]
     outside = [
-        s
-        for s in track
-        if s.observed and not (audit.surfing_t_start <= s.t <= audit.surfing_t_end)
+        s for s in track if s.observed and not (audit.surfing_t_start <= s.t <= audit.surfing_t_end)
     ]
     if len(inside) < MIN_SIGN_SECONDS or len(outside) < MIN_SIGN_SECONDS:
         return None
@@ -319,9 +315,7 @@ def sign_from_rides(
     return net if abs(net) >= MIN_SIGN_SEPARATION_M else None
 
 
-def _fast_runs(
-    track: Sequence[SmoothedSample], min_speed_ms: float
-) -> list[list[SmoothedSample]]:
+def _fast_runs(track: Sequence[SmoothedSample], min_speed_ms: float) -> list[list[SmoothedSample]]:
     """Contiguous observed stretches above a speed floor.
 
     Speed only, with no axis involved, because the axis is what this is helping to decide.
@@ -499,8 +493,7 @@ class FrameStage:
         positioned = [
             s
             for s in track
-            if s.observed
-            and (audit is None or audit.surfing_t_start <= s.t <= audit.surfing_t_end)
+            if s.observed and (audit is None or audit.surfing_t_start <= s.t <= audit.surfing_t_end)
         ]
         if not positioned:
             return None
@@ -525,9 +518,7 @@ class FrameStage:
             sha256=self._coast_sha256(),
         )
 
-    def _axis(
-        self, fit: CoastFit | None, velocity: _Bearing
-    ) -> tuple[float, AngleSource]:
+    def _axis(self, fit: CoastFit | None, velocity: _Bearing) -> tuple[float, AngleSource]:
         """The angle chain: coastline, then velocity, then neither.
 
         Returns an axis in [0, 180) and which witness gave it. The coastline is primary not
