@@ -37,8 +37,10 @@ from surf.pipeline.stage import StageMeta
 NAME = "L5"
 """Classification is stage L5."""
 
-CODE_VERSION = "1"
-"""Bump when the rule changes its mind about anything, so cached verdicts are not reused."""
+CODE_VERSION = "2"
+"""Bump when the rule changes its mind about anything, so cached verdicts are not reused.
+
+2 -- the speed-corroboration veto (ADR-0023)."""
 
 
 class PayloadError(RuntimeError):
@@ -140,6 +142,26 @@ class ClassifyStage:
     recorded no movement at all. On the reference session 59 of 127 blind runs sit here --
     the surfer waiting for a set -- and four of the 22 proposals are mostly made of them.
     """
+    min_speed_corroboration: float = 0.65
+    """How much of the claimed top speed the watch's own speedometer has to have measured.
+
+    The veto below, and the one threshold here that was set against labels rather than
+    against the synthetic. Miguel labelled the reference session on 2026-10-24 and three of
+    its eleven settled waves were not waves: two were the smoother bridging a blind gap
+    between distant fixes, which produces a curve shaped exactly like a ride. On those
+    eleven candidates this ratio reads 0.79-0.97 for every real wave and 0.00, 0.15 and 0.38
+    for every artefact, so **any cutoff from 0.4 to 0.7 separates them perfectly**.
+
+    0.65 sits above the middle of that plateau, which is Miguel's choice and is stricter than
+    the data needs: the worst artefact is 0.38, so the extra strictness catches nothing more
+    on this session and narrows the margin against refusing a genuine wave from 0.29 to 0.14.
+    He took it to be strict about a future fuzzier case, on the reasoning that a wave wrongly
+    refused is recoverable through a label (ADR-0006) while a fake one that survives has to
+    be spotted. ``SURF_WAVE_SPEED_CORROBORATION`` overrides it and the resolved value lands
+    in this stage's key, so a verdict can never be served under a cutoff it was not computed
+    under. Eleven labels from one session justify a rule and not a hit rate (ADR-0013);
+    revisit when a second session is labelled.
+    """
     band: tuple[float, float] = (0.15, 0.85)
     """The ambiguous band, and the only thing a model is ever shown (ADR-0005)."""
     adjudicator: Adjudicator | None = None
@@ -162,6 +184,7 @@ class ClassifyStage:
                 "latched_min_s": self.latched_min_s,
                 "latched_min_coverage": self.latched_min_coverage,
                 "frozen_fraction": self.frozen_fraction,
+                "min_speed_corroboration": self.min_speed_corroboration,
                 "band": list(self.band),
                 "adjudicator": self.adjudicator.identity if self.adjudicator else {},
             },
@@ -240,6 +263,23 @@ class ClassifyStage:
         """The deterministic tier, in the order a person would apply it."""
         f = candidate.features
         duration = candidate.duration_s
+
+        # First, because it asks whether the measurement is real before anything reasons
+        # from it. A blind stretch ends, the watch back-fills its odometer in one step, and
+        # the smoother bridges the position gap with a smooth acceleration curve: every
+        # channel downstream then reads like a ride, and only the device's own speedometer
+        # disagrees. Absent rather than low when the span carried no speed reading, and the
+        # rule abstains on that rather than refusing it -- a span the watch missed entirely
+        # is a wave with nothing to publish, not a wave disproved (ADR-0023).
+        corroboration = f.get("speed_corroboration")
+        if corroboration is not None and corroboration < self.min_speed_corroboration:
+            return _Ruling(
+                strength=0.02,
+                reasons=[
+                    f"the watch never measured above {f.get('device_speed_max_ms', 0.0):.1f} m/s"
+                    f" here, and the track claims {f.get('claimed_speed_max_ms', 0.0):.1f}"
+                ],
+            )
 
         frozen = f.get("frozen_blind_s", 0.0)
         if duration > 0.0 and frozen >= self.frozen_fraction * duration:

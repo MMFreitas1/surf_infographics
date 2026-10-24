@@ -262,3 +262,80 @@ def test_the_payload_round_trips():
 def test_a_payload_this_stage_did_not_write_is_refused():
     with pytest.raises(PayloadError):
         ClassifyStage().decode(b'{"not": "a verdict", "verdicts": 3}')
+
+
+# -- the speed-corroboration veto (ADR-0023) ---------------------------------------------
+
+CONTRADICTED = RIDE | {
+    "speed_corroboration": 0.15,
+    "device_speed_max_ms": 1.77,
+    "claimed_speed_max_ms": 11.56,
+}
+
+
+def test_a_candidate_the_watch_contradicts_is_refused():
+    """Every other channel says ride. The device's own speedometer says it did not happen.
+
+    This is the reference session's ride 10: two observed seconds out of 33, and the 11.56
+    m/s peak is the smoother bridging the gap between two fixes 167 m apart.
+    """
+    verdict = classify(candidate(CONTRADICTED))
+
+    assert verdict.wave_count == 0
+    assert verdict.verdicts[0].decided_by is DecidedBy.RULE
+
+
+def test_the_veto_names_both_speeds_so_the_refusal_can_be_argued_with():
+    reason = classify(candidate(CONTRADICTED)).verdicts[0].reason
+
+    assert "1.8 m/s" in reason
+    assert "11.6" in reason
+
+
+def test_the_same_candidate_survives_once_the_watch_agrees():
+    """The veto is about the contradiction, not about the speeds being high."""
+    corroborated = CONTRADICTED | {"speed_corroboration": 0.93, "device_speed_max_ms": 10.7}
+
+    assert classify(candidate(corroborated)).wave_count == 1
+
+
+def test_a_candidate_with_no_speed_reading_is_not_refused_by_the_veto():
+    """Abstaining, not refusing. A span the watch missed entirely is a wave with nothing to
+    publish, not a wave disproved -- the reference session's three-second ride 2."""
+    assert "speed_corroboration" not in RIDE
+
+    assert classify(candidate(RIDE)).wave_count == 1
+
+
+def test_the_veto_runs_before_anything_reasons_from_the_measurement():
+    """A contradicted candidate is refused for the contradiction, not for being slow."""
+    frozen_and_contradicted = CONTRADICTED | {"frozen_blind_s": 14.0}
+
+    reason = classify(candidate(frozen_and_contradicted)).verdicts[0].reason
+
+    assert "never measured above" in reason
+    assert "no movement" not in reason
+
+
+def test_every_cutoff_on_the_measured_plateau_refuses_the_same_candidate():
+    """0.4 to 0.7 was measured as a plateau on the one labelled session there is."""
+    for cutoff in (0.4, 0.5, 0.65, 0.7):
+        stage = ClassifyStage(min_speed_corroboration=cutoff)
+
+        assert classify(candidate(CONTRADICTED), stage=stage).wave_count == 0
+
+
+def test_lowering_the_cutoff_below_the_ratio_lets_it_through():
+    stage = ClassifyStage(min_speed_corroboration=0.1)
+
+    assert classify(candidate(CONTRADICTED), stage=stage).wave_count == 1
+
+
+def test_the_cutoff_is_in_the_stage_key():
+    """It comes from the environment, so it has to be in the key or a cached verdict could
+    be served under a cutoff it was not computed under (ADR-0023)."""
+    default = ClassifyStage().meta
+    stricter = ClassifyStage(min_speed_corroboration=0.8).meta
+
+    assert default.params["min_speed_corroboration"] == pytest.approx(0.65)
+    assert default.params != stricter.params

@@ -38,15 +38,24 @@ from itertools import pairwise
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from surf.models import FramedSample, RideDirection, Sample, SessionFrame, WaveCandidate
+from surf.models import (
+    CleanReport,
+    FramedSample,
+    RideDirection,
+    Sample,
+    SessionFrame,
+    WaveCandidate,
+)
 from surf.pipeline.l3 import CandidateSet
 from surf.pipeline.stage import StageMeta
 
 NAME = "L4"
 """Feature extraction is stage L4."""
 
-CODE_VERSION = "1"
-"""Bump when a feature changes meaning, so cached rows are not reused under a new definition."""
+CODE_VERSION = "2"
+"""Bump when a feature changes meaning, so cached rows are not reused under a new definition.
+
+2 -- added the speed-corroboration trio (ADR-0023)."""
 
 _COLUMNS = ("t_start", "t_end", "position_coverage")
 _FEATURES_KEY = b"surf.l4.frame"
@@ -78,6 +87,14 @@ class FeatureInput:
     samples: Sequence[Sample]
     """The **cleaned** session's samples. L0.5 never touches ``distance_m`` -- it only reads
     it as corroboration -- so the odometer arrives here exactly as the device wrote it."""
+    report: CleanReport | None = None
+    """L0.5's record of what it refused to believe, which until ADR-0023 nothing read.
+
+    A candidate dense with rejections is a candidate built on refused data, and that is a
+    fact about the candidate rather than about the cleaner. Optional because it is reported
+    evidence and never gates: a caller that does not supply it loses the feature, which is
+    an absent key and not a count of zero.
+    """
 
 
 @dataclass(frozen=True)
@@ -226,10 +243,62 @@ class FeatureStage:
             "position_coverage": candidate.position_coverage,
         }
         features.update(self._kinematics(data.framed, start, end))
+        features.update(self._corroboration(data, start, end))
         features.update(self._odometer(runs, start, end))
         features.update(self._attributed_odometer(data.samples, runs, start, end))
         features.update(self._heart_rate(data.samples, start, end))
         return features
+
+    def _corroboration(self, data: FeatureInput, start: float, end: float) -> dict[str, float]:
+        """Does the watch's own speedometer ever reach what the smoothed track claims?
+
+        Two channels that share no input. Doppler speed is measured by the receiver and is
+        not derived from the position fixes, so comparing it with the smoothed track is a
+        genuine cross-examination between two first-party signals rather than a consistency
+        check on one (ADR-0008, ADR-0023).
+
+        The comparison is **peak against peak**, deliberately. Second by second the two
+        channels legitimately disagree -- Doppler leads a turn, the smoother lags it -- and
+        on the reference session a per-second ratio separates real rides from artefacts by
+        0.01, which is luck. They cannot legitimately disagree about whether 9.5 m/s
+        *happened*, so the question asked here is whether the watch ever recorded anything
+        like the fastest second being claimed.
+
+        ``claimed_speed_max_ms`` spans estimated seconds as well as observed ones, which is
+        the point and is what separates it from ``measured_speed_max_ms`` above. The artefact
+        this catches *is* an estimated peak: the smoother bridging a blind gap between two
+        distant fixes produces a smooth 11.56 m/s arc nothing measured, and asking only about
+        observed seconds would never see it.
+
+        ``speed_corroboration`` is **absent, not zero**, when the span carries no speed
+        reading at all. Zero would mean the watch recorded a standstill, which is a claim; no
+        reading means there is nothing to divide. A three-second span the watch missed
+        entirely is the case, and L5 abstains on it rather than refusing it.
+        """
+        during = [s for s in data.framed if start <= s.t < end]
+        if not during:
+            return {}
+
+        claimed = max(s.speed_ms for s in during)
+        out: dict[str, float] = {"claimed_speed_max_ms": claimed}
+
+        recorded = [
+            s.speed_ms for s in data.samples if start <= s.t < end and s.speed_ms is not None
+        ]
+        if recorded:
+            out["device_speed_max_ms"] = max(recorded)
+            if claimed > 0.0:
+                out["speed_corroboration"] = max(recorded) / claimed
+
+        # Reported, never gating: it convicts the two bridged artefacts on the reference
+        # session outright and misses the third, so it corroborates and does not decide.
+        # Absent when the cleaner was switched off, because zero would then mean "we did not
+        # look" rather than "nothing was refused".
+        if data.report is not None and data.report.enabled:
+            out["rejected_fixes_in_span"] = float(
+                sum(1 for r in data.report.rejections if start <= r.t < end)
+            )
+        return out
 
     def _attributed_odometer(
         self, samples: Sequence[Sample], runs: Sequence[BlindRun], start: float, end: float
