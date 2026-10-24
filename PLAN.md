@@ -13,7 +13,7 @@ Tick items as they land — an item is only ticked when it is verified, not when
 | **Done** | Phase 0 — foundation, CI, diagnostics · **1** — ingest, storage, REST · **2** — pipeline spine, RTS-smoothed track · **3** — shore frame (L2), high-recall candidates (L3) · **4** — append-only labels, six endpoints, scrub UI, labels joined to the eval harness · **5 Pass 1** — L0.5 cleaner, two channels + odometer containment, top speed 74.8 → 54.1 km/h · **5 Pass 2 baseline** — L0.6 audit, the session found inside the recording · **7 resolver** — L4 features + L5 verdict, the pipeline now commits to a wave count (ADR-0017) · **7 metrics half** — L6, every per-wave number surfaced and the session's own aggregates, with the count unmoved at 11 · **Session screen PRs 1–3c** — masthead, method banner, hero count, satellite track with playback, the four chart cards and the wave profile grid |
 | **Order** | **Phase 5 (clean) → Session screen (design Level 2) → the rest.** Agreed 2026-09-15. Level 2 first because it is the screen the design leads with, holds all the machinery, and works with the one session that exists. Level 1 compares sessions and needs five of them for a surf level — it would be an empty state today. Cleaning comes first so no screen ever renders the 74.8 km/h artefact |
 | **Stack** | Next 16 · React 19 · TS 7 · vitest 5 as of PR #29. Route `params` are a Promise — `tsc` does not catch that, only running it does |
-| **Next** | **Phase 6 — shore & peaks.** The N2 Session screen is built (PRs 1–3c) and the basemap is now a stack of layers with the sea floor underneath (ADR-0019). **Phase 6 first**, because left/right, the shore line on the map and the whole N3 Onda screen wait on it, and because its method is the one still carrying an unmeasured assumption. **The coastline source is settled: a static file** — see *Still owed by a decision* below. Remaining on the Session screen: sea state (Phase 8) and the model's prose (Phase 11), both rendering their designed absence today|
+| **Next** | **Phase 6 — shore & peaks, re-planned 2026-10-24 after measuring it.** Two premises inverted: ADR-0011's axis is **right to 4.2°** (coherence was measuring vote agreement, not error), and the real defect is the **count** — Miguel's labels say **3 of the 11 waves are not waves** (ADR-0023). Five PRs, **6b first**: refuse a candidate the watch's own speedometer does not corroborate, taking the count 11 → 8. Then the coastline angle (ADR-0022), then left/right. **The shore line is never drawn** — only its angle is used, which is what makes a coarse source viable |
 | **Design built** | **PR 1 of 3 landed 2026-09-30** — `web/src/app/session/[id]`, tokens in `globals.css`, catalogues in `web/src/lib/i18n/`. Two rules to keep: **no string literal in a component** (`Messages` is a closed type, so `tsc` catches a missing key), and **"proposed" is said once**, in the method banner — a test fails if the word appears on an individual figure. The banner's copy departs from the prototype on purpose: the design said an LLM cleans the data and infers the numbers, and ADR-0016/0017 mean it does not |
 | **Design** | ✅ **Landed 2026-09-15** — high-fidelity, all three levels, in `design_handover/design_handoff_surf_analytics/`. Read its `README.md` (28 KB) before building any UI. It supersedes `DESIGN_BRIEF.md`, which was the input to it |
 | **Local LLM** | ✅ **Installed and verified** — Ollama + `qwen2.5:7b-instruct-q4_K_M` + LiteLLM gateway, all under `/Users/Shared/llm`. 13 tok/s measured; a 100-token pass ≈ 8 s. See "Local LLM stack" below |
@@ -724,31 +724,56 @@ change that the cache key notices ✅ (`CleanStage(enabled=False)`).
 
 ## Phase 6 · Shore & peaks
 
-**Goal:** left or right, per wave — and a shore axis that works on a session that is mostly
-sitting still.
+**Goal:** left or right, per wave — an axis the pipeline will stand behind, and a wave count
+that only counts waves the watch corroborates.
 
-ADR-0011's velocity-coherence bearing scored 0.51° on the synthetic and **failed on the real
-session** (coherence 0.365, refused). The reason is structural: it weights fast seconds, and a
-real session is mostly slow ones. Miguel's method inverts that and uses the sitting as signal.
+**The premise this phase was planned on turned out to be false, and measuring first is the
+only reason we know.** ADR-0011's bearing scored 0.51° on the synthetic and returned
+`coherence 0.365, reliable=False` on the real session, so the plan was to replace it. It is
+**right to 4.2°**. Coherence measures whether the per-second votes agree *with each other*,
+not whether their sum is correct, and on a session four-fifths paddling they disagree even
+when it is. The axis was never the problem.
 
-- [ ] **Peaks from stationarity.** Where the track stays inside a ~20 m radius for over a
-      minute, that is a peak. Centroid them.
-- [ ] **Coastline by regression.** ~20 points along the shore within ~1 km either way of the
-      peak, least-squares line. Source: a coastline geometry provider (OSM/Overpass or the
-      basemap vendor), cached to disk on first fetch so the app stays offline afterwards.
-- [ ] **Classifier.** Perpendicular to the coast through the peak centroid. Ride heading above
-      it is a left, below is a right, for an east-facing shore — with the handedness derived
-      from which side the sea is on, not hard-coded.
-- [ ] **Fallback, offline or coastline unavailable:** principal axis of the peak cloud plus the
-      seaward direction from where rides *end*. Marked lower confidence; never silently
-      substituted.
-- [ ] **A new ADR** records this as the primary method and demotes ADR-0011's bearing to a fallback,
-      with the 0.365 measurement as the reason.
-- [ ] Tests: a synthetic coastline at a known angle recovers a known left/right split; a session
-      with no stationary period degrades to the fallback rather than guessing.
+**The count was.** Miguel labelled the session on 2026-10-24 — the first ground truth this
+project has had — and **three of the eleven settled waves are not waves**. Two of them are
+the same artefact: a blind stretch ends, the watch dumps its accumulated odometer distance in
+one 1-second step, and the smoother bridges the position gap with a curve shaped exactly like
+a ride. The evidence that refutes them was already in the file, and nothing downstream read it.
 
-**Done when:** every candidate on the reference session carries left/right/straight with a
-stated confidence, and the shore line can be drawn on the session map without a caveat.
+Five PRs, in order:
+
+- [ ] **6a — land the measurements.** Docs only. This section, plus
+      [ADR-0022](./docs/adr/0022-the-shore-axis-has-two-witnesses.md) (two witnesses for the
+      axis; agreement replaces coherence as the gate) and
+      [ADR-0023](./docs/adr/0023-a-wave-must-be-corroborated-by-the-speedometer.md) (a wave
+      must be corroborated by the device's own speedometer).
+- [ ] **6b — the watch has to back the story up.** L4 measures `speed_corroboration`, L5
+      refuses below **0.65**, L3 untouched and still high-recall. A span with no speed reading
+      is **not judged and gains no numbers** — it is a wave that publishes neither speed nor
+      direction. The cutoff's default lives in code and `SURF_WAVE_SPEED_CORROBORATION`
+      overrides it, with the **resolved** value in the stage params so the cache key stays
+      honest. **Count 11 → 8.**
+- [ ] **6c — `api/src/surf/coast.py` and the committed extract.** GSHHG 2.3.7 full, clipped to
+      mainland Portugal, under 1 MB, read with stdlib `json`; `NOTICE` carries its LGPL v3+
+      terms. `segment_near()` resamples at fixed spacing; `fit_bearing()` is **total least
+      squares**, because a north–south coast has infinite slope in OLS. Returns an angle mod
+      180° and nothing else. The file's sha256 travels into L2's params.
+- [ ] **6d — L2 re-estimated, and L1.5 peaks beside it.** Two chains: the **angle** from
+      coastline → velocity → none, the **sign** from the walk → ride majority → none.
+      `reliable` becomes agreement within 25°. L0.6's key travels in L2's **params**, as at L6
+      (ADR-0015). `PeaksStage` hangs off L1 **beside** L2 — it is for sit-spots, not for the
+      frame. `CODE_VERSION` bumps; the count does not move.
+- [ ] **6e — left or right, end to end.** L4 measures alongshore travel and the angle off
+      dead-shoreward; L6 publishes `direction` + `direction_confidence`; straight band **±8°**.
+      Sit-spots on the map, direction on the wave cards. **No shore line** — there is no
+      waterline we can place.
+- [ ] **Enter Miguel's eleven labels through the labelling UI**, not into a fixture by hand.
+      The store is append-only and pipeline-immutable (ADR-0006), and the first labels the
+      project has should go in the way every later one will.
+
+**Done when:** the reference session reports **8 waves — 7 rights, 1 blind, 0 straight, 0
+lefts** — each direction with a stated confidence, the three refusals named with their ratios,
+and the axis under all of it carrying two independent witnesses.
 
 ### Measured before building — 2026-10-22
 
@@ -779,34 +804,99 @@ Three things that fall out of it, all of which are Phase 6's to decide:
    build step is a sweep over radius and duration rather than shipping the first pair that
    looked right.
 
-### Still owed by a decision, not by the code
+### Measured before building — part 2, 2026-10-24
 
-**Where the coastline comes from is open, and it is a new external dependency** — so it is
-plan-mode-and-approval work (CLAUDE.md), not a detail to settle while building:
+The 2026-10-22 probe was reproduced exactly (11 clusters, 1366 s, 41.4%) and then taken
+apart. Scripts were throwaway; these are the numbers.
 
-- **OSM via Overpass** — keyless, $0, matches the stack rule, but it is a rate-limited public
-  API with a usage policy, and it is a live service in a local-first app.
-- **A static dataset** (Natural Earth, GSHHG) cropped once to the region — no service, no
-  rate limit, works offline by construction, at the cost of a coarser line and a file to
-  carry. ✅ **Chosen 2026-10-22.** Reproducibility decided it: §3 requires every published
-  result to be exactly reproducible, and a file can be hashed into the stage params where a
-  live query cannot — an OSM-derived bearing moves when a stranger retraces the beach, with
-  no code change and no version bump. **Overpass is used once, as a measuring stick**: fit
-  the bearing both ways on the reference session and record the angle between them, then
-  ship the file. Prefer **Natural Earth** (public domain) over GSHHG where the resolution
-  allows, because the licence audit below makes that matter.
-- **The basemap vendor** — our Esri imagery is keyless *raster*; a vector coastline from the
-  same source is not, which breaks the $0 rule.
+**The peak rule.** Three findings change it:
 
-Whichever is chosen, two things are already settled by existing decisions: it caches to disk
-on first fetch and degrades to the stated fallback when absent (§7, and `basemap.py` is the
-working precedent — ADR-0018), and **a new ADR records it**, because a coastline is the first
-outside geometry the pipeline consumes. It is reference geography rather than a third party's
-derived view of *this session*, so ADR-0008 is not breached — but that is a judgement that
-belongs written down, not assumed.
+- **`spread_max` equals the radius at every radius.** Greedy hard-radius clustering always
+  saturates, so spread is not a signal and must not be reported — publishing it would be
+  publishing the parameter back. Caveat 3 of the first probe is answered: 20 m was not
+  "doing work", it was being echoed.
+- **A fraction floor separates better than an absolute one.** Observed fraction per cluster
+  runs 0.06 … 0.75, median 0.41 against the session's own 0.40; the 170 s cluster built on 10
+  observed seconds is a clear outlier at 0.06. At 20 m / 60 s / ≥ 0.25 → **8 clusters**.
+- **The parameters are not load-bearing.** The observed-weighted anchor moves ≤ 24.9 m across
+  48 parameter sets (median 9.4 m). One peak area at every merge distance ≥ 50 m — one bank,
+  not eleven peaks, as the first probe suspected.
 
-`synthetic.py` has no coastline today, so the known-answer test ("a synthetic coast at a known
-angle recovers a known left/right split") needs one added alongside the method.
+**The axis has two witnesses, 4.2° apart** — see
+[ADR-0022](./docs/adr/0022-the-shore-axis-has-two-witnesses.md) for the full table. In short:
+GSHHG agrees with OSM to **0.2°**; the **window is the dominant lever, not the source** (OSM
+runs 142.0° at ±200 m to 168.7° at ±1500 m, so it is pinned at ±1000 m); Natural Earth's 4.3 m
+residual is a **false confidence signal**, so residual cannot be the gate; and **no static
+file can settle handedness** — GSHHG places the anchor *inside* its land polygon.
+
+**The sign comes from the walk.** Across the 60 s before entry and the 430 s after exit,
+**all 489 observed walking seconds fall on one side with no exceptions** — median +40 m and
++287 m against a session spanning −140 to +198 m. Land is the positive side, 164 m of
+separation. Ride majority is the weaker fallback: 7 of 10 fast runs, +301 m net.
+
+**Only the angle is used, and the line never draws.** Miguel's call, and it is what makes a
+coarse source viable: GSHHG puts the sit spot 15 m **inland** and Natural Earth 549 m **out to
+sea**, and neither error reaches the arithmetic. All five candidate angles — spanning 23.3° —
+gave the same left/right call on all ten fast runs.
+
+**The axis does not move the count.** Eleven waves at every plausible angle (52.0° through
+78.7°); only a deliberately bad ±200 m fit gives 12.
+
+### Miguel's labels, 2026-10-24 — the first ground truth
+
+| Ride | Call | In his words |
+|---|---|---|
+| 1, 2 | wave | "trimming, waiting for the wave to form, already standing" |
+| 3, 4, 5, 6, 9, 11 | wave | a right-hand point; all rights |
+| 7 | **not a wave** | "didn't happen, too far out from the peak" |
+| 8 | **not a wave** | "me trying to wait for the mellow wave to form a wall, but it didnt" |
+| 10 | **not a wave** | "didn't happen, too far out from the peak" |
+
+**The clean cut — does the watch's speedometer ever reach what the track claims?**
+
+```
+waves       0.79  0.85  0.86  0.93  0.94  0.95  0.97     (ride 2 has no speed reading at all)
+artefacts   0.00  0.15  0.38
+```
+
+**Every cutoff from 0.4 to 0.7 gives 3 of 3 artefacts refused and 8 of 8 waves kept.** It must
+be peak against peak; second by second the gap closes to 0.01 and separates by luck.
+`position_coverage` does **not** separate them at all (a real wave at 37% and 0%, an artefact
+at 43%), and neither does odometer back-fill share. Full reasoning and the two mechanisms in
+[ADR-0023](./docs/adr/0023-a-wave-must-be-corroborated-by-the-speedometer.md).
+
+**So the count is 8, every survivor is a right, and the only `LEFT` in the session was ride 7
+— which never happened.** Degrees off dead-shoreward for the eight kept: ride 11 at **9.3°**,
+then 21.4, 23.4, 27.6, 29.9, 32.9, 33.8, and ride 2 with no direction at all. Ride 11 is a
+right, so any band of 10° or more would wrongly call it straight; with the window pinned the
+angle uncertainty is 4.2°, which needs the band to clear only 2.1°. **±8°** sits between, and
+straight stays rare by design — it is a beginner's shape.
+
+### Settled 2026-10-22, confirmed by measurement 2026-10-24: a committed file
+
+The coastline source is **GSHHG 2.3.7 full, LGPL v3+**, committed to `api/data/coast/`.
+Reproducibility chose a file over a live query — §3 requires every published result to be
+exactly reproducible, and a file can be hashed into the stage params where a live query
+cannot: an OSM-derived bearing moves when a stranger retraces the beach, with no code change
+and no version bump. **OSM via Overpass was used once as the measuring stick and never
+ships** (ODbL share-alike on a derived database is the second reason).
+
+Two things the 2026-10-22 entry got wrong, both now measured:
+
+- **Natural Earth was the preferred source on licence grounds. It passes on this session by
+  luck** — one vertex within a kilometre means its fit spans several kilometres of coast. It is
+  not validated and is not the choice.
+- **The extract was expected to need a coarse-line caveat on the map.** It needs none, because
+  the line is never drawn. Only its angle is read.
+
+GSHHG's LICENSE.TXT permits redistribution with notice and bundling in software sold for a
+fee, so a `NOTICE` file satisfies it and nothing is foreclosed (ADR-0020). Committing
+reference geography to a public repo is a deliberate exception to the instinct behind
+`.gitignore`, agreed with Miguel: that rule is about activity files, and `data/`,
+`sample_data/` and `web/verification/` stay ignored.
+
+`synthetic.py` has no coastline today, so the known-answer test needs one added alongside the
+method, plus a synthetic walk so the sign chain has a fixture.
 
 
 ---
