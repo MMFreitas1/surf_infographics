@@ -508,6 +508,87 @@ class SessionFrame(BaseModel):
     """The coastline fit, when there was one."""
 
 
+class Peak(BaseModel):
+    """One stretch the track held still: a surfer sitting on a board, waiting.
+
+    The sitting is the signal. Roughly 40% of the reference session is spent inside a 20 m
+    circle for over a minute at a time, which is more of it than the riding and the paddling
+    put together -- and it is where the waves come from, so it is what a map of a session
+    should show.
+
+    **There is no ``spread``.** The clusterer extends a group while every member stays within
+    its radius of the running centroid, so the widest member always ends up at or near that
+    radius: measured, spread equalled the radius at *every* radius swept. Reporting it would
+    be reporting the parameter back as if it were a finding.
+    """
+
+    lat: float = Field(ge=-90.0, le=90.0)
+    lon: float = Field(ge=-180.0, le=180.0)
+    """Centroid of the observed seconds in this cluster."""
+    t_start: float
+    t_end: float
+    observed_s: int = Field(ge=0)
+    """Seconds the watch actually saw. Only observed seconds are clustered at all, so this
+    is also the member count -- and it is **not** ``t_end - t_start``, which is the whole
+    reason a duration floor is not enough on its own."""
+    area: int = Field(ge=0)
+    """Which merged peak area this cluster belongs to. Centroids 4-80 m apart are one bank,
+    not several peaks, so the clusters are grouped and the grouping is served."""
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def duration_s(self) -> float:
+        """Wall-clock span, blind seconds included."""
+        return self.t_end - self.t_start
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def observed_fraction(self) -> float:
+        """How much of the span the watch saw.
+
+        The floor that matters. A 170 s cluster built on **10 observed seconds** is evidence
+        of nothing, and an absolute seconds floor separates it worse than a fraction does:
+        measured across the reference session's clusters, the fraction runs 0.06 to 0.75 with
+        a median of 0.41 against the session's own 0.40, and the thin one is a clear outlier.
+        """
+        span = self.duration_s
+        return self.observed_s / span if span > 0.0 else 0.0
+
+
+class PeakArea(BaseModel):
+    """Several clusters that are the same place -- one bank, visited repeatedly."""
+
+    lat: float = Field(ge=-90.0, le=90.0)
+    lon: float = Field(ge=-180.0, le=180.0)
+    """Observed-weighted centroid of the clusters in this area, so the longer sits count for
+    more. Measured stable: across 48 parameter sets this point moved at most 24.9 m, median
+    9.4 m, which is why no downstream number is allowed to depend on the clusterer's
+    parameters."""
+    peaks: int = Field(ge=1)
+    observed_s: int = Field(ge=0)
+    held_s: float = Field(ge=0.0)
+    """Total wall-clock time held still here, summed over its clusters."""
+
+
+class SessionPeaks(BaseModel):
+    """Where one session sat still, and how those sits group into places.
+
+    Hangs off L1 **beside** L2 rather than in front of it (ADR-0015's shape, and ADR-0022's
+    reason): the frame does not depend on this. Anchoring the shore fit on the clustered peak
+    rather than on the session's plain centroid moves the fitted angle 0.62 degrees, against
+    a tolerance of tens of degrees -- so peaks exist to be drawn, not to decide anything.
+    """
+
+    peaks: list[Peak] = Field(default_factory=list)
+    areas: list[PeakArea] = Field(default_factory=list)
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def held_s(self) -> float:
+        """Total time the session spent sitting still."""
+        return sum(peak.duration_s for peak in self.peaks)
+
+
 class FramedSample(BaseModel):
     """One second of the track, rotated into the session's shore frame.
 

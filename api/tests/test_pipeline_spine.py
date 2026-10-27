@@ -44,6 +44,7 @@ from surf.pipeline import Stage, StageCache, StageMeta, run_stage, stage_key
 from surf.pipeline.audit import AuditStage
 from surf.pipeline.clean import CleanStage
 from surf.pipeline.l1 import KinematicsStage
+from surf.pipeline.l1_5 import PeaksStage
 from surf.pipeline.l2 import FrameStage
 from surf.pipeline.l3 import CandidateStage
 
@@ -294,6 +295,80 @@ def test_l06_runs_off_l05s_output_and_the_second_pass_never_re_audits(tmp_path):
     assert first.cached is False
     assert second.cached is True
     assert second.output == first.output
+
+
+def test_retuning_the_clusterer_leaves_the_frame_alone(tmp_path):
+    """L1.5 hangs off L1 *beside* L2, not in front of it, and this is why (ADR-0022).
+
+    Peaks were planned as the front of the shore-axis estimator, and measurement took them
+    out of that path: anchoring the coastline fit on a clustered peak instead of the
+    session's plain observed centroid moves the fitted angle 0.62 degrees, against a
+    tolerance of tens of degrees. So a peak decides nothing downstream, and moving the
+    clustering radius must not throw away a bearing -- or the candidates, waves and metrics
+    built on it.
+    """
+    cache = StageCache(tmp_path)
+    cleaned = clean_into(cache, ingested=ingest_into(cache))
+    smoothed = run_stage(
+        KinematicsStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity
+    )
+
+    frame = run_stage(FrameStage(), cache, input_hash=smoothed.key, data=smoothed.output)
+    tight = run_stage(
+        PeaksStage(radius_m=12.0), cache, input_hash=smoothed.key, data=smoothed.output
+    )
+    wide = run_stage(
+        PeaksStage(radius_m=40.0), cache, input_hash=smoothed.key, data=smoothed.output
+    )
+    assert tight.key != wide.key
+
+    again = run_stage(FrameStage(), cache, input_hash=smoothed.key, data=Exploded())
+    assert again.cached is True, "a clustering radius invalidated a frame it cannot affect"
+    assert again.key == frame.key
+
+
+def test_l1_5_runs_off_l1s_output_and_the_second_pass_never_clusters_again(tmp_path):
+    cache = StageCache(tmp_path)
+    cleaned = clean_into(cache, ingested=ingest_into(cache))
+    smoothed = run_stage(
+        KinematicsStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity
+    )
+    stage = PeaksStage()
+
+    first = run_stage(stage, cache, input_hash=smoothed.key, data=smoothed.output)
+    second = run_stage(stage, cache, input_hash=smoothed.key, data=Exploded())
+
+    assert first.cached is False
+    assert second.cached is True
+    assert second.key == first.key
+    assert second.output == first.output
+
+
+def test_smoothing_invalidates_the_peaks_above_it(tmp_path):
+    """The chain rule still holds in the direction it should: peaks are positions, and the
+    smoother is what decides where a blind second was."""
+    cache = StageCache(tmp_path)
+    cleaned = clean_into(cache, ingested=ingest_into(cache))
+    stage = PeaksStage()
+
+    quiet = run_stage(
+        KinematicsStage(measurement_noise_m=3.0),
+        cache,
+        input_hash=cleaned.key,
+        data=cleaned.output.activity,
+    )
+    noisy = run_stage(
+        KinematicsStage(measurement_noise_m=8.0),
+        cache,
+        input_hash=cleaned.key,
+        data=cleaned.output.activity,
+    )
+
+    on_quiet = run_stage(stage, cache, input_hash=quiet.key, data=quiet.output)
+    on_noisy = run_stage(stage, cache, input_hash=noisy.key, data=noisy.output)
+
+    assert on_quiet.key != on_noisy.key
+    assert on_noisy.cached is False
 
 
 def test_retuning_the_audit_leaves_the_smoothed_track_alone(tmp_path):
