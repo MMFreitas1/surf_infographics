@@ -24,7 +24,7 @@
     "@deck.gl/layers": "^9.3.11",
     "@deck.gl/react": "^9.3.11",
     "@observablehq/plot": "^0.6.17",
-    "maplibre-gl": "^6.11.2",
+    "maplibre-gl": "^6.15.0",
     "next": "^16.4.2",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
