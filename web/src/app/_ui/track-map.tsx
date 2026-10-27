@@ -17,7 +17,7 @@ import DeckGL from "@deck.gl/react";
 import { useMemo } from "react";
 import BaseMap from "react-map-gl/maplibre";
 import { type LayerView, rasterStyle } from "@/lib/basemap";
-import type { BasemapInfo, SmoothedSample, WaveVerdict } from "@/lib/schema";
+import type { BasemapInfo, Peak, SmoothedSample, WaveVerdict } from "@/lib/schema";
 import { dashPath, type LngLat, type Span, withRuns } from "@/lib/trace";
 import "@/lib/maplibre-worker";
 import "maplibre-gl/dist/maplibre-gl.css";
@@ -28,6 +28,7 @@ const ESTIMATED: [number, number, number] = [62, 107, 124]; // --ink-500, the de
 const WAVE: [number, number, number] = [232, 149, 28]; // --amber-500
 const WARM_0: [number, number, number] = [255, 255, 255];
 const EXCLUDED: [number, number, number] = [179, 160, 132]; // --warm-400
+const SIT: [number, number, number] = [249, 115, 22]; // --amber-600, the peak colour
 
 /** Dash geometry, in metres of travel. Long enough to read, short enough to follow a turn. */
 const DASH_M = 6;
@@ -46,6 +47,8 @@ interface Props {
   onSelect: (wave: WaveVerdict | null) => void;
   /** Stretches the audit says were not surfing -- the walk down and the walk back. */
   excluded: Span[];
+  /** Where the session sat still. Drawn as places, not as moments on the track. */
+  peaks?: Peak[];
   height?: number;
 }
 
@@ -58,6 +61,7 @@ export function TrackMap({
   waves,
   selected,
   onSelect,
+  peaks = [],
   excluded,
   height = 470,
 }: Props) {
@@ -142,6 +146,23 @@ export function TrackMap({
       getColor: MEASURED,
       getWidth: 2.4,
       widthUnits: "pixels",
+      pickable: false,
+    }),
+    // Under the wave marks on purpose: a sit spot is context for the rides, not a
+    // competing mark. Hollow, because its radius is the clusterer's parameter rather than
+    // a measured extent -- a filled disc would read as "the peak is this big" (ADR-0022).
+    new ScatterplotLayer({
+      id: "sit-spots",
+      data: peaks,
+      getPosition: (d: Peak) => [d.lon, d.lat],
+      getRadius: (d: Peak) => 4 + Math.min(10, Math.sqrt(d.observed_s)),
+      radiusUnits: "pixels",
+      filled: false,
+      stroked: true,
+      getLineColor: (d: Peak) =>
+        [...SIT, Math.round(120 + d.observed_fraction * 135)] as [number, number, number, number],
+      lineWidthUnits: "pixels",
+      getLineWidth: 1.6,
       pickable: false,
     }),
     new ScatterplotLayer({

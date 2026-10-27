@@ -13,7 +13,7 @@ import { defaultView, type LayerView } from "@/lib/basemap";
 import { percent } from "@/lib/format";
 import { useLocale, useT } from "@/lib/i18n";
 import type { Messages } from "@/lib/i18n/catalog";
-import type { BasemapInfo, SmoothedSample, WaveVerdict } from "@/lib/schema";
+import type { BasemapInfo, Peak, SmoothedSample, WaveVerdict } from "@/lib/schema";
 import type { Span } from "@/lib/trace";
 import { Playback } from "./playback";
 
@@ -46,6 +46,9 @@ interface Props {
   apiBase: string;
   /** Stretches L0.6 says were not surfing. Drawn, but never as surfing (ADR-0015). */
   excluded: Span[];
+  /** Where the session sat still. Empty is a normal state -- a session that never held
+   *  still for a minute has no sit spots, and that is an answer. */
+  peaks?: Peak[];
   /**
    * Which wave is isolated. Held by the screen rather than here, because the profile
    * cards below open a wave *on this map* -- the N3 Onda screen waits on Phases 6 and 7,
@@ -55,7 +58,16 @@ interface Props {
   onSelect: (wave: WaveVerdict | null) => void;
 }
 
-export function MapCard({ samples, waves, basemap, apiBase, excluded, selected, onSelect }: Props) {
+export function MapCard({
+  samples,
+  waves,
+  basemap,
+  apiBase,
+  excluded,
+  selected,
+  onSelect,
+  peaks = [],
+}: Props) {
   const t = useT();
   const { locale } = useLocale();
   const [now, setNow] = useState(samples[0]?.t ?? 0);
@@ -88,6 +100,7 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded, selected, 
           selected={selected}
           onSelect={onSelect}
           excluded={excluded}
+          peaks={peaks}
         />
 
         {basemap && basemap.layers.length > 1 ? (
@@ -150,6 +163,11 @@ export function MapCard({ samples, waves, basemap, apiBase, excluded, selected, 
           <span>
             <span className="key key-excluded" /> {t("legend.excluded")}
           </span>
+          {peaks.length > 0 ? (
+            <span>
+              <span className="key key-sit" /> {t("map.sitSpots")}
+            </span>
+          ) : null}
           {/* The imagery credit is rendered by maplibre itself, from the source's own
               `attribution` field -- so it appears exactly when imagery does, and vanishes
               with it offline. A second copy here duplicated it and overlapped the first. */}

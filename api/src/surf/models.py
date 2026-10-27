@@ -787,6 +787,27 @@ class WaveMetrics(BaseModel):
     """The part of ``ride_m`` the watch actually saw. Never larger than it."""
     hr_mean_bpm: float | None = None
     hr_max_bpm: float | None = None
+    direction: RideDirection = RideDirection.UNKNOWN
+    """Left, right, straight -- or unknown, which is an answer and not a gap.
+
+    ``UNKNOWN`` whenever the claim cannot be made rather than whenever it is awkward: a ride
+    the watch saw under two seconds of, or a session whose frame never established which way
+    the sea is (ADR-0022). The reference session has one of each kind of silence and seven
+    rights, which is what a right-hand point should produce.
+
+    Nothing about left is hard-coded. L2 defines alongshore as shoreward turned 90 degrees to
+    the left, making the pair right-handed, so positive alongshore travel *is* the rider's
+    left when facing shore; the sea side fixes the shoreward sign and the handedness follows.
+    """
+    direction_confidence: float | None = None
+    """How much the direction is worth, as the product of three stated factors.
+
+    **Not a calibrated probability and it must never be rendered as one** -- the same rule
+    `WaveVerdict.strength` carries, for the same reason: there is one labelled session in
+    existence (ADR-0013). It is the product of how far the ride ran off dead-straight, how
+    much of the ride the watch actually saw, and how many witnesses the shore axis had.
+    ``None`` when ``direction`` is ``UNKNOWN``, because there is nothing to qualify.
+    """
 
     @computed_field  # type: ignore[prop-decorator]
     @property

@@ -23,15 +23,18 @@ import math
 import pytest
 
 from surf.models import (
+    AngleSource,
     AuditReport,
     AuditSource,
     DecidedBy,
     FramedSample,
     NotSurfingReason,
     NotSurfingWindow,
+    RideDirection,
     Sample,
     SessionFrame,
     SessionVerdict,
+    SignSource,
     WaveCandidate,
     WaveVerdict,
 )
@@ -522,7 +525,21 @@ def test_the_audit_identity_is_part_of_the_cache_key():
 def test_every_parameter_that_moves_a_number_is_in_the_key():
     params = MetricStage().meta.params
 
-    assert set(params) == {"takeoff_s", "bin_ms", "bucket_s", "audit_key"}
+    assert set(params) == {
+        "takeoff_s",
+        "bin_ms",
+        "bucket_s",
+        "straight_band_deg",
+        "direction_margin_deg",
+        "single_witness_factor",
+        "audit_key",
+    }
+    for moved in (
+        MetricStage(straight_band_deg=15.0),
+        MetricStage(direction_margin_deg=30.0),
+        MetricStage(single_witness_factor=0.9),
+    ):
+        assert moved.meta.params != params
 
 
 # -- known answers, against the generator's exact truth ----------------------------------
@@ -600,3 +617,130 @@ def test_the_distribution_covers_the_whole_observed_session(measured_session):
         round(metrics.coverage * metrics.session_s), abs=1
     )
     assert math.isclose(sum(metrics.speed.counts), metrics.speed.n_seconds)
+
+
+# -- left or right (ADR-0022) --------------------------------------------------------------
+
+
+def frame_with(
+    *, angle=AngleSource.COASTLINE, sign=SignSource.WALK, disagreement: float | None = 4.4
+):
+    return SessionFrame(
+        shore_bearing_deg=75.5,
+        coherence=0.365,
+        reliable=True,
+        contributing_seconds=400,
+        effective_seconds=120.0,
+        origin_lat=ORIGIN_LAT,
+        origin_lon=ORIGIN_LON,
+        angle_source=angle,
+        sign_source=sign,
+        disagreement_deg=disagreement,
+    )
+
+
+def direction_of(stage: MetricStage, features: dict[str, float], frame: SessionFrame | None = None):
+    return stage._direction(features, frame or frame_with())
+
+
+def test_positive_alongshore_travel_is_a_left():
+    """Nothing about left is hard-coded here. L2 defines alongshore as shoreward turned 90
+    degrees to the left, making the pair right-handed, so the sign carries the handedness
+    and the sea side is what fixed it (ADR-0022)."""
+    direction, confidence = direction_of(
+        MetricStage(),
+        {"alongshore_ms": 2.5, "shoreward_offset_deg": 30.0, "position_coverage": 0.9},
+    )
+
+    assert direction is RideDirection.LEFT
+    assert confidence is not None and confidence > 0.5
+
+
+def test_negative_alongshore_travel_is_a_right():
+    direction, _ = direction_of(
+        MetricStage(),
+        {"alongshore_ms": -2.5, "shoreward_offset_deg": 30.0, "position_coverage": 0.9},
+    )
+
+    assert direction is RideDirection.RIGHT
+
+
+def test_inside_the_band_is_straight():
+    direction, _ = direction_of(
+        MetricStage(),
+        {"alongshore_ms": 0.3, "shoreward_offset_deg": 4.0, "position_coverage": 0.9},
+    )
+
+    assert direction is RideDirection.STRAIGHT
+
+
+def test_the_band_is_narrow_enough_to_keep_the_marginal_right_a_right():
+    """Ride 11 of the reference session, which is the measurement that set the band.
+
+    Miguel labelled it a **right** at 9.1 degrees off dead-shoreward -- the best-observed
+    marginal call in the session, 23 observed seconds of 24. A band of 10 or more would call
+    a real right straight, and straight is a beginner's shape he does not ride.
+    """
+    features = {"alongshore_ms": -0.64, "shoreward_offset_deg": 9.1, "position_coverage": 0.96}
+
+    assert direction_of(MetricStage(), features)[0] is RideDirection.RIGHT
+    assert direction_of(MetricStage(straight_band_deg=12.0), features)[0] is RideDirection.STRAIGHT
+
+
+def test_a_marginal_call_comes_back_marginal():
+    """A right 1.1 degrees past the band is a real call and a thin one, and the confidence
+    has to say so -- it is the only thing standing between the band and over-claiming."""
+    thin = direction_of(
+        MetricStage(),
+        {"alongshore_ms": -0.64, "shoreward_offset_deg": 9.1, "position_coverage": 0.96},
+    )[1]
+    square = direction_of(
+        MetricStage(),
+        {"alongshore_ms": -2.5, "shoreward_offset_deg": 33.0, "position_coverage": 0.96},
+    )[1]
+
+    assert thin is not None and square is not None
+    assert thin < 0.2 < square
+
+
+def test_a_ride_the_watch_barely_saw_is_not_a_confident_direction():
+    """Coverage multiplies in, so a perfectly angled ride seen for a tenth of its span is
+    not a confident left. A product rather than a sum, so one bad factor sinks the claim."""
+    seen = direction_of(
+        MetricStage(),
+        {"alongshore_ms": -2.5, "shoreward_offset_deg": 33.0, "position_coverage": 0.95},
+    )[1]
+    barely = direction_of(
+        MetricStage(),
+        {"alongshore_ms": -2.5, "shoreward_offset_deg": 33.0, "position_coverage": 0.06},
+    )[1]
+
+    assert barely is not None and seen is not None
+    assert barely < 0.1 < seen
+
+
+def test_a_single_witness_frame_is_a_weaker_claim():
+    """A direction off the coastline alone or the velocity alone is usable and worth less
+    (ADR-0022), and the number says so rather than the screen having to look it up."""
+    features = {"alongshore_ms": -2.5, "shoreward_offset_deg": 33.0, "position_coverage": 0.9}
+
+    both = direction_of(MetricStage(), features, frame_with(disagreement=4.4))[1]
+    alone = direction_of(MetricStage(), features, frame_with(disagreement=None))[1]
+
+    assert both is not None and alone is not None
+    assert alone == pytest.approx(both * MetricStage().single_witness_factor)
+
+
+def test_a_frame_that_never_found_the_sea_publishes_no_direction():
+    """Without a sign, alongshore has no agreed meaning and every direction is a coin toss."""
+    features = {"alongshore_ms": -2.5, "shoreward_offset_deg": 33.0, "position_coverage": 0.9}
+
+    for broken in (frame_with(sign=SignSource.NONE), frame_with(angle=AngleSource.NONE)):
+        assert direction_of(MetricStage(), features, broken) == (RideDirection.UNKNOWN, None)
+
+
+def test_a_ride_with_no_alongshore_feature_publishes_no_direction():
+    """L4 reports nothing when the watch saw under two seconds of the ride. The reference
+    session's ride 2 is three seconds it missed entirely: a wave that publishes no direction
+    rather than one that guesses."""
+    assert direction_of(MetricStage(), {"position_coverage": 0.0}) == (RideDirection.UNKNOWN, None)

@@ -473,3 +473,21 @@ def test_the_fixture_opens_the_same_layers_the_registry_does():
     defaults = {layer["id"] for layer in BASEMAP["basemap"]["layers"] if layer["default"]}
 
     assert defaults == DEFAULT_LAYERS
+
+
+def test_the_metrics_fixture_covers_every_direction_a_wave_can_have():
+    """Left, right, straight and unknown all have to survive the wire.
+
+    ``unknown`` is the one that matters most and is easiest to leave untested: it is what a
+    ride the watch saw under two seconds of reports, and a schema that only ever saw a
+    handed value would accept ``null`` confidence by accident rather than by contract.
+    """
+    directions = {wave.direction.value for wave in METRICS.waves} | {
+        wave.direction.value for wave in UNMETERED.waves
+    }
+
+    assert directions == {"left", "right", "straight", "unknown"}
+    assert all(
+        (wave.direction_confidence is None) == (wave.direction.value == "unknown")
+        for wave in [*METRICS.waves, *UNMETERED.waves]
+    )

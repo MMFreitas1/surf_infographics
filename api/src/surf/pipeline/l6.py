@@ -34,13 +34,17 @@ from dataclasses import dataclass
 from itertools import pairwise
 
 from surf.models import (
+    AngleSource,
     AuditReport,
     CadenceBucket,
     FramedSample,
     ReturnInterval,
+    RideDirection,
     Sample,
+    SessionFrame,
     SessionMetrics,
     SessionVerdict,
+    SignSource,
     SpeedHistogram,
     WaveMetrics,
     WaveVerdict,
@@ -50,6 +54,19 @@ from surf.pipeline.stage import StageMeta
 
 NAME = "L6"
 """Metrics are stage L6."""
+
+
+def _ramp(value: float, low: float, high: float) -> float:
+    """0 at or below ``low``, 1 at or above ``high``, linear between.
+
+    Its own copy rather than L5's, because the two are free to diverge and a shared
+    constant would hide that one of them had moved -- the reason ``takeoff_s`` is
+    duplicated here too.
+    """
+    if high <= low:
+        return 0.0
+    return min(1.0, max(0.0, (value - low) / (high - low)))
+
 
 CODE_VERSION = "1"
 """Bump when a figure changes meaning, so cached rows are not reused under a new definition."""
@@ -99,6 +116,36 @@ class MetricStage:
     bucket_s: float = 600.0
     """Length of a cadence bucket. Ten minutes, because "waves per 10 min" is the figure the
     design asks for and bucketing on anything else would mean rescaling it for display."""
+    straight_band_deg: float = 8.0
+    """How far off dead-shoreward still counts as going straight.
+
+    **Derived from two directions rather than swept.** From below: a left cannot become a
+    right unless the angle uncertainty exceeds *twice* the band, so with the reference
+    session's two witnesses 4.4 degrees apart anything above 2.2 makes a handed error
+    impossible. From above: Miguel labelled his session a right-hand point and ride 11 --
+    the best-measured marginal call in it, 23 observed seconds of 24 -- a **right** at 9.3
+    degrees off, so a band of 10 or more would call a real right straight.
+
+    8.0 sits between. The consequence is that **straight is rare by design**, which is the
+    point: it is a beginner's shape, riding the whitewater in to the beach, and Miguel does
+    not ride it. A band wide enough to be safe against a badly chosen regression window
+    would have swallowed a quarter of his session.
+    """
+    direction_margin_deg: float = 20.0
+    """How far past the band a ride has to run before its direction stops being marginal.
+
+    The angular half of ``direction_confidence``: a ride just outside the band is a weaker
+    claim than one at right angles to the shore, and this is the span over which that
+    confidence is ramped. 20 degrees, which puts the measured spread of real rides (9.3 to
+    33.8 off straight) across the whole range rather than bunched at the top.
+    """
+    single_witness_factor: float = 0.6
+    """What a direction is worth when the shore axis rested on one witness, not two.
+
+    A frame off the coastline alone or the velocity alone is usable and is a weaker claim
+    (ADR-0022), and the factor says so rather than the screen having to look it up. Not
+    measured -- there is one labelled session -- so it is a stated discount and is named one.
+    """
     audit_key: str = ""
     """The cache key of the L0.6 audit these figures were computed against.
 
@@ -120,6 +167,9 @@ class MetricStage:
                 "takeoff_s": self.takeoff_s,
                 "bin_ms": self.bin_ms,
                 "bucket_s": self.bucket_s,
+                "straight_band_deg": self.straight_band_deg,
+                "direction_margin_deg": self.direction_margin_deg,
+                "single_witness_factor": self.single_witness_factor,
                 "audit_key": self.audit_key,
             },
         )
@@ -170,6 +220,47 @@ class MetricStage:
             coverage=observed_s / session_s if session_s > 0.0 else 0.0,
         )
 
+    def _direction(
+        self, features: dict[str, float], frame: SessionFrame
+    ) -> tuple[RideDirection, float | None]:
+        """Left, right, straight or unknown -- and what the answer is worth.
+
+        **The count is not re-decided here and cannot be.** L5 settled which candidates are
+        waves; this names a property of one it already kept (architecture.md section 3).
+
+        Three ways the answer is ``UNKNOWN``, and each is a different silence worth keeping
+        distinct. The frame never established which way the sea is, so alongshore has no
+        agreed sign and every direction would be a coin toss. Or the frame has no angle at
+        all. Or the watch saw under two seconds of the ride, so L4 reported no alongshore
+        travel -- the reference session's ride 2 is three seconds the watch missed entirely,
+        and it ships as a wave that publishes no direction rather than one that guesses.
+
+        Confidence is the product of three factors, each in [0, 1] and each with a reason:
+        how far past the straight band the ride ran, how much of the ride was observed, and
+        whether the shore axis had two witnesses or one. A product rather than a weighted sum
+        because any one of them being near zero should sink the claim on its own -- a
+        perfectly angled ride seen for two seconds is not a confident left.
+        """
+        if frame.sign_source is SignSource.NONE or frame.angle_source is AngleSource.NONE:
+            return RideDirection.UNKNOWN, None
+
+        along = features.get("alongshore_ms")
+        offset = features.get("shoreward_offset_deg")
+        if along is None or offset is None:
+            return RideDirection.UNKNOWN, None
+
+        if offset < self.straight_band_deg:
+            direction = RideDirection.STRAIGHT
+        else:
+            direction = RideDirection.LEFT if along > 0.0 else RideDirection.RIGHT
+
+        angle = _ramp(
+            offset, self.straight_band_deg, self.straight_band_deg + self.direction_margin_deg
+        )
+        witnesses = 1.0 if frame.disagreement_deg is not None else self.single_witness_factor
+        coverage = features.get("position_coverage", 0.0)
+        return direction, max(0.0, min(1.0, angle * coverage * witnesses))
+
     def _wave(
         self,
         index: int,
@@ -178,6 +269,7 @@ class MetricStage:
         data: MetricInput,
     ) -> WaveMetrics:
         """One wave's card, mostly selected from what L4 already measured."""
+        direction, confidence = self._direction(features, data.features.frame)
         return WaveMetrics(
             index=index,
             t_start=verdict.t_start,
@@ -190,6 +282,8 @@ class MetricStage:
             ride_measured_m=_measured_metres(data.samples, verdict.t_start, verdict.t_end),
             hr_mean_bpm=features.get("hr_mean_bpm"),
             hr_max_bpm=features.get("hr_max_bpm"),
+            direction=direction,
+            direction_confidence=confidence,
         )
 
     def _takeoff_speed(self, framed: Sequence[FramedSample], start: float) -> float | None:

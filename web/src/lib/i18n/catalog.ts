@@ -124,6 +124,12 @@ export interface Messages {
 
   /** Perfis de onda: one card per settled wave, with the ride's own track on it. */
   "section.profiles": string;
+  "direction.left": string;
+  "direction.right": string;
+  "direction.straight": string;
+  "direction.unknown": string;
+  "direction.label": string;
+  "map.sitSpots": string;
   "profiles.title": string;
   "profiles.open": string;
   /** The coverage glyph's label — it is the only thing on the card that is not a figure. */

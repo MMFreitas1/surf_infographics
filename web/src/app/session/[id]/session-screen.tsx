@@ -21,6 +21,7 @@ import {
   getBasemap,
   getCleaning,
   getMetrics,
+  getPeaks,
   getTrack,
   getWaves,
 } from "@/lib/api";
@@ -31,6 +32,7 @@ import type {
   BasemapInfo,
   CleanReport,
   SessionMetrics,
+  SessionPeaks,
   SessionTrack,
   SessionVerdict,
   WaveMetrics,
@@ -52,6 +54,8 @@ interface Loaded {
   metrics: SessionMetrics;
   /** Null when the API cannot describe a basemap. The track never depends on it (ADR-0012). */
   basemap: BasemapInfo | null;
+  /** Where the session sat still. An empty list is a normal answer, not a failure. */
+  peaks: SessionPeaks;
 }
 
 /** Mean and max heart rate over the seconds the audit calls session. */
@@ -94,12 +98,13 @@ export function SessionScreen({ activityId }: { activityId: string }) {
       getAudit(activityId),
       getTrack(activityId),
       getMetrics(activityId),
+      getPeaks(activityId),
       // The basemap is the one request allowed to fail without taking the screen with it:
       // a session with no imagery still draws its track over the designed warm grid.
       getBasemap().catch(() => null),
     ])
-      .then(([activity, waves, cleaning, audit, track, metrics, basemap]) => {
-        if (live) setData({ activity, waves, cleaning, audit, track, metrics, basemap });
+      .then(([activity, waves, cleaning, audit, track, metrics, peaks, basemap]) => {
+        if (live) setData({ activity, waves, cleaning, audit, track, metrics, peaks, basemap });
       })
       .catch((cause) => {
         if (live) setError(cause instanceof ApiError ? cause.message : String(cause));
@@ -148,6 +153,7 @@ export function SessionScreen({ activityId }: { activityId: string }) {
           basemap={data.basemap}
           apiBase={apiBase()}
           excluded={data.audit.not_surfing}
+          peaks={data.peaks.peaks}
           selected={selected}
           onSelect={setSelected}
         />

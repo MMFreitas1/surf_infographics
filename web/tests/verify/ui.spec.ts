@@ -330,17 +330,27 @@ test("the track map draws the session and plays it back", async ({ page }, testI
   await expect(page.locator(".map-card")).toBeVisible(SLOW);
   await expect(page.locator(".map-body canvas").first()).toBeVisible(SLOW);
 
-  // The legend names the two states the track draws, and carries the imagery credit the
-  // Esri licence requires. A map without it is a licence breach on screen.
+  // The legend names the states the track draws. The imagery credit is a licence condition
+  // and a map without it is a breach on screen.
   await expect(page.locator(".map-legend")).toBeVisible();
-  // The imagery credit is maplibre's own, rendered from the source's attribution field, so
-  // it appears exactly when imagery does. Required by the Esri licence.
-  await expect(page.locator(".maplibregl-ctrl-attrib")).toContainText("Esri");
+  // The credit is maplibre's own, rendered from each source's attribution field, so it
+  // appears exactly when that layer does and follows the ticks (ADR-0019, ADR-0021).
+  //
+  // It names **DGT**, not Esri. ADR-0021 moved imagery to DGT's OrtoSat 2023 under CC BY
+  // 4.0 and left Esri as the relief layer alone, which is off by default -- so this
+  // assertion went stale in #67 and this suite has been red since, unnoticed, because
+  // `make check` runs lint, typecheck, test and evals but not `verify`.
+  await expect(page.locator(".maplibregl-ctrl-attrib")).toContainText("Território");
 
   // The ribbon and the blind rail are separate rows on purpose: a wave and a blind window
   // are not alternatives. Both must actually be drawn.
   expect(await page.locator(".ribbon-wave").count()).toBeGreaterThan(0);
   expect(await page.locator(".blind-span").count()).toBeGreaterThan(0);
+
+  // Sit spots: the legend key only appears when there are peaks to key, so its presence is
+  // the cheapest honest proof that L1.5 reached the screen (the marks themselves are WebGL
+  // and not queryable from here).
+  await expect(page.locator(".key-sit")).toBeVisible();
 
   // Playback moves the clock.
   const clock = page.locator(".clock");

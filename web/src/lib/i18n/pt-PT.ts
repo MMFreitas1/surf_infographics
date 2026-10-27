@@ -115,6 +115,12 @@ export const ptPT: Messages = {
   "returns.unavailable": "uma onda só: não há regresso para medir",
 
   "section.profiles": "Perfis de onda",
+  "direction.left": "Esquerda",
+  "direction.right": "Direita",
+  "direction.straight": "Em frente",
+  "direction.unknown": "sem direção",
+  "direction.label": "direção na onda",
+  "map.sitSpots": "Pontos de espera",
   "profiles.title": "Perfis de onda",
   "profiles.open": "abrir onda",
   "profiles.signal": "cobertura de GPS",

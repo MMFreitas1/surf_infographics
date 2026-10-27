@@ -143,3 +143,83 @@ def test_the_reference_session_rides_are_physically_plausible(client, stored_ref
             assert wave["top_speed_ms"] < 15.0, f"wave {wave['index']} tops {wave['top_speed_ms']}"
         if wave["ride_m"] is not None:
             assert 0.0 <= wave["ride_m"] < 500.0
+
+
+def test_the_peaks_route_serves_the_sits_and_their_grouping(client, stored_synthetic):
+    """Its own route rather than a field on /track: a peak is a place, not a track row."""
+    body = client.get(f"/activities/{stored_synthetic}/peaks").json()
+
+    assert set(body) == {"peaks", "areas", "held_s"}
+    for peak in body["peaks"]:
+        assert set(peak) == {
+            "lat",
+            "lon",
+            "t_start",
+            "t_end",
+            "observed_s",
+            "area",
+            "duration_s",
+            "observed_fraction",
+        }
+        assert peak["observed_fraction"] >= 0.25
+        assert peak["area"] < len(body["areas"])
+
+
+def test_a_peak_never_reports_a_spread(client, stored_synthetic):
+    """The clusterer guarantees the widest member sits at its radius, so a spread would be
+    the parameter handed back as a finding (ADR-0022). There is no field for it anywhere."""
+    body = client.get(f"/activities/{stored_synthetic}/peaks").json()
+
+    for peak in body["peaks"]:
+        assert "spread_m" not in peak
+        assert "spread" not in peak
+
+
+def test_asking_for_peaks_does_not_recompute_the_frame(client, stored_synthetic, settings):
+    """Peaks hang off L1 beside L2. Fetching them must not touch a bearing (ADR-0022)."""
+    client.get(f"/activities/{stored_synthetic}/track")
+    before = sorted(p.name for p in settings.cache_dir.rglob("*") if p.is_file())
+
+    client.get(f"/activities/{stored_synthetic}/peaks")
+    client.get(f"/activities/{stored_synthetic}/track")
+    after = sorted(p.name for p in settings.cache_dir.rglob("*") if p.is_file())
+
+    assert set(before) <= set(after), "a frame entry disappeared when peaks were asked for"
+
+
+def test_peaks_for_an_unknown_activity_is_a_404(client):
+    assert client.get("/activities/nope/peaks").status_code == 404
+
+
+def test_every_wave_carries_a_direction_or_says_it_has_none(client, stored_reference):
+    """The point of Phase 6, on the one real recording there is.
+
+    Miguel labelled this session a right-hand point on 2026-10-24 and said he does not ride
+    straight. Seven rights and one wave with no direction at all is what that looks like:
+    the eighth is three seconds the watch missed entirely, so it publishes no direction
+    rather than guessing one.
+    """
+    waves = metrics(client, stored_reference)["waves"]
+    directions = [wave["direction"] for wave in waves]
+
+    assert directions.count("right") == 7
+    assert directions.count("unknown") == 1
+    assert directions.count("straight") == 0
+    assert directions.count("left") == 0
+
+    for wave in waves:
+        if wave["direction"] == "unknown":
+            assert wave["direction_confidence"] is None
+        else:
+            assert 0.0 <= wave["direction_confidence"] <= 1.0
+
+
+def test_a_direction_confidence_is_never_served_as_a_calibrated_number(client, stored_reference):
+    """It is a product of three stated factors, not a probability (ADR-0013). What this
+    pins is that the thinnest call in the session comes back *thin* rather than confident:
+    ride 11 is a right 9.1 degrees off dead-shoreward, which is real and marginal."""
+    waves = metrics(client, stored_reference)["waves"]
+    handed = [w for w in waves if w["direction_confidence"] is not None]
+
+    assert min(w["direction_confidence"] for w in handed) < 0.2
+    assert max(w["direction_confidence"] for w in handed) < 1.0

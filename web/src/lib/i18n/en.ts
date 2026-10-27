@@ -110,6 +110,12 @@ export const en: Messages = {
   "returns.unavailable": "one wave only: no paddle back to measure",
 
   "section.profiles": "Wave profiles",
+  "direction.left": "Left",
+  "direction.right": "Right",
+  "direction.straight": "Straight",
+  "direction.unknown": "no direction",
+  "direction.label": "direction along the wave",
+  "map.sitSpots": "Sit spots",
   "profiles.title": "Wave profiles",
   "profiles.open": "open wave",
   "profiles.signal": "GPS coverage",

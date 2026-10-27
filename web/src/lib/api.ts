@@ -18,6 +18,7 @@ import {
   type PassKind,
   SessionCandidates,
   SessionMetrics,
+  SessionPeaks,
   SessionTrack,
   SessionVerdict,
   StoredLabel,
@@ -98,6 +99,9 @@ export const getWaves = (id: string) => request(`/activities/${id}/waves`, Sessi
  * disagreement with it: `wave_count` is the same integer from both.
  */
 export const getMetrics = (id: string) => request(`/activities/${id}/metrics`, SessionMetrics);
+
+/** Where the session sat still. Its own route: a peak is a place, not a row of the track. */
+export const getPeaks = (id: string) => request(`/activities/${id}/peaks`, SessionPeaks);
 
 export const getLabels = (id: string, current = false) =>
   request(`/activities/${id}/labels${current ? "?current=true" : ""}`, StoredLabel.array());

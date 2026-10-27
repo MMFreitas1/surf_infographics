@@ -1116,6 +1116,46 @@ select {
   background: var(--surface-2);
   color: var(--text-muted);
 }
+/* Which way the ride went. Left and right are mirrored arrows rather than two colours,
+   because the pair is a direction and not a severity -- and because a surfer reads an arrow
+   faster than a word. The word is there too; the arrow is the ::before. */
+/* The sit-spot key: hollow, like the mark on the map, because the circle's size is the
+   clusterer's radius rather than a measured extent. */
+.key-sit {
+  border: 1.5px solid var(--amber-600);
+  background: transparent;
+  border-radius: var(--radius-full);
+}
+
+.profile-direction {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-top: 5px;
+  font-family: var(--font-mono), ui-monospace, monospace;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
+  color: var(--text-muted);
+}
+.profile-direction::before {
+  font-size: 11px;
+  line-height: 1;
+}
+.profile-direction-left::before {
+  content: "\2190";
+}
+.profile-direction-right::before {
+  content: "\2192";
+}
+.profile-direction-straight::before {
+  content: "\2191";
+}
+
 .profile-signal {
   margin-right: 3px;
   flex: none;
