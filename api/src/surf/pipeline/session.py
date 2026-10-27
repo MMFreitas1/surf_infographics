@@ -30,6 +30,7 @@ from surf.models import (
     AuditReport,
     CleanReport,
     SessionMetrics,
+    SessionPeaks,
     SessionTrack,
     SessionVerdict,
 )
@@ -37,6 +38,7 @@ from surf.pipeline.audit import AuditStage
 from surf.pipeline.cache import StageCache
 from surf.pipeline.clean import CleanedSession, CleanStage
 from surf.pipeline.l1 import KinematicsStage
+from surf.pipeline.l1_5 import PeaksInput, PeaksStage
 from surf.pipeline.l2 import FramedTrack, FrameInput, FrameStage
 from surf.pipeline.l3 import CandidateSet, CandidateStage
 from surf.pipeline.l4 import FeatureInput, FeatureSet, FeatureStage
@@ -119,6 +121,35 @@ def audit_for(
     cleaned = clean_session(activity, cache, samples_key=samples_key)
     audited = run_stage(AuditStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity)
     return audited.output, cleaned.cached and audited.cached
+
+
+def peaks_for(
+    activity: Activity, cache: StageCache, *, samples_key: str
+) -> tuple[SessionPeaks, bool]:
+    """L1.5: where this session sat still, and whether the cache produced it.
+
+    Keyed on **L1**, not on L2. Peaks hang off the smoothed track beside the frame rather
+    than in front of it: the frame does not read them, and anchoring the shore fit on a
+    clustered peak instead of the session's plain centroid moves the angle 0.62 degrees
+    against a tolerance of tens of degrees (ADR-0022). So retuning the clusterer cannot
+    invalidate a bearing, a candidate or a wave count.
+
+    The audit travels in the stage's params for ADR-0015's reason, the third place that
+    pattern appears: a peak sited in the walk up the beach is not a peak, so a different
+    audit is a different set of peaks -- but the audit changes no sample.
+    """
+    cleaned = clean_session(activity, cache, samples_key=samples_key)
+    smoothed = run_stage(
+        KinematicsStage(), cache, input_hash=cleaned.key, data=cleaned.output.activity
+    )
+    report, audit_cached = audit_for(activity, cache, samples_key=samples_key)
+    found: StageResult[SessionPeaks] = run_stage(
+        PeaksStage(audit_key=_audit_key(activity, cache, samples_key=samples_key)),
+        cache,
+        input_hash=smoothed.key,
+        data=PeaksInput(track=smoothed.output, audit=report),
+    )
+    return found.output, cleaned.cached and smoothed.cached and audit_cached and found.cached
 
 
 def cleaning_for(
