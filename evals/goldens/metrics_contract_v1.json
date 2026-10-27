@@ -103,7 +103,9 @@
         "t_end": 392.0,
         "t_start": 377.0,
         "takeoff_speed_ms": 2.25,
-        "top_speed_ms": 7.25
+        "top_speed_ms": 7.25,
+        "direction": "right",
+        "direction_confidence": 0.82
       },
       {
         "avg_speed_ms": null,
@@ -117,7 +119,9 @@
         "t_end": 692.0,
         "t_start": 683.0,
         "takeoff_speed_ms": null,
-        "top_speed_ms": null
+        "top_speed_ms": null,
+        "direction": "left",
+        "direction_confidence": 0.44
       },
       {
         "avg_speed_ms": 3.75,
@@ -131,7 +135,9 @@
         "t_end": 1033.0,
         "t_start": 1013.0,
         "takeoff_speed_ms": null,
-        "top_speed_ms": 6.5
+        "top_speed_ms": 6.5,
+        "direction": "straight",
+        "direction_confidence": 0.19
       }
     ],
     "waves_per_10min": 2.0
@@ -214,7 +220,9 @@
         "t_end": 118.0,
         "t_start": 100.0,
         "takeoff_speed_ms": 1.75,
-        "top_speed_ms": 5.5
+        "top_speed_ms": 5.5,
+        "direction": "unknown",
+        "direction_confidence": null
       }
     ],
     "waves_per_10min": 2.0

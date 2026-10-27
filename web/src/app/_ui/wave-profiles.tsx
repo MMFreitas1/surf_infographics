@@ -27,6 +27,35 @@ import { integer, kmh, percent } from "@/lib/format";
 import { useLocale, useT } from "@/lib/i18n";
 import type { SmoothedSample, WaveMetrics } from "@/lib/schema";
 
+/**
+ * Which way the ride went, where the pipeline will stand behind it.
+ *
+ * **An unknown direction renders as nothing at all**, not as a dash or a shrug. There are
+ * two ways a wave has no direction and both are honest: the watch saw under two seconds of
+ * it, or the session's frame never established which way the sea is (ADR-0022). Drawing a
+ * placeholder would make a designed silence look like a missing value.
+ *
+ * The confidence is **not** printed as a number. It is not a calibrated probability and must
+ * never be rendered as one (ADR-0013), so it only ever modulates how firmly the chip is
+ * drawn — a marginal left looks marginal. Ride 11 of the reference session is the case that
+ * matters: a right at 9.1° off dead-shoreward, which is a real call and a thin one.
+ */
+function Direction({ wave }: { wave: WaveMetrics }) {
+  const t = useT();
+  if (wave.direction === "unknown") return null;
+
+  const confidence = wave.direction_confidence ?? 0;
+  return (
+    <span
+      className={`profile-direction profile-direction-${wave.direction}`}
+      style={{ opacity: 0.45 + confidence * 0.55 }}
+      title={t("direction.label")}
+    >
+      {t(`direction.${wave.direction}`)}
+    </span>
+  );
+}
+
 /** The four bars of the coverage glyph light up at these fractions. */
 const STEPS = [0, 0.25, 0.5, 0.75];
 
@@ -106,6 +135,8 @@ function Profile({
               {percent(locale, cover)}
             </span>
           </span>
+
+          <Direction wave={wave} />
 
           <svg className="profile-track" viewBox={`0 0 ${MINI.width} ${MINI.height}`} aria-hidden>
             {paths.map((path) => (

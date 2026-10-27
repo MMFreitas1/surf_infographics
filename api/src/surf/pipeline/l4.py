@@ -30,6 +30,7 @@ this stage exactly as they do through L3 -- L5 is where a verdict is reached.
 from __future__ import annotations
 
 import json
+import math
 import statistics
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -52,10 +53,11 @@ from surf.pipeline.stage import StageMeta
 NAME = "L4"
 """Feature extraction is stage L4."""
 
-CODE_VERSION = "2"
+CODE_VERSION = "3"
 """Bump when a feature changes meaning, so cached rows are not reused under a new definition.
 
-2 -- added the speed-corroboration trio (ADR-0023)."""
+2 -- added the speed-corroboration trio (ADR-0023).
+3 -- added the alongshore pair that left and right are read from (ADR-0022)."""
 
 _COLUMNS = ("t_start", "t_end", "position_coverage")
 _FEATURES_KEY = b"surf.l4.frame"
@@ -244,10 +246,48 @@ class FeatureStage:
         }
         features.update(self._kinematics(data.framed, start, end))
         features.update(self._corroboration(data, start, end))
+        features.update(self._direction(data.framed, start, end))
         features.update(self._odometer(runs, start, end))
         features.update(self._attributed_odometer(data.samples, runs, start, end))
         features.update(self._heart_rate(data.samples, start, end))
         return features
+
+    def _direction(
+        self, framed: Sequence[FramedSample], start: float, end: float
+    ) -> dict[str, float]:
+        """Which way along the wave the rider went, and how far off straight that was.
+
+        Both come from the **mean observed velocity in the shore frame**, which is already
+        rotated: no bearing arithmetic happens here and nothing is hard-coded about left.
+        L2 defines alongshore as shoreward turned 90 degrees to the left, making the pair
+        right-handed, so positive alongshore *is* the rider's left when facing shore. The sea
+        side fixes the shoreward sign (ADR-0022) and the handedness follows from it.
+
+        A mean rather than start-to-end displacement, because a ride normally ends with the
+        wrist going under: the endpoints of a half-seen ride are whichever two seconds the
+        watch happened to catch, and averaging what it did see is the weaker assumption.
+
+        ``shoreward_offset_deg`` is how far the ride ran off dead-shoreward, in [0, 90], and
+        it is the quantity L5's successor reasons about: **it is also the rotation the shore
+        angle could be wrong by before this ride's verdict flips.** Measured on Miguel's
+        eight labelled waves it runs 9.3 to 33.8 degrees, against a frame whose two witnesses
+        disagree by 4.4 -- which is what makes a narrow straight band safe.
+
+        Absent, never zero, when the watch saw under two seconds of the ride. Zero would mean
+        "went dead straight", which is a claim about the surfing.
+        """
+        observed = [s for s in framed if start <= s.t < end and s.observed]
+        if len(observed) < 2:
+            return {}
+
+        along = statistics.fmean(s.v_along_ms for s in observed)
+        cross = statistics.fmean(s.v_cross_ms for s in observed)
+        if along == 0.0 and cross == 0.0:
+            return {}
+        return {
+            "alongshore_ms": along,
+            "shoreward_offset_deg": math.degrees(math.atan2(abs(along), abs(cross))),
+        }
 
     def _corroboration(self, data: FeatureInput, start: float, end: float) -> dict[str, float]:
         """Does the watch's own speedometer ever reach what the smoothed track claims?

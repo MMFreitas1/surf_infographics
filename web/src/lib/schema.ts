@@ -482,6 +482,16 @@ export const WaveMetrics = z.object({
   hr_mean_bpm: z.number().nullable().default(null),
   hr_max_bpm: z.number().nullable().default(null),
   duration_s: z.number(),
+  direction: RideDirection,
+  /**
+   * What the direction is worth: how far off straight the ride ran, how much of it
+   * the watch saw, and whether the shore axis had two witnesses or one.
+   *
+   * **Not a calibrated probability and must not be rendered as one** — there is one
+   * labelled session in existence (ADR-0013). `null` exactly when `direction` is
+   * `unknown`, because then there is nothing to qualify.
+   */
+  direction_confidence: z.number().min(0).max(1).nullable(),
 });
 export type WaveMetrics = z.infer<typeof WaveMetrics>;
 
@@ -555,3 +565,42 @@ export const SessionMetrics = z.object({
   wave_count: z.number().int().min(0),
 });
 export type SessionMetrics = z.infer<typeof SessionMetrics>;
+
+/**
+ * One stretch the track held still: a surfer sitting on a board, waiting.
+ *
+ * There is no `spread`. The clusterer extends a group while every member stays within its
+ * radius of the running centroid, so the widest member lands at that radius by construction —
+ * reporting it would hand a parameter back as a finding (ADR-0022).
+ */
+export const Peak = z.object({
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+  t_start: z.number(),
+  t_end: z.number(),
+  observed_s: z.number().int().min(0),
+  /** Which merged area this sit belongs to. Centroids 4–80 m apart are one sandbank. */
+  area: z.number().int().min(0),
+  duration_s: z.number(),
+  /** How much of its own span the watch saw. The floor that rejects a 170 s sit seen for 10. */
+  observed_fraction: z.number().min(0).max(1),
+});
+export type Peak = z.infer<typeof Peak>;
+
+/** Several sits that are the same place — one bank, visited repeatedly. */
+export const PeakArea = z.object({
+  lat: z.number().min(-90).max(90),
+  lon: z.number().min(-180).max(180),
+  peaks: z.number().int().min(1),
+  observed_s: z.number().int().min(0),
+  held_s: z.number().min(0),
+});
+export type PeakArea = z.infer<typeof PeakArea>;
+
+/** Where one session sat still. Keyed beside the frame, so it decides nothing. */
+export const SessionPeaks = z.object({
+  peaks: z.array(Peak),
+  areas: z.array(PeakArea),
+  held_s: z.number().min(0),
+});
+export type SessionPeaks = z.infer<typeof SessionPeaks>;

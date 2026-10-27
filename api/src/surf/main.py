@@ -37,6 +37,7 @@ from surf.models import (
     PassKind,
     SessionCandidates,
     SessionMetrics,
+    SessionPeaks,
     SessionTrack,
     SessionVerdict,
     StoredLabel,
@@ -48,6 +49,7 @@ from surf.pipeline.session import (
     candidates_for,
     cleaning_for,
     metrics_for,
+    peaks_for,
     track_for,
     waves_for,
 )
@@ -265,6 +267,36 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             from_cache=chain.cached,
         )
         return chain.track
+
+    @app.get("/activities/{activity_id}/peaks")
+    def read_peaks(request: Request, activity_id: str) -> SessionPeaks:
+        """Where this session sat still, and how those sits group into places.
+
+        Its own route rather than a field on `/track`, because a peak is not index-aligned
+        with anything: `/track` serves two row-for-row tracks and a peak is a place. Keyed on
+        L1 beside the frame, so asking for it never recomputes a bearing.
+
+        The merged **areas** are the answer to "where is the break", and the individual
+        clusters are kept beside them because a session that drifted between three sit spots
+        is a real and different thing from one that held a single peak all morning. No
+        `spread`: the clusterer guarantees the widest member sits at its radius, so reporting
+        it would hand a parameter back as a finding (ADR-0022).
+        """
+        activity = _stored_or_404(request, activity_id)
+        found, cached = peaks_for(
+            activity,
+            request.app.state.cache,
+            samples_key=_samples_key_or_404(request, activity_id),
+        )
+        log.info(
+            "peaks.served",
+            activity_id=activity_id,
+            peaks=len(found.peaks),
+            areas=len(found.areas),
+            held_s=round(found.held_s),
+            from_cache=cached,
+        )
+        return found
 
     @app.get("/activities/{activity_id}/cleaning")
     def read_cleaning(request: Request, activity_id: str) -> CleanReport:
